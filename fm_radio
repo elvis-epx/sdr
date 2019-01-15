@@ -1,0 +1,4 @@
+#!/bin/sh -x
+
+# Recepção FM
+rtl_fm -f 89.5M -M wbfm -s 256k | play -r 32k -t raw -e s -b 16 -c 1 -V1 -

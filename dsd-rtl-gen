@@ -1,0 +1,4 @@
+RTLFM="rtl_fm -M fm -f 162093200 -p -4 -g 49 -s 48000 -"
+
+mkfifo dsd-rtl.fifo
+$RTLFM | dsd -i - -w dsd-rtl.fifo -v 1000

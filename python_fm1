@@ -1,0 +1,5 @@
+#!/bin/sh -x
+
+rtl_sdr -f 89.5M -s 256k -g 49 -n 2560000 teste.raw
+cat teste.raw | ./fm1.py teste.wav
+play teste.wav

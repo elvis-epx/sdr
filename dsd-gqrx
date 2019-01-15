@@ -1,0 +1,1 @@
+socat stdout udp6-recv:7355 | dsd -i - -w ~/teste.wav -v 10 $*

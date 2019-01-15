@@ -1,0 +1,3 @@
+#!/bin/bash
+
+acarsdec -v  -p -4 -g 490 -r 0 -f 131.550 | tee ~/acars.log
