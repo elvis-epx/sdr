@@ -5,6 +5,10 @@
 import struct, math, random, sys, numpy
 import filters2 as filters
 
+optimized = len(sys.argv) > 1
+if optimized:
+	import fastmodul # Cython
+
 MAX_DEVIATION = 200000.0 # Hz
 INPUT_RATE = 256000
 OUTPUT_RATE = 32000
@@ -68,11 +72,15 @@ while True:
 	samples = len(data) // 2
 
 	# Finds angles (phase) of I/Q pairs
-	angles = [
-		math.atan2(
+	if optimized:
+		angles = fastmodul.get_angles(data)
+	else:
+		angles = [
+			math.atan2(
 			(data[n * 2 + 0] - 127.5) / 128.0, 
 			(data[n * 2 + 1] - 127.5) / 128.0
-		) for n in range(0, samples) ]
+			)
+		for n in range(0, samples) ]
 
 	# Determine phase rotation between samples
 	# (Output one element less, that's we always save last sample
