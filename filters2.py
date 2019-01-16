@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import numpy, math
+import numpy, math, sys
 from numpy import fft
 
 def fir_coefs(sample_rate, pass_lo, cutoff_lo, cutoff_hi, pass_hi):
@@ -12,11 +12,13 @@ def fir_coefs(sample_rate, pass_lo, cutoff_lo, cutoff_hi, pass_hi):
 
 	cutoff_lo /= f2s
 	pass_lo /= f2s
-	cutoff_lo /= f2s
-	pass_lo /= f2s
+	cutoff_hi /= f2s
+	pass_hi /= f2s
 
-	step_lo = 1.0 / abs(pass_lo / cutoff_lo)
-	step_hi = 1.0 / abs(pass_hi / cutoff_hi)
+	step_lo = 1.0 / abs(pass_lo - cutoff_lo)
+	step_hi = 1.0 / abs(pass_hi - cutoff_hi)
+
+	print("%f %f %f %f, %f, %f" % (pass_lo, cutoff_lo, cutoff_hi, pass_hi, step_lo, step_hi), file=sys.stderr)
 
 	# create FFT filter mask
 	l = fft_length // 2
@@ -27,9 +29,9 @@ def fir_coefs(sample_rate, pass_lo, cutoff_lo, cutoff_hi, pass_hi):
 	for f in range(0, l+1):
 		if f <= pass_lo:
 			tap = 1.0
-		elif f > pass_lo:
+		elif f > pass_lo and f < cutoff_lo:
 			tap -= step_lo # ramp down
-		elif f > cutoff_lo:
+		elif f >= cutoff_lo:
 			tap = 0.0
 		mask[f] = tap
 
@@ -37,11 +39,13 @@ def fir_coefs(sample_rate, pass_lo, cutoff_lo, cutoff_hi, pass_hi):
 	for f in range(l, -1, -1):
 		if f >= pass_hi:
 			tap = 1.0
-		elif f < pass_hi:
+		elif f < pass_hi and f > cutoff_hi:
 			tap -= step_hi # ramp down
-		elif f < cutoff_hi:
+		elif f <= cutoff_hi:
 			tap = 0.0
-		mask[f] = min(1.0, max(-1.0, mask[f] + tap ))
+		mask[f] = min(1.0, max(-1.0, mask[f] + tap))
+
+	print(mask, file=sys.stderr)
 
 	# Negative side, a mirror of positive side
 	negatives = mask[1:-1]
@@ -71,7 +75,7 @@ class filter:
 
 class lowpass(filter):
 	def __init__(self, sample_rate, f, cut):
-		self.coefs = fir_coefs(sample_rate, f, cut, -2, -1)
+		self.coefs = fir_coefs(sample_rate, f, cut, 1e100, 1e101)
 		self.buf = [ 0 for n in self.coefs ]
 
 
