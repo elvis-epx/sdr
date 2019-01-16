@@ -3,7 +3,7 @@
 # FM demodulator based on I/Q (quadrature)
 
 import struct, math, random, sys, numpy
-import filters as filters
+import filters2 as filters
 
 MAX_DEVIATION = 300000.0 # Hz
 INPUT_RATE = 256000
@@ -18,17 +18,17 @@ DEVIATION_X_SIGNAL = 0.999 / (math.pi * MAX_DEVIATION / INPUT_RATE)
 w = 2 * math.pi
 
 # Low-pass filter for mono (L+R) audio
-lo = filters.lowpass(INPUT_RATE, FM_BANDWIDTH - 1000, FM_BANDWIDTH + 1000)
+lo = filters.lowpass(INPUT_RATE, FM_BANDWIDTH - 2000, FM_BANDWIDTH + 2000)
 # Band-pass filter for stereo (L-R) modulated audio
 hi = filters.bandpass(INPUT_RATE,
-	STEREO_CARRIER - FM_BANDWIDTH - 1000, STEREO_CARRIER - FM_BANDWIDTH,
-	STEREO_CARRIER + FM_BANDWIDTH, STEREO_CARRIER + FM_BANDWIDTH + 1000)
+	STEREO_CARRIER - FM_BANDWIDTH - 2000, STEREO_CARRIER - FM_BANDWIDTH,
+	STEREO_CARRIER + FM_BANDWIDTH, STEREO_CARRIER + FM_BANDWIDTH + 2000)
 # Low-pass filter for joint-stereo demodulated audio (L-R)
-lo_r = filters.lowpass(INPUT_RATE, FM_BANDWIDTH - 1000, FM_BANDWIDTH + 1000)
+lo_r = filters.lowpass(INPUT_RATE, FM_BANDWIDTH - 2000, FM_BANDWIDTH + 2000)
 # Filter to extract pilot signal
 pilot = filters.bandpass(INPUT_RATE,
-	STEREO_CARRIER / 2 - 100, STEREO_CARRIER / 2 - 25,
-	STEREO_CARRIER / 2 + 25, STEREO_CARRIER / 2 + 100)
+	STEREO_CARRIER / 2 - 1000, STEREO_CARRIER / 2 - 100,
+	STEREO_CARRIER / 2 + 100, STEREO_CARRIER / 2 + 1000)
 
 last_angle = 0.0
 remaining_data = b''

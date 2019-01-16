@@ -4,46 +4,60 @@ import numpy, math, sys
 from numpy import fft
 
 def fir_coefs(sample_rate, pass_lo, cutoff_lo, cutoff_hi, pass_hi):
-	assert cutoff_lo > pass_lo
-	assert pass_hi > cutoff_hi
+	assert pass_lo is None or cutoff_lo > pass_lo
+	assert pass_hi is None or pass_hi > cutoff_hi
 	nyquist_rate = sample_rate / 2.0
-	fft_length = 1024
+	fft_length = 60
+	if cutoff_lo is not None:
+		trans = cutoff_lo - pass_lo
+	else:
+		trans = 1
+	if cutoff_hi is not None:
+		trans = max(trans, pass_hi - cutoff_hi)
+	bt = max(trans, 1) / sample_rate
+	fft_length /= 22 * bt
+	fft_length = int(fft_length / 2) * 2
+	print("Taps: %d" % fft_length, file=sys.stderr)
 	f2s = nyquist_rate / (fft_length / 2.0)
 
-	cutoff_lo /= f2s
-	pass_lo /= f2s
-	cutoff_hi /= f2s
-	pass_hi /= f2s
+	if cutoff_lo is not None:
+		cutoff_lo /= f2s
+		pass_lo /= f2s
+		step_lo = 1.0 / -(pass_lo - cutoff_lo)
+		print("lo %f %f %f" % (pass_lo, cutoff_lo, step_lo), file=sys.stderr)
 
-	step_lo = 1.0 / abs(pass_lo - cutoff_lo)
-	step_hi = 1.0 / abs(pass_hi - cutoff_hi)
-
-	print("%f %f %f %f, %f, %f" % (pass_lo, cutoff_lo, cutoff_hi, pass_hi, step_lo, step_hi), file=sys.stderr)
+	if cutoff_hi is not None:
+		cutoff_hi /= f2s
+		pass_hi /= f2s
+		step_hi = 1.0 / (pass_hi - cutoff_hi)
+		print("hi %f %f %f" % (pass_hi, cutoff_hi, step_hi), file=sys.stderr)
 
 	# create FFT filter mask
 	l = fft_length // 2
 	mask = [ 0 for f in range(0, l+1) ]
 	
-	# Low-pass filter part
-	tap = 0.0
-	for f in range(0, l+1):
-		if f <= pass_lo:
-			tap = 1.0
-		elif f > pass_lo and f < cutoff_lo:
-			tap -= step_lo # ramp down
-		elif f >= cutoff_lo:
-			tap = 0.0
-		mask[f] = tap
+	if pass_lo is not None:
+		# Low-pass filter part
+		tap = 0.0
+		for f in range(0, l+1):
+			if f <= pass_lo:
+				tap = 1.0
+			elif f > pass_lo and f < cutoff_lo:
+				tap -= step_lo # ramp down
+			elif f >= cutoff_lo:
+				tap = 0.0
+			mask[f] = tap
 
-	tap = 0.0
-	for f in range(l, -1, -1):
-		if f >= pass_hi:
-			tap = 1.0
-		elif f < pass_hi and f > cutoff_hi:
-			tap -= step_hi # ramp down
-		elif f <= cutoff_hi:
-			tap = 0.0
-		mask[f] = min(1.0, max(-1.0, mask[f] + tap))
+	if pass_hi is not None:
+		tap = 0.0
+		for f in range(l, -1, -1):
+			if f >= pass_hi:
+				tap = 1.0
+			elif f < pass_hi and f > cutoff_hi:
+				tap -= step_hi # ramp down
+			elif f <= cutoff_hi:
+				tap = 0.0
+			mask[f] *= tap
 
 	print(mask, file=sys.stderr)
 
@@ -75,13 +89,13 @@ class filter:
 
 class lowpass(filter):
 	def __init__(self, sample_rate, f, cut):
-		self.coefs = fir_coefs(sample_rate, f, cut, 1e100, 1e101)
+		self.coefs = fir_coefs(sample_rate, f, cut, None, None)
 		self.buf = [ 0 for n in self.coefs ]
 
 
 class highpass(filter):
 	def __init__(self, sample_rate, cut, f):
-		self.coefs = fir_coefs(sample_rate, 1e100, 1e101, cut, f)
+		self.coefs = fir_coefs(sample_rate, None, None, cut, f)
 		self.buf = [ 0 for n in self.coefs ]
 
 class bandpass(filter):
