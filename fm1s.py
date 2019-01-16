@@ -2,8 +2,7 @@
 
 # FM demodulator based on I/Q (quadrature)
 
-import struct, math, random, sys, numpy
-import filters2 as filters
+import struct, math, random, sys, numpy, filters
 
 optimized = len(sys.argv) > 1
 if optimized:
