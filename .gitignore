@@ -1,2 +1,4 @@
 teste.*
 __pycache__/
+*.c
+*.so

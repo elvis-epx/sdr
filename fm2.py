@@ -4,6 +4,7 @@
 
 import struct, math, random, sys, numpy
 import filters2 as filters
+import fastmodul # Cython
 
 MAX_DEVIATION = 300000.0 # Hz
 INPUT_RATE = 240000
@@ -66,11 +67,7 @@ while True:
 	samples = len(data) // 2
 
 	# Finds angles (phase) of I/Q pairs
-	angles = [
-		math.atan2(
-			(data[n * 2 + 0] - 127.5) / 128.0, 
-			(data[n * 2 + 1] - 127.5) / 128.0
-		) for n in range(0, samples) ]
+	angles = fastmodul.get_angles(data)
 
 	# Determine phase rotation between samples
 	# (Output one element less, that's we always save last sample
@@ -155,17 +152,16 @@ while True:
 
 	assert len(output_jstereo) == len(output_mono)
 
-	output = []
-	# Output stereo by adding or subtracting joint-stereo to mono
-	for n in range(0, len(output_mono)):
-		# Left = (Left + Right) + (Left - Right)
-		# Righ = (Left + Right) - (Left - Right)
-		mono = output_mono[n]
-		jst = output_jstereo[n]
-		left = mono + jst
-		right = mono - jst
-		output.append(max(-1, min(1, left / 2)))
-		output.append(max(-1, min(1, right / 2)))
+	# Scale to 16-bit and divide by 2 for channel sum
+	output_mono = numpy.multiply(output_mono, 32767 / 2.0)
+	output_jstereo = numpy.multiply(output_jstereo, 32767 / 2.0)
 
-	sys.stdout.buffer.write(struct.pack(('<%dh' % len(output)),
-		*[ int(o * 32767) for o in output ] ))
+	# Output stereo by adding or subtracting joint-stereo to mono
+	output_left = output_mono + output_jstereo
+	output_right = output_mono - output_jstereo
+
+	output = numpy.empty(len(output_mono) * 2, dtype=output_mono.dtype)
+	output[0::2] = output_left
+	output[1::2] = output_right
+	output = output.astype(int)
+	sys.stdout.buffer.write(struct.pack('<%dh' % len(output), *output))

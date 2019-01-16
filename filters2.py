@@ -162,13 +162,17 @@ class decimator(filter):
 		self.buf = [ 0 for n in self.coefs ]
 		self.buf2 = []
 		self.factor = factor
-		self.decimator = 0
 
 	def feed(self, original):
 		# low-pass phase (moving average)
 		filtered = filter.feed(self, original)
-		decimated = self.buf2 + \
-			[ filtered[ self.factor * i ] \
-				for i in range(0, len(filtered) // self.factor) ]
-		self.buf2 = filtered[-len(filtered) % self.factor]
+		filtered = numpy.concatenate((self.buf2, filtered))
+
+		# Gets the last n-th sample of every n (n = factor)
+		# If e.g. gets 12 samples, gets s[4] and s[9], and
+		# stoves s[10:] to the next round
+		decimated = [ filtered[ self.factor * i + self.factor - 1 ] \
+			for i in range(0, len(filtered) // self.factor) ]
+		self.buf2 = filtered[:-len(filtered) % self.factor]
+
 		return decimated

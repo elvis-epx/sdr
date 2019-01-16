@@ -4,7 +4,7 @@
 import struct, numpy, sys, math
 
 MAX_DEVIATION = 300000 # Hz
-INPUT_RATE = 256000
+INPUT_RATE = 240000
 DEVIATION_X_SIGNAL = 0.99 / (math.pi * MAX_DEVIATION / INPUT_RATE)
 
 remaining_data = b''
@@ -57,6 +57,6 @@ while True:
 	# (result may be noisy)
 
 	# Output as raw 16-bit, 1 channel audio
-	bits = struct.pack(('%dh' % len(output_raw)), *output_raw)
+	bits = struct.pack(('<%dh' % len(output_raw)), *output_raw)
 
 	sys.stdout.buffer.write(bits)
