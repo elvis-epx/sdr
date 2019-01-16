@@ -7,6 +7,7 @@ import filters2 as filters
 
 MAX_DEVIATION = 300000.0 # Hz
 INPUT_RATE = 256000
+OUTPUT_RATE = 48000
 
 FM_BANDWIDTH = 15000 # Hz
 STEREO_CARRIER = 38000 # Hz
@@ -17,11 +18,17 @@ last_deviation_avg = deviation_avg
 DEVIATION_X_SIGNAL = 0.999 / (math.pi * MAX_DEVIATION / INPUT_RATE)
 w = 2 * math.pi
 
+# Downsample mono audio
+downsample1 = filters.decimator(5)
+
 # Deemph + Low-pass filter for mono (L+R) audio
-lo = filters.deemph(INPUT_RATE, 75, FM_BANDWIDTH, FM_BANDWIDTH + 1000)
+lo = filters.deemph(OUTPUT_RATE, 75, FM_BANDWIDTH, FM_BANDWIDTH + 1000)
+
+# Downsample jstereo audio
+downsample2 = filters.decimator(5)
 
 # Deemph + Low-pass filter for joint-stereo demodulated audio (L-R)
-lo_r = filters.deemph(INPUT_RATE, 75, FM_BANDWIDTH, FM_BANDWIDTH + 1000)
+lo_r = filters.deemph(OUTPUT_RATE, 75, FM_BANDWIDTH, FM_BANDWIDTH + 1000)
 
 # Band-pass filter for stereo (L-R) modulated audio
 hi = filters.bandpass(INPUT_RATE,
@@ -77,8 +84,10 @@ while True:
 	# L+R (mono-compatible) and L-R (joint-stereo) modulated in AM-SC,
 	# carrier 38kHz
 
-	# Extract L+R (mono) signal by low-pass filtering raw at 15kHz
-	output_mono = lo.feed(output_raw)
+	
+	# Downsample and low-pass L+R (mono) signal
+	output_mono = downsample1.feed(output_raw)
+	output_mono = lo.feed(output_mono)
 
 	# Filter pilot tone
 	detected_pilot = pilot.feed(output_raw)
@@ -137,8 +146,10 @@ while True:
 			STEREO_CARRIER))
 		'''
 	
-	# Low-pass demodulated L-R to remove artifacts
+	# Downsample, Low-pass/deemphasis demodulated L-R
+	output_jstereo = downsample2.feed(output_jstereo)
 	output_jstereo = lo_r.feed(output_jstereo)
+
 	assert len(output_jstereo) == len(output_mono)
 
 	output = []

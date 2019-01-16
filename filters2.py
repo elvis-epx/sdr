@@ -141,7 +141,6 @@ class lowpass(filter):
 		self.coefs = fir_coefs(sample_rate, f, cut, None, None)
 		self.buf = [ 0 for n in self.coefs ]
 
-
 class highpass(filter):
 	def __init__(self, sample_rate, cut, f):
 		self.coefs = fir_coefs(sample_rate, None, None, cut, f)
@@ -156,3 +155,20 @@ class deemph(filter):
 	def __init__(self, sample_rate, us, hi, hi_cut):
 		self.coefs = deemph_coefs(sample_rate, us, hi, hi_cut)
 		self.buf = [ 0 for n in self.coefs ]
+
+class decimator(filter):
+	def __init__(self, factor):
+		self.coefs = [ 1.0 / factor for n in range(0, factor) ]
+		self.buf = [ 0 for n in self.coefs ]
+		self.buf2 = []
+		self.factor = factor
+		self.decimator = 0
+
+	def feed(self, original):
+		# low-pass phase (moving average)
+		filtered = filter.feed(self, original)
+		decimated = self.buf2 + \
+			[ filtered[ self.factor * i ] \
+				for i in range(0, len(filtered) // self.factor) ]
+		self.buf2 = filtered[-len(filtered) % self.factor]
+		return decimated
