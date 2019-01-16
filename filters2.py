@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import numpy, math, sys
+import numpy, math, sys, time
 from numpy import fft
 
 def impulse(mask):
@@ -32,7 +32,7 @@ def fir_coefs(sample_rate, pass_lo, cutoff_lo, cutoff_hi, pass_hi):
 		trans = 1
 
 	if cutoff_hi is not None:
-		trans = max(trans, pass_hi - cutoff_hi)
+		trans = min(trans, pass_hi - cutoff_hi)
 
 	bt = max(trans, 1) / sample_rate
 	tap_count = 60 # dB attenuation
@@ -82,6 +82,49 @@ def fir_coefs(sample_rate, pass_lo, cutoff_lo, cutoff_hi, pass_hi):
 
 	return impulse(mask)
 
+def deemph_coefs(sample_rate, us, hi, hi_cut):
+	max_freq = sample_rate / 2.0
+
+	us /= 1000000
+	# us = RC constant of the hypothetical filter
+	lo = 1.0 / (2 * math.pi * us)
+	assert hi > lo
+	assert hi_cut > hi
+
+	trans = min(hi_cut - hi, hi - lo, lo)
+
+	bt = max(trans, 1) / sample_rate
+	tap_count = 60 # dB attenuation
+	tap_count /= 22 * bt
+	tap_count = int(tap_count / 2) * 2
+	print("Deemph taps: %d" % tap_count, file=sys.stderr)
+
+	f2s = max_freq / (tap_count / 2.0)
+	lo /= f2s
+	hi /= f2s
+	hi_cut /= f2s
+	step_lohi = (10 ** 1) ** (1.0 / (hi - lo)) # 10dB
+	step_hicut = (10 ** 5) ** (1.0 / (hi_cut - hi)) # 50dB
+
+	# create FFT filter mask
+	l = tap_count // 2
+	mask = [ 0 for f in range(0, l+1) ]
+	
+	tap = 1.0
+	for f in range(0, l+1):
+		if f <= lo:
+			tap = 1
+		elif f >= lo and f <= hi:
+			tap /= step_lohi
+		elif f >= hi and f < hi_cut:
+			tap /= step_hicut
+		else:
+			tap = 0
+		mask[f] = tap
+	print(mask, file=sys.stderr)
+
+	return impulse(mask)
+
 class filter:
 	def __init__(self, sample_rate, cutoff):
 		raise "Abstract"
@@ -107,4 +150,9 @@ class highpass(filter):
 class bandpass(filter):
 	def __init__(self, sample_rate, cut_f1, f1, f2, cut_f2):
 		self.coefs = fir_coefs(sample_rate, f2, cut_f2, cut_f1, f1)
+		self.buf = [ 0 for n in self.coefs ]
+
+class deemph(filter):
+	def __init__(self, sample_rate, us, hi, hi_cut):
+		self.coefs = deemph_coefs(sample_rate, us, hi, hi_cut)
 		self.buf = [ 0 for n in self.coefs ]

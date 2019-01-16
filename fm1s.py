@@ -17,14 +17,17 @@ last_deviation_avg = deviation_avg
 DEVIATION_X_SIGNAL = 0.999 / (math.pi * MAX_DEVIATION / INPUT_RATE)
 w = 2 * math.pi
 
-# Low-pass filter for mono (L+R) audio
-lo = filters.lowpass(INPUT_RATE, FM_BANDWIDTH - 2000, FM_BANDWIDTH + 2000)
+# Deemph + Low-pass filter for mono (L+R) audio
+lo = filters.deemph(INPUT_RATE, 75, FM_BANDWIDTH, FM_BANDWIDTH + 1000)
+
+# Deemph + Low-pass filter for joint-stereo demodulated audio (L-R)
+lo_r = filters.deemph(INPUT_RATE, 75, FM_BANDWIDTH, FM_BANDWIDTH + 1000)
+
 # Band-pass filter for stereo (L-R) modulated audio
 hi = filters.bandpass(INPUT_RATE,
 	STEREO_CARRIER - FM_BANDWIDTH - 2000, STEREO_CARRIER - FM_BANDWIDTH,
 	STEREO_CARRIER + FM_BANDWIDTH, STEREO_CARRIER + FM_BANDWIDTH + 2000)
-# Low-pass filter for joint-stereo demodulated audio (L-R)
-lo_r = filters.lowpass(INPUT_RATE, FM_BANDWIDTH - 2000, FM_BANDWIDTH + 2000)
+
 # Filter to extract pilot signal
 pilot = filters.bandpass(INPUT_RATE,
 	STEREO_CARRIER / 2 - 1000, STEREO_CARRIER / 2 - 100,
