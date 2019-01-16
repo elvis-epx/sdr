@@ -104,59 +104,71 @@ while True:
 	# Filter pilot tone
 	detected_pilot = pilot.feed(output_raw)
 
-	# Separate modulated L-R signal by high-pass filtering
+	# Separate ultrasonic L-R signal by high-pass filtering
 	output_jstereo_mod = hi.feed(output_raw)
 
-	# Demodulate L-R
-	output_jstereo = []
+	# Demodulate L-R, which is AM-SC with 53kHz carrier
 
-	for n in range(0, len(output_jstereo_mod)):
-		# Advance carrier
-		pll = (pll + w * STEREO_CARRIER / INPUT_RATE) % w
+	if optimized:
+		output_jstereo, pll, STEREO_CARRIER, \
+		last_pilot, deviation_avg, last_deviation_avg = \
+			fastmodul.demod_stereo(output_jstereo_mod,
+						pll,
+						STEREO_CARRIER,
+						INPUT_RATE,
+						detected_pilot,
+						last_pilot,
+						deviation_avg,
+						last_deviation_avg)
+	else:
+		output_jstereo = []
 
-		while pll > w:
-			pll -= w
-
-		# Standard demodulation
-		output_jstereo.append(math.cos(pll) * output_jstereo_mod[n])
-
-		# Detect pilot zero-crossing
-		cur_pilot = detected_pilot[n]
-		zero_crossed = (cur_pilot * last_pilot) <= 0
-		last_pilot = cur_pilot
-		if not zero_crossed:
-			continue
-
-		# When pilot is at 90º or 270º, carrier should be around 180º
-		# t=0    => cos(t) = 1,  cos(2t) = 1
-		# t=π/2  => cos(t) = 0,  cos(2t) = -1
-		# t=π    => cos(t) = -1, cos(2t) = 1
-		# t=-π/2 => cos(t) = 0,  cos(2t) = -1
-		ideal = math.pi
-		deviation = pll - ideal
-		if deviation > math.pi:
-			# 350º => -10º
-			deviation -= w
-		deviation_avg = 0.99 * deviation_avg + 0.01 * deviation
-		rotation = deviation_avg - last_deviation_avg
-		last_deviation_avg = deviation_avg
-
-		if abs(deviation_avg) > math.pi / 8:
-			# big phase deviation, reset PLL
-			# print("Resetting PLL")
-			pll = ideal
+		for n in range(0, len(output_jstereo_mod)):
+			# Advance carrier
 			pll = (pll + w * STEREO_CARRIER / INPUT_RATE) % w
-			deviation_avg = 0.0
-			last_deviation_avg = 0.0
-		
-		STEREO_CARRIER -= rotation * 200
-		'''
-		print("%d deviationavg=%f rotation=%f freq=%f" %
-			(n,
-			deviation_avg * 180 / math.pi,
-			rotation * 180 / math.pi,
-			STEREO_CARRIER))
-		'''
+
+			# Standard demodulation
+			output_jstereo.append(math.cos(pll) * output_jstereo_mod[n])
+	
+			############ Carrier PLL #################
+
+			# Detect pilot zero-crossing
+			cur_pilot = detected_pilot[n]
+			zero_crossed = (cur_pilot * last_pilot) <= 0
+			last_pilot = cur_pilot
+			if not zero_crossed:
+				continue
+	
+			# When pilot is at 90º or 270º, carrier should be around 180º
+			# t=0    => cos(t) = 1,  cos(2t) = 1
+			# t=π/2  => cos(t) = 0,  cos(2t) = -1
+			# t=π    => cos(t) = -1, cos(2t) = 1
+			# t=-π/2 => cos(t) = 0,  cos(2t) = -1
+			ideal = math.pi
+			deviation = pll - ideal
+			if deviation > math.pi:
+				# 350º => -10º
+				deviation -= w
+			deviation_avg = 0.99 * deviation_avg + 0.01 * deviation
+			rotation = deviation_avg - last_deviation_avg
+			last_deviation_avg = deviation_avg
+	
+			if abs(deviation_avg) > math.pi / 8:
+				# big phase deviation, reset PLL
+				# print("Resetting PLL")
+				pll = ideal
+				pll = (pll + w * STEREO_CARRIER / INPUT_RATE) % w
+				deviation_avg = 0.0
+				last_deviation_avg = 0.0
+			
+			STEREO_CARRIER -= rotation * 200
+			'''
+			print("%d deviationavg=%f rotation=%f freq=%f" %
+				(n,
+				deviation_avg * 180 / math.pi,
+				rotation * 180 / math.pi,
+				STEREO_CARRIER))
+			'''
 	
 	# Downsample, Low-pass/deemphasis demodulated L-R
 	output_jstereo = lo_r.feed(output_jstereo)

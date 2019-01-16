@@ -38,7 +38,7 @@ def fir_coefs(sample_rate, pass_lo, cutoff_lo, cutoff_hi, pass_hi):
 	tap_count = 60 # dB attenuation
 	tap_count /= 22 * bt
 	tap_count = int(tap_count / 2) * 2
-	print("Taps: %d" % tap_count, file=sys.stderr)
+	# print("Taps: %d" % tap_count, file=sys.stderr)
 
 	f2s = max_freq / (tap_count / 2.0)
 
@@ -46,7 +46,7 @@ def fir_coefs(sample_rate, pass_lo, cutoff_lo, cutoff_hi, pass_hi):
 		cutoff_lo /= f2s
 		pass_lo /= f2s
 		step_lo = 1.0 / -(pass_lo - cutoff_lo)
-		print("lo %f %f %f" % (pass_lo, cutoff_lo, step_lo), file=sys.stderr)
+		# print("lo %f %f %f" % (pass_lo, cutoff_lo, step_lo), file=sys.stderr)
 
 	if cutoff_hi is not None:
 		cutoff_hi /= f2s
@@ -97,7 +97,7 @@ def deemph_coefs(sample_rate, us, hi, hi_cut):
 	tap_count = 60 # dB attenuation
 	tap_count /= 22 * bt
 	tap_count = int(tap_count / 2) * 2
-	print("Deemph taps: %d" % tap_count, file=sys.stderr)
+	# print("Deemph taps: %d" % tap_count, file=sys.stderr)
 
 	f2s = max_freq / (tap_count / 2.0)
 	lo /= f2s
@@ -121,7 +121,7 @@ def deemph_coefs(sample_rate, us, hi, hi_cut):
 		else:
 			tap = 0
 		mask[f] = tap
-	print(mask, file=sys.stderr)
+	# print(mask, file=sys.stderr)
 
 	return impulse(mask)
 
