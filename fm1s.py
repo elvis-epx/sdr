@@ -5,7 +5,7 @@
 import struct, math, random, sys, numpy
 import filters2 as filters
 
-MAX_DEVIATION = 300000.0 # Hz
+MAX_DEVIATION = 200000.0 # Hz
 INPUT_RATE = 256000
 OUTPUT_RATE = 32000
 DECIMATION = INPUT_RATE / OUTPUT_RATE
@@ -13,7 +13,7 @@ assert DECIMATION == math.floor(DECIMATION)
 
 FM_BANDWIDTH = 15000 # Hz
 STEREO_CARRIER = 38000 # Hz
-DEVIATION_X_SIGNAL = 0.999 / (math.pi * MAX_DEVIATION / INPUT_RATE)
+DEVIATION_X_SIGNAL = 0.999 / (math.pi * MAX_DEVIATION / (INPUT_RATE / 2))
 
 pll = math.pi - random.random() * 2 * math.pi
 last_pilot = 0.0
@@ -25,13 +25,13 @@ w = 2 * math.pi
 decimate1 = filters.decimator(DECIMATION)
 
 # Deemph + Low-pass filter for mono (L+R) audio
-lo = filters.deemph(OUTPUT_RATE, 75, FM_BANDWIDTH - 1000, FM_BANDWIDTH)
+lo = filters.deemph(INPUT_RATE, 75, FM_BANDWIDTH, FM_BANDWIDTH + 2000)
 
 # Downsample jstereo audio
 decimate2 = filters.decimator(DECIMATION)
 
 # Deemph + Low-pass filter for joint-stereo demodulated audio (L-R)
-lo_r = filters.deemph(OUTPUT_RATE, 75, FM_BANDWIDTH - 1000, FM_BANDWIDTH)
+lo_r = filters.deemph(INPUT_RATE, 75, FM_BANDWIDTH, FM_BANDWIDTH + 2000)
 
 # Band-pass filter for stereo (L-R) modulated audio
 hi = filters.bandpass(INPUT_RATE,

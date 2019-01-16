@@ -26,13 +26,13 @@ w = 2 * math.pi
 decimate1 = filters.decimator(DECIMATION)
 
 # Deemph + Low-pass filter for mono (L+R) audio
-lo = filters.deemph(OUTPUT_RATE, 75, FM_BANDWIDTH, FM_BANDWIDTH + 1000)
+lo = filters.deemph(INPUT_RATE, 75, FM_BANDWIDTH, FM_BANDWIDTH + 2000)
 
 # Downsample jstereo audio
 decimate2 = filters.decimator(DECIMATION)
 
 # Deemph + Low-pass filter for joint-stereo demodulated audio (L-R)
-lo_r = filters.deemph(OUTPUT_RATE, 75, FM_BANDWIDTH, FM_BANDWIDTH + 1000)
+lo_r = filters.deemph(INPUT_RATE, 75, FM_BANDWIDTH, FM_BANDWIDTH + 2000)
 
 # Band-pass filter for stereo (L-R) modulated audio
 hi = filters.bandpass(INPUT_RATE,
@@ -162,8 +162,10 @@ while True:
 	output_left = output_mono + output_jstereo
 	output_right = output_mono - output_jstereo
 
+	# Interleave L and R samples using NumPy trickery
 	output = numpy.empty(len(output_mono) * 2, dtype=output_mono.dtype)
 	output[0::2] = output_left
 	output[1::2] = output_right
 	output = output.astype(int)
+
 	sys.stdout.buffer.write(struct.pack('<%dh' % len(output), *output))

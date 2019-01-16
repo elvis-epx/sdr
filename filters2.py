@@ -104,7 +104,7 @@ def deemph_coefs(sample_rate, us, hi, hi_cut):
 	hi /= f2s
 	hi_cut /= f2s
 	step_lohi = (10 ** 1) ** (1.0 / (hi - lo)) # 10dB
-	step_hicut = (10 ** 5) ** (1.0 / (hi_cut - hi)) # 50dB
+	step_hicut = (10 ** 1) ** (1.0 / (hi_cut - hi))
 
 	# create FFT filter mask
 	l = tap_count // 2
