@@ -158,21 +158,17 @@ class deemph(filter):
 
 class decimator(filter):
 	def __init__(self, factor):
-		self.coefs = [ 1.0 / factor for n in range(0, factor) ]
-		self.buf = [ 0 for n in self.coefs ]
 		self.buf2 = []
 		self.factor = factor
 
 	def feed(self, original):
-		# low-pass phase (moving average)
-		filtered = filter.feed(self, original)
-		filtered = numpy.concatenate((self.buf2, filtered))
+		original = numpy.concatenate((self.buf2, original))
 
 		# Gets the last n-th sample of every n (n = factor)
 		# If e.g. gets 12 samples, gets s[4] and s[9], and
 		# stoves s[10:] to the next round
-		decimated = [ filtered[ self.factor * i + self.factor - 1 ] \
-			for i in range(0, len(filtered) // self.factor) ]
-		self.buf2 = filtered[:-len(filtered) % self.factor]
+		decimated = [ original[ self.factor * i + self.factor - 1 ] \
+			for i in range(0, len(original) // self.factor) ]
+		self.buf2 = original[:-len(original) % self.factor]
 
 		return decimated
