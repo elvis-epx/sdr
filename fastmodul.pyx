@@ -4,19 +4,20 @@ import math
 
 w = 2 * math.pi
 
-def get_angles(samples):
+def get_angles(samples, int count):
 	# Finds angles (phase) of I/Q pairs
 	return [
 		math.atan2(
-			(int(samples[n * 2 + 0]) - 127.5) / 128.0, 
-			(int(samples[n * 2 + 1]) - 127.5) / 128.0
-		) for n in range(0, len(samples) // 2) ]
+			(int(samples[n * 2 + 1]) - 127.5) / 128.0, 
+			(int(samples[n * 2 + 0]) - 127.5) / 128.0
+		) for n in range(0, count) ]
 
 
-def demod_stereo(output_jstereo_mod, pll, STEREO_CARRIER, INPUT_RATE, detected_pilot,
-					last_pilot, deviation_avg, last_deviation_avg):
+def demod_stereo(output_jstereo_mod, pll, STEREO_CARRIER,
+		INPUT_RATE, detected_pilot, last_pilot,
+		deviation_avg, last_deviation_avg):
 
-	output_jstereo = [ 0 for i in range(0, len(output_jstereo_mod)) ]
+	output_jstereo = [ 0.0 for i in range(0, len(output_jstereo_mod)) ]
 
 	for n in range(0, len(output_jstereo_mod)):
 		# Advance carrier

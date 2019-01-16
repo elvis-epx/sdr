@@ -33,8 +33,8 @@ while True:
 	# Finds angles (phase) of I/Q pairs
 	angles = [
 		math.atan2(
-			(data[n * 2 + 0] - 127.5) / 128.0, 
-			(data[n * 2 + 1] - 127.5) / 128.0
+			(data[n * 2 + 1] - 127.5) / 128.0, 
+			(data[n * 2 + 0] - 127.5) / 128.0
 		) for n in range(0, samples) ]
 
 	# Determine phase rotation between samples
