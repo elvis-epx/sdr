@@ -53,17 +53,17 @@ class filter:
 		return filtered[1:]
 
 class lowpass(filter):
-	def __init__(self, sample_rate, cutoff):
+	def __init__(self, sample_rate, cutoff, dummy):
 		self.coefs = fir_coefs(sample_rate, 0, cutoff)
 		self.buf = [ 0 for n in self.coefs ]
 
 
 class highpass(filter):
-	def __init__(self, sample_rate, cutoff):
+	def __init__(self, sample_rate, cutoff, dummy):
 		self.coefs = fir_coefs(sample_rate, cutoff, 99999999999)
 		self.buf = [ 0 for n in self.coefs ]
 
 class bandpass(filter):
-	def __init__(self, sample_rate, cutoff1, cutoff2):
+	def __init__(self, sample_rate, cutoff1, dummy, dummy2, cutoff2):
 		self.coefs = fir_coefs(sample_rate, cutoff1, cutoff2)
 		self.buf = [ 0 for n in self.coefs ]

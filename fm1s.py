@@ -2,15 +2,11 @@
 
 # FM demodulator based on I/Q (quadrature)
 
-import wave, struct, math, random, sys, filters, numpy
+import struct, math, random, sys, numpy
+import filters as filters
 
 MAX_DEVIATION = 300000.0 # Hz
 INPUT_RATE = 256000
-
-demod = wave.open("teste.wav", "w")
-demod.setnchannels(2)
-demod.setsampwidth(2)
-demod.setframerate(INPUT_RATE)
 
 FM_BANDWIDTH = 15000 # Hz
 STEREO_CARRIER = 38000 # Hz
@@ -22,13 +18,17 @@ DEVIATION_X_SIGNAL = 0.999 / (math.pi * MAX_DEVIATION / INPUT_RATE)
 w = 2 * math.pi
 
 # Low-pass filter for mono (L+R) audio
-lo = filters.lowpass(INPUT_RATE, FM_BANDWIDTH)
+lo = filters.lowpass(INPUT_RATE, FM_BANDWIDTH - 1000, FM_BANDWIDTH + 1000)
 # Band-pass filter for stereo (L-R) modulated audio
-hi = filters.bandpass(INPUT_RATE, STEREO_CARRIER - FM_BANDWIDTH, STEREO_CARRIER + FM_BANDWIDTH)
+hi = filters.bandpass(INPUT_RATE,
+	STEREO_CARRIER - FM_BANDWIDTH - 1000, STEREO_CARRIER - FM_BANDWIDTH,
+	STEREO_CARRIER + FM_BANDWIDTH, STEREO_CARRIER + FM_BANDWIDTH + 1000)
 # Low-pass filter for joint-stereo demodulated audio (L-R)
-lo_r = filters.lowpass(INPUT_RATE, FM_BANDWIDTH)
+lo_r = filters.lowpass(INPUT_RATE, FM_BANDWIDTH - 1000, FM_BANDWIDTH + 1000)
 # Filter to extract pilot signal
-pilot = filters.bandpass(INPUT_RATE, STEREO_CARRIER / 2 - 50, STEREO_CARRIER / 2 + 50)
+pilot = filters.bandpass(INPUT_RATE,
+	STEREO_CARRIER / 2 - 100, STEREO_CARRIER / 2 - 25,
+	STEREO_CARRIER / 2 + 25, STEREO_CARRIER / 2 + 100)
 
 last_angle = 0.0
 remaining_data = b''
@@ -138,15 +138,17 @@ while True:
 	output_jstereo = lo_r.feed(output_jstereo)
 	assert len(output_jstereo) == len(output_mono)
 
-	output_samples = []
+	output = []
 	# Output stereo by adding or subtracting joint-stereo to mono
 	for n in range(0, len(output_mono)):
 		# Left = (Left + Right) + (Left - Right)
-		output_samples.append((output_mono[n] + output_jstereo[n]) / 2)
-		# Right = (Left + Right) - (Left - Right)
-		output_samples.append((output_mono[n] - output_jstereo[n]) / 2)
-		# output_samples.append(min(1, max(output_jstereo[n], -1)))
-		# output_samples.append(min(1, max(output_mono[n], -1))) 
+		# Righ = (Left + Right) - (Left - Right)
+		mono = output_mono[n]
+		jst = output_jstereo[n]
+		left = mono + jst
+		right = mono - jst
+		output.append(max(-1, min(1, left / 2)))
+		output.append(max(-1, min(1, right / 2)))
 
-	output_samples = [ int(o * 32767) for o in output_samples ]
-	demod.writeframes(struct.pack(('%dh' % len(output_samples)), *output_samples))
+	sys.stdout.buffer.write(struct.pack(('%dh' % len(output)),
+		*[ int(o * 32767) for o in output ] ))
