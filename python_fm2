@@ -1,3 +1,3 @@
 #!/bin/sh -x
 
-rtl_sdr -f 89.5M -s 240k - | ./fm1.py | sox -t raw -r 240000 -b 16 -c 1 -L -e signed-integer - -d rate 48000
+rtl_sdr -f 89.5M -s 256k - | ./fm1.py | sox -t raw -r 256000 -b 16 -c 1 -L -e signed-integer - -d rate 32000

@@ -6,8 +6,10 @@ import struct, math, random, sys, numpy
 import filters2 as filters
 
 MAX_DEVIATION = 300000.0 # Hz
-INPUT_RATE = 240000
-OUTPUT_RATE = 48000
+INPUT_RATE = 256000
+OUTPUT_RATE = 32000
+DECIMATION = INPUT_RATE / OUTPUT_RATE
+assert DECIMATION == math.floor(DECIMATION)
 
 FM_BANDWIDTH = 15000 # Hz
 STEREO_CARRIER = 38000 # Hz
@@ -20,16 +22,16 @@ last_deviation_avg = deviation_avg
 w = 2 * math.pi
 
 # Downsample mono audio
-downsample1 = filters.decimator(5)
+decimate1 = filters.decimator(DECIMATION)
 
 # Deemph + Low-pass filter for mono (L+R) audio
-lo = filters.deemph(OUTPUT_RATE, 75, FM_BANDWIDTH, FM_BANDWIDTH + 1000)
+lo = filters.deemph(OUTPUT_RATE, 75, FM_BANDWIDTH - 1000, FM_BANDWIDTH)
 
 # Downsample jstereo audio
-downsample2 = filters.decimator(5)
+decimate2 = filters.decimator(DECIMATION)
 
 # Deemph + Low-pass filter for joint-stereo demodulated audio (L-R)
-lo_r = filters.deemph(OUTPUT_RATE, 75, FM_BANDWIDTH, FM_BANDWIDTH + 1000)
+lo_r = filters.deemph(OUTPUT_RATE, 75, FM_BANDWIDTH - 1000, FM_BANDWIDTH)
 
 # Band-pass filter for stereo (L-R) modulated audio
 hi = filters.bandpass(INPUT_RATE,
@@ -89,8 +91,8 @@ while True:
 	# carrier 38kHz
 	
 	# Downsample and low-pass L+R (mono) signal
-	output_mono = downsample1.feed(output_raw)
-	output_mono = lo.feed(output_mono)
+	output_mono = lo.feed(output_raw)
+	output_mono = decimate1.feed(output_mono)
 
 	# Filter pilot tone
 	detected_pilot = pilot.feed(output_raw)
@@ -150,8 +152,8 @@ while True:
 		'''
 	
 	# Downsample, Low-pass/deemphasis demodulated L-R
-	output_jstereo = downsample2.feed(output_jstereo)
 	output_jstereo = lo_r.feed(output_jstereo)
+	output_jstereo = decimate2.feed(output_jstereo)
 
 	assert len(output_jstereo) == len(output_mono)
 

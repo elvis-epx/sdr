@@ -1,4 +1,0 @@
-#!/bin/sh -x
-
-cat teste.raw | ./fm3a.py | sox -t raw -r 256000 -b 16 -c 2 -L -e signed-integer - -d rate 48000
-# rtl_sdr -f 89.5M -s 256k -g 49 - | ./fm3.py | sox -t raw -r 256000 -b 16 -c 2 -L -e signed-integer - -d rate 48000

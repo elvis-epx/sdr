@@ -159,7 +159,7 @@ class deemph(filter):
 class decimator(filter):
 	def __init__(self, factor):
 		self.buf2 = []
-		self.factor = factor
+		self.factor = int(factor)
 
 	def feed(self, original):
 		original = numpy.concatenate((self.buf2, original))

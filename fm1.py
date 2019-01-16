@@ -3,9 +3,9 @@
 
 import struct, numpy, sys, math
 
-MAX_DEVIATION = 300000 # Hz
-INPUT_RATE = 240000
-DEVIATION_X_SIGNAL = 0.99 / (math.pi * MAX_DEVIATION / INPUT_RATE)
+MAX_DEVIATION = 200000 # Hz
+INPUT_RATE = 256000
+DEVIATION_X_SIGNAL = 0.99 / (math.pi * MAX_DEVIATION / (INPUT_RATE / 2))
 
 remaining_data = b''
 
