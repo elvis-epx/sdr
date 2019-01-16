@@ -11,11 +11,12 @@ OUTPUT_RATE = 48000
 
 FM_BANDWIDTH = 15000 # Hz
 STEREO_CARRIER = 38000 # Hz
+DEVIATION_X_SIGNAL = 0.999 / (math.pi * MAX_DEVIATION / INPUT_RATE)
+
 pll = math.pi - random.random() * 2 * math.pi
 last_pilot = 0.0
 deviation_avg = math.pi - random.random() * 2 * math.pi
 last_deviation_avg = deviation_avg
-DEVIATION_X_SIGNAL = 0.999 / (math.pi * MAX_DEVIATION / INPUT_RATE)
 w = 2 * math.pi
 
 # Downsample mono audio
@@ -42,48 +43,50 @@ pilot = filters.bandpass(INPUT_RATE,
 
 last_angle = 0.0
 remaining_data = b''
-total = 0
-toasted = 0
 
 while True:
-	data = sys.stdin.buffer.read(INPUT_RATE * 2 // 10)
+	# Ingest 0.1s worth of data
+	data = sys.stdin.buffer.read((INPUT_RATE * 2) // 10)
 	if not data:
 		break
 	data = remaining_data + data
+
+	if len(data) < 4:
+		remaining_data = data
+		continue
+
+	# Save one sample to next batch, and the odd byte if exists
 	if len(data) % 2 == 1:
-		remaining_data = data[-1]
+		print("Odd byte, that's odd", file=sys.stderr)
+		remaining_data = data[-3:]
 		data = data[:-1]
 	else:
-		remaining_data = b''
+		remaining_data = data[-2:]
 
 	samples = len(data) // 2
-	total += samples
-	output_raw = []
-	i = numpy.array([ (data[n * 2] - 127.5) / 128.0 for n in range(0, samples) ])
-	q = numpy.array([ (data[n * 2 + 1] - 127.5) / 128.0 for n in range(0, samples) ])
 
-	# Determine phase (angle) of I/Q pairs
-	angles = numpy.arctan2(q, i)
+	# Finds angles (phase) of I/Q pairs
+	angles = [
+		math.atan2(
+			(data[n * 2 + 0] - 127.5) / 128.0, 
+			(data[n * 2 + 1] - 127.5) / 128.0
+		) for n in range(0, samples) ]
 
-	for angle in angles:
-		# Change of angle = baseband signal
-		# Were you rushing or were you dragging?!
-		angle_change = last_angle - angle
-		if angle_change > math.pi:
-			angle_change -= w
-		elif angle_change < -math.pi:
-			angle_change += w
-		last_angle = angle
-	
-		# Convert angle change to baseband signal strength
-		output = angle_change * DEVIATION_X_SIGNAL
+	# Determine phase rotation between samples
+	# (Output one element less, that's we always save last sample
+	# in remaining_data)
+	rotations = numpy.ediff1d(angles)
 
-		output_raw.append(output)
+	# Wrap rotations >= +/-180º
+	rotations = (rotations + numpy.pi) % (2 * numpy.pi) - numpy.pi
+
+	# Convert rotations to baseband signal
+	output_raw = numpy.multiply(rotations, DEVIATION_X_SIGNAL)
+	output_raw = numpy.clip(output_raw, -0.999, +0.999)
 
 	# At this point, output_raw contains two audio signals:
 	# L+R (mono-compatible) and L-R (joint-stereo) modulated in AM-SC,
 	# carrier 38kHz
-
 	
 	# Downsample and low-pass L+R (mono) signal
 	output_mono = downsample1.feed(output_raw)

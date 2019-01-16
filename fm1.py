@@ -30,13 +30,12 @@ while True:
 
 	samples = len(data) // 2
 
-	# Converts I/Q pairs to complex numbers
-	iq = [ complex(	(data[n * 2] - 127.5) / 128.0, 
+	# Finds angles (phase) of I/Q pairs
+	angles = [
+		math.atan2(
+			(data[n * 2 + 0] - 127.5) / 128.0, 
 			(data[n * 2 + 1] - 127.5) / 128.0
-		      ) for n in range(0, samples) ]
-
-	# Find phase (angle) of all I/Q pairs
-	angles = numpy.angle(iq)
+		) for n in range(0, samples) ]
 
 	# Determine phase rotation between samples
 	# (Output one element less, that's we always save last sample
@@ -47,14 +46,14 @@ while True:
 	rotations = (rotations + numpy.pi) % (2 * numpy.pi) - numpy.pi
 
 	# Convert rotations to baseband signal
-	output = numpy.multiply(rotations, DEVIATION_X_SIGNAL)
-	output = numpy.clip(output, -0.999, +0.999)
+	output_raw = numpy.multiply(rotations, DEVIATION_X_SIGNAL)
+	output_raw = numpy.clip(output_raw, -0.999, +0.999)
 
 	# Missing: low-pass filter and deemphasis filter
 	# (result may be noisy)
 
 	# Output as raw 16-bit, 1 channel audio
-	bits = struct.pack(('%dh' % len(output)),
-		*[ int(o * 32767) for o in output ])
+	bits = struct.pack(('%dh' % len(output_raw)),
+		*[ int(o * 32767) for o in output_raw ])
 
 	sys.stdout.buffer.write(bits)
