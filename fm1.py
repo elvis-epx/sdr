@@ -10,8 +10,8 @@ DEVIATION_X_SIGNAL = 0.99 / (math.pi * MAX_DEVIATION / INPUT_RATE)
 remaining_data = b''
 
 while True:
-	# Ingest 0.1s worth of data
-	data = sys.stdin.buffer.read((INPUT_RATE * 2) // 10)
+	# Ingest up to 0.1s worth of data
+	data = sys.stdin.buffer.read(INPUT_RATE * 2 // 10)
 	if not data:
 		break
 	data = remaining_data + data
@@ -45,15 +45,18 @@ while True:
 	# Wrap rotations >= +/-180º
 	rotations = (rotations + numpy.pi) % (2 * numpy.pi) - numpy.pi
 
-	# Convert rotations to baseband signal
+	# Convert rotations to baseband signal 
 	output_raw = numpy.multiply(rotations, DEVIATION_X_SIGNAL)
 	output_raw = numpy.clip(output_raw, -0.999, +0.999)
+
+	# Scale to signed 16-bit int
+	output_raw = numpy.multiply(output_raw, 32767)
+	output_raw = output_raw.astype(int)
 
 	# Missing: low-pass filter and deemphasis filter
 	# (result may be noisy)
 
 	# Output as raw 16-bit, 1 channel audio
-	bits = struct.pack(('%dh' % len(output_raw)),
-		*[ int(o * 32767) for o in output_raw ])
+	bits = struct.pack(('%dh' % len(output_raw)), *output_raw)
 
 	sys.stdout.buffer.write(bits)
