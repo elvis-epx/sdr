@@ -2,7 +2,7 @@
 
 # FM demodulator based on I/Q (quadrature)
 
-import struct, math, random, sys, numpy, filters
+import struct, math, random, sys, numpy, filters, time
 
 optimized = len(sys.argv) > 1
 if optimized:
@@ -155,19 +155,22 @@ while True:
 	
 			if abs(deviation_avg) > math.pi / 8:
 				# big phase deviation, reset PLL
-				# print("Resetting PLL")
+				# print("Resetting PLL", file=sys.stderr)
 				pll = ideal
 				pll = (pll + w * STEREO_CARRIER / INPUT_RATE) % w
 				deviation_avg = 0.0
 				last_deviation_avg = 0.0
 			
 			STEREO_CARRIER -= rotation * 200
+
 			'''
 			print("%d deviationavg=%f rotation=%f freq=%f" %
 				(n,
 				deviation_avg * 180 / math.pi,
 				rotation * 180 / math.pi,
-				STEREO_CARRIER))
+				STEREO_CARRIER),
+				file=sys.stderr)
+			time.sleep(0.05)
 			'''
 	
 	# Downsample, Low-pass/deemphasis demodulated L-R
