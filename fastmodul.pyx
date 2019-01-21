@@ -2,7 +2,7 @@
 
 import math
 
-w = 2 * math.pi
+tau = 2 * math.pi
 
 def get_angles(samples, int count):
 	# Finds angles (phase) of I/Q pairs
@@ -21,7 +21,7 @@ def demod_stereo(output_jstereo_mod, pll, STEREO_CARRIER,
 
 	for n in range(0, len(output_jstereo_mod)):
 		# Advance carrier
-		pll = (pll + w * STEREO_CARRIER / INPUT_RATE) % w
+		pll = (pll + tau * STEREO_CARRIER / INPUT_RATE) % tau
 
 		# Standard demodulation
 		output_jstereo[n] = math.cos(pll) * output_jstereo_mod[n]
@@ -37,18 +37,18 @@ def demod_stereo(output_jstereo_mod, pll, STEREO_CARRIER,
 		ideal = math.pi
 		deviation = pll - ideal
 		if deviation > math.pi:
-			deviation -= w
+			deviation -= tau
 		deviation_avg = 0.99 * deviation_avg + 0.01 * deviation
 		rotation = deviation_avg - last_deviation_avg
 		last_deviation_avg = deviation_avg
 
 		if abs(deviation_avg) > math.pi / 8:
 			pll = ideal
-			pll = (pll + w * STEREO_CARRIER / INPUT_RATE) % w
+			pll = (pll + tau * STEREO_CARRIER / INPUT_RATE) % tau
 			deviation_avg = 0.0
 			last_deviation_avg = 0.0
-		
-		STEREO_CARRIER -= rotation * 200
+
+		STEREO_CARRIER /= (1 + (rotation * 1.05) / tau)
 
 	return output_jstereo, pll, STEREO_CARRIER, \
 		last_pilot, deviation_avg, last_deviation_avg

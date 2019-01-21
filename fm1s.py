@@ -4,7 +4,15 @@
 
 import struct, math, random, sys, numpy, filters, time
 
-optimized = len(sys.argv) > 1
+optimized = False
+stereo_diagnostics = False
+
+for arg in sys.argv[1:]:
+	if arg == "-o":
+		optimized = True
+	elif arg == "-s":
+		stereo_diagnostics = True
+
 if optimized:
 	import fastmodul # Cython
 
@@ -22,7 +30,7 @@ pll = math.pi - random.random() * 2 * math.pi
 last_pilot = 0.0
 deviation_avg = math.pi - random.random() * 2 * math.pi
 last_deviation_avg = deviation_avg
-w = 2 * math.pi
+tau = 2 * math.pi
 
 # Downsample mono audio
 decimate1 = filters.decimator(DECIMATION)
@@ -125,7 +133,7 @@ while True:
 
 		for n in range(0, len(output_jstereo_mod)):
 			# Advance carrier
-			pll = (pll + w * STEREO_CARRIER / INPUT_RATE) % w
+			pll = (pll + tau * STEREO_CARRIER / INPUT_RATE) % tau
 
 			# Standard demodulation
 			output_jstereo.append(math.cos(pll) * output_jstereo_mod[n])
@@ -148,7 +156,7 @@ while True:
 			deviation = pll - ideal
 			if deviation > math.pi:
 				# 350º => -10º
-				deviation -= w
+				deviation -= tau
 			deviation_avg = 0.99 * deviation_avg + 0.01 * deviation
 			rotation = deviation_avg - last_deviation_avg
 			last_deviation_avg = deviation_avg
@@ -157,11 +165,20 @@ while True:
 				# big phase deviation, reset PLL
 				# print("Resetting PLL", file=sys.stderr)
 				pll = ideal
-				pll = (pll + w * STEREO_CARRIER / INPUT_RATE) % w
+				pll = (pll + tau * STEREO_CARRIER / INPUT_RATE) % tau
 				deviation_avg = 0.0
 				last_deviation_avg = 0.0
-			
-			STEREO_CARRIER -= rotation * 200
+
+			# Translate rotation to frequency deviation e.g.
+			# cos(tau + 3.6º) = cos(1.01 * tau)
+			# Frequency should be divided by 1.01
+			# cos(tau - 9º) = cos(tau * 0.975)
+			# Frequency should be multiplied by (1 / 0.975)
+			#	i.e. divided by 0.975
+			# Overcorrect by 5% to (try to) sync phase,
+			# not only keep it as is
+
+			STEREO_CARRIER /= (1 + (rotation * 1.05) / tau)
 
 			'''
 			print("%d deviationavg=%f rotation=%f freq=%f" %
@@ -183,9 +200,14 @@ while True:
 	output_mono = numpy.multiply(output_mono, 32767 / 2.0)
 	output_jstereo = numpy.multiply(output_jstereo, 32767 / 2.0)
 
-	# Output stereo by adding or subtracting joint-stereo to mono
-	output_left = output_mono + output_jstereo
-	output_right = output_mono - output_jstereo
+	if not stereo_diagnostics:
+		# Output stereo by adding or subtracting joint-stereo to mono
+		output_left = output_mono + output_jstereo
+		output_right = output_mono - output_jstereo
+	else:
+		# Save L+R and L-R as channels for debugging purposes
+		output_left = output_mono
+		output_right = output_jstereo
 
 	# Interleave L and R samples using NumPy trickery
 	output = numpy.empty(len(output_mono) * 2, dtype=output_mono.dtype)
