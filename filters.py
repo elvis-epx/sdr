@@ -70,7 +70,7 @@ def taps(sample_rate, freq, dboct, is_highpass):
 	transition_band = abs(freq - cutoff)
 	Bt = transition_band / sample_rate
 	taps = int(60 / (22 * Bt))
-	print("Freq=%f,%f number of taps: %d" % (freq, cutoff, taps), file=sys.stderr)
+	# print("Freq=%f,%f number of taps: %d" % (freq, cutoff, taps), file=sys.stderr)
 	return taps
 
 
