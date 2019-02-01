@@ -2,3 +2,4 @@ teste.*
 __pycache__/
 *.c
 *.so
+build/
