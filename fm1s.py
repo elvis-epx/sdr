@@ -4,13 +4,19 @@
 
 import struct, math, random, sys, numpy, filters, time
 
-optimized = len(sys.argv) > 1
+optimized = "-o" in sys.argv
+debug_mode = "-d" in sys.argv
+
 if optimized:
 	import fastmodul # Cython
 
 MAX_DEVIATION = 200000.0 # Hz
 INPUT_RATE = 256000
 OUTPUT_RATE = 32000
+
+if debug_mode:
+	OUTPUT_RATE=256000
+
 DECIMATION = INPUT_RATE / OUTPUT_RATE
 assert DECIMATION == math.floor(DECIMATION)
 
@@ -28,23 +34,21 @@ w = 2 * math.pi
 decimate1 = filters.decimator(DECIMATION)
 
 # Deemph + Low-pass filter for mono (L+R) audio
-lo = filters.deemph(INPUT_RATE, 75, FM_BANDWIDTH, FM_BANDWIDTH + 2000)
+lo = filters.deemphasis(INPUT_RATE, 75, FM_BANDWIDTH, 120)
 
 # Downsample jstereo audio
 decimate2 = filters.decimator(DECIMATION)
 
 # Deemph + Low-pass filter for joint-stereo demodulated audio (L-R)
-lo_r = filters.deemph(INPUT_RATE, 75, FM_BANDWIDTH, FM_BANDWIDTH + 2000)
+lo_r = filters.deemphasis(INPUT_RATE, 75, FM_BANDWIDTH, 120)
 
 # Band-pass filter for stereo (L-R) modulated audio
-hi = filters.bandpass(INPUT_RATE,
-	STEREO_CARRIER - FM_BANDWIDTH - 2000, STEREO_CARRIER - FM_BANDWIDTH,
-	STEREO_CARRIER + FM_BANDWIDTH, STEREO_CARRIER + FM_BANDWIDTH + 2000)
+hi = filters.band_pass(INPUT_RATE,
+	STEREO_CARRIER - FM_BANDWIDTH, STEREO_CARRIER + FM_BANDWIDTH, 120)
 
 # Filter to extract pilot signal
-pilot = filters.bandpass(INPUT_RATE,
-	STEREO_CARRIER / 2 - 1000, STEREO_CARRIER / 2 - 100,
-	STEREO_CARRIER / 2 + 100, STEREO_CARRIER / 2 + 1000)
+pilot = filters.band_pass(INPUT_RATE,
+	STEREO_CARRIER / 2 - 100, STEREO_CARRIER / 2 + 100, 120)
 
 last_angle = 0.0
 remaining_data = b''
@@ -187,10 +191,17 @@ while True:
 	output_left = output_mono + output_jstereo
 	output_right = output_mono - output_jstereo
 
-	# Interleave L and R samples using NumPy trickery
-	output = numpy.empty(len(output_mono) * 2, dtype=output_mono.dtype)
-	output[0::2] = output_left
-	output[1::2] = output_right
-	output = output.astype(int)
+	if not debug_mode:
+		# Interleave L and R samples using NumPy trickery
+		output = numpy.empty(len(output_mono) * 2, dtype=output_mono.dtype)
+		output[0::2] = output_left
+		output[1::2] = output_right
+		output = output.astype(int)
+	else:
+		output = numpy.empty(len(output_mono) * 3, dtype=output_mono.dtype)
+		output[0::3] = output_mono
+		output[1::3] = output_jstereo
+		output[2::3] = numpy.multiply(detected_pilot, 32767)
+		output = output.astype(int)
 
 	sys.stdout.buffer.write(struct.pack('<%dh' % len(output), *output))

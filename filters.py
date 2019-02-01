@@ -4,6 +4,7 @@ import numpy, math, sys, time
 from numpy import fft
 
 def impulse(mask):
+	''' Convert frequency domain mask to time-domain '''
 	# Negative side, a mirror of positive side
 	negatives = mask[1:-1]
 	negatives.reverse()
@@ -21,109 +22,57 @@ def impulse(mask):
 	return impulse_response
 
 
-def fir_coefs(sample_rate, pass_lo, cutoff_lo, cutoff_hi, pass_hi):
-	assert pass_lo is None or cutoff_lo > pass_lo
-	assert pass_hi is None or pass_hi > cutoff_hi
+def lo_mask(sample_rate, tap_count, freq, dboct):
+	''' Create a freq domain mask for a lowpass filter '''
+	order = dboct / 6
 	max_freq = sample_rate / 2.0
-
-	if cutoff_lo is not None:
-		trans = cutoff_lo - pass_lo
-	else:
-		trans = 1
-
-	if cutoff_hi is not None:
-		trans = min(trans, pass_hi - cutoff_hi)
-
-	bt = max(trans, 1) / sample_rate
-	tap_count = 60 # dB attenuation
-	tap_count /= 22 * bt
-	tap_count = int(tap_count / 2) * 2
-	# print("Taps: %d" % tap_count, file=sys.stderr)
-
 	f2s = max_freq / (tap_count / 2.0)
-
-	if cutoff_lo is not None:
-		cutoff_lo /= f2s
-		pass_lo /= f2s
-		step_lo = 1.0 / -(pass_lo - cutoff_lo)
-		# print("lo %f %f %f" % (pass_lo, cutoff_lo, step_lo), file=sys.stderr)
-
-	if cutoff_hi is not None:
-		cutoff_hi /= f2s
-		pass_hi /= f2s
-		step_hi = 1.0 / (pass_hi - cutoff_hi)
-
-	# create FFT filter mask
+	# Convert freq to filter step unit
+	freq /= f2s
 	l = tap_count // 2
-	mask = [ 0 for f in range(0, l+1) ]
-	
-	if pass_lo is not None:
-		# Low-pass filter part
-		tap = 0.0
-		for f in range(0, l+1):
-			if f <= pass_lo:
-				tap = 1.0
-			elif f > pass_lo and f < cutoff_lo:
-				tap -= step_lo # ramp down
-			elif f >= cutoff_lo:
-				tap = 0.0
-			mask[f] = tap
-
-	if pass_hi is not None:
-		tap = 0.0
-		for f in range(l, -1, -1):
-			if f >= pass_hi:
-				tap = 1.0
-			elif f < pass_hi and f > cutoff_hi:
-				tap -= step_hi # ramp down
-			elif f <= cutoff_hi:
-				tap = 0.0
-			mask[f] *= tap
-
-	return impulse(mask)
-
-def deemph_coefs(sample_rate, us, hi, hi_cut):
-	max_freq = sample_rate / 2.0
-
-	us /= 1000000
-	# us = RC constant of the hypothetical filter
-	lo = 1.0 / (2 * math.pi * us)
-	assert hi > lo
-	assert hi_cut > hi
-
-	trans = min(hi_cut - hi, hi - lo, lo)
-
-	bt = max(trans, 1) / sample_rate
-	tap_count = 60 # dB attenuation
-	tap_count /= 22 * bt
-	tap_count = int(tap_count / 2) * 2
-	# print("Deemph taps: %d" % tap_count, file=sys.stderr)
-
-	f2s = max_freq / (tap_count / 2.0)
-	lo /= f2s
-	hi /= f2s
-	hi_cut /= f2s
-	step_lohi = (10 ** 1) ** (1.0 / (hi - lo)) # 10dB
-	step_hicut = (10 ** 1) ** (1.0 / (hi_cut - hi))
-
-	# create FFT filter mask
-	l = tap_count // 2
-	mask = [ 0 for f in range(0, l+1) ]
-	
-	tap = 1.0
+	mask = []
 	for f in range(0, l+1):
-		if f <= lo:
-			tap = 1
-		elif f >= lo and f <= hi:
-			tap /= step_lohi
-		elif f >= hi and f < hi_cut:
-			tap /= step_hicut
-		else:
-			tap = 0
-		mask[f] = tap
-	# print(mask, file=sys.stderr)
+		H = 1.0 / ( 1 + (f / freq) ** (2 * order) ) ** 0.5
+		mask.append(H)
+	return mask
 
-	return impulse(mask)
+
+def hi_mask(sample_rate, tap_count, freq, dboct):
+	''' Create a freq domain mask for a highpass filter '''
+	order = dboct / 6
+	max_freq = sample_rate / 2.0
+	f2s = max_freq / (tap_count / 2.0)
+	# Convert freq frequency to filter step unit
+	freq /= f2s
+	l = tap_count // 2
+	mask = []
+	for f in range(0, l+1):
+		H = 1.0 / ( 1 + (freq / (f + 0.0001)) ** (2 * order) ) ** 0.5
+		mask.append(H)
+	return mask
+
+
+def combine_masks(mask1, mask2):
+	''' Combine two filter masks '''
+	assert len(mask1) == len(mask2)
+	return [ mask1[i] * mask2[i] for i in range(0, len(mask1)) ]
+
+
+def taps(sample_rate, freq, dboct, is_highpass):
+	cutoff_octaves = 60 / dboct
+
+	if is_highpass:
+		cutoff = freq / 2 ** cutoff_octaves
+	else:
+		cutoff = freq * 2 ** cutoff_octaves
+		cutoff = min(cutoff, sample_rate / 2)
+
+	transition_band = abs(freq - cutoff)
+	Bt = transition_band / sample_rate
+	taps = int(60 / (22 * Bt))
+	print("Freq=%f,%f number of taps: %d" % (freq, cutoff, taps), file=sys.stderr)
+	return taps
+
 
 class filter:
 	def __init__(self, sample_rate, cutoff):
@@ -136,25 +85,57 @@ class filter:
 		assert len(filtered) == len(original) + 1
 		return filtered[1:]
 
-class lowpass(filter):
-	def __init__(self, sample_rate, f, cut):
-		self.coefs = fir_coefs(sample_rate, f, cut, None, None)
+
+class low_pass(filter):
+	def __init__(self, sample_rate, f, dbo):
+		tap_count = taps(sample_rate, f, dbo, False)
+		mask = lo_mask(sample_rate, tap_count, f, dbo)
+		self.coefs = impulse(mask)
 		self.buf = [ 0 for n in self.coefs ]
 
-class highpass(filter):
-	def __init__(self, sample_rate, cut, f):
-		self.coefs = fir_coefs(sample_rate, None, None, cut, f)
+
+class high_pass(filter):
+	def __init__(self, sample_rate, f, dbo):
+		tap_count = taps(sample_rate, f, dbo, True)
+		mask = hi_mask(sample_rate, tap_count, f, dbo)
+		self.coefs = impulse(mask)
 		self.buf = [ 0 for n in self.coefs ]
 
-class bandpass(filter):
-	def __init__(self, sample_rate, cut_f1, f1, f2, cut_f2):
-		self.coefs = fir_coefs(sample_rate, f2, cut_f2, cut_f1, f1)
+
+class band_pass(filter):
+	def __init__(self, sample_rate, lo, hi, dbo):
+		tap_count = max(taps(sample_rate, lo, dbo, True),
+				taps(sample_rate, hi, dbo, False))
+		lomask = lo_mask(sample_rate, tap_count, hi, dbo)
+		himask = hi_mask(sample_rate, tap_count, lo, dbo)
+		mask = combine_masks(lomask, himask)
+		self.coefs = impulse(mask)
 		self.buf = [ 0 for n in self.coefs ]
 
-class deemph(filter):
-	def __init__(self, sample_rate, us, hi, hi_cut):
-		self.coefs = deemph_coefs(sample_rate, us, hi, hi_cut)
+
+class deemphasis(filter):
+	def __init__(self, sample_rate, us, hi, final_dbo):
+		# us = RC constant of the hypothetical deemphasis filter
+		us /= 1000000
+		# 0..lo is not deemphasized
+		lo = 1.0 / (2 * math.pi * us)
+		# attenuation from lo to hi should be 10dB
+		octaves = math.log(hi / lo) / math.log(2)
+		# slope in dB/octave of deemphasis filter
+		dedbo = 10 / octaves
+
+		tap_count = max(taps(sample_rate, lo, dedbo, False),
+				taps(sample_rate, hi, final_dbo, False))
+
+		# Calculate deemphasis filter
+		demask = lo_mask(sample_rate, tap_count, lo, dedbo)
+		# Calculate low-pass filter after deemphasis
+		fmask = lo_mask(sample_rate, tap_count, hi, final_dbo)
+
+		mask = combine_masks(demask, fmask)
+		self.coefs = impulse(mask)
 		self.buf = [ 0 for n in self.coefs ]
+
 
 class decimator(filter):
 	def __init__(self, factor):
