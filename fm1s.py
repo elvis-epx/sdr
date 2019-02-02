@@ -6,6 +6,9 @@ import struct, math, random, sys, numpy, filters, time
 
 optimized = "-o" in sys.argv
 debug_mode = "-d" in sys.argv
+disable_pll = "--disable-pll" in sys.argv
+if disable_pll:
+	optimized = False
 
 if optimized:
 	import fastmodul # Cython
@@ -133,6 +136,9 @@ while True:
 
 			# Standard demodulation
 			output_jstereo.append(math.cos(pll) * output_jstereo_mod[n])
+
+			if disable_pll:
+				continue
 	
 			############ Carrier PLL #################
 
