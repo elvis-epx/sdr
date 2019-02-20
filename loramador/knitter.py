@@ -2,26 +2,39 @@
 
 def Packet:
 	def __init__(to, frm, data):
-		self.to = to
-		self.frm = frm
+		self.to = to.upper()
+		self.frm = frm.upper()
 		self.data = data
 		self.ttl = 5
 
-class Route:
-	def __init__(to, nxt, cost, timestamp):
-		self.to = to
-		self.nxt = nxt
+class Hop:
+	def __init__(to, frm, cost, timestamp):
+		self.to = to.upper()
+		self.frm = frm.upper()
 		self.cost = cost
 		self.timestamp = ts
 
 class L2:
-	
+	def __init__(self):
+		self.vertexes = {}
+		self.l3 = {}
+
+	def attach(self, name, l3obj):
+		self.l3[name] = l3obj
+
+	def send(self, to, frm, pkt):
+		if not self.vertexes[frm]:
+			print("L2: can't send pkt from %s to anywhere", frm)
+			return
+		for dest in self.vertexes[frm]:
+			self.vertexes[frm][dest].l2_recv(to, frm, -50-random.random()*50, pkt)
 
 class L3:
 	def __init__(self, name, l2):
-		self.name = name
-		self.routes = []
+		self.name = name.upper()
+		self.hops = []
 		self.l2 = l2
+		l2.attach(name, self)
 
 	def send(self, to, data):
 		pkt = Packet(to, self.name, data)
@@ -31,48 +44,78 @@ class L3:
 		print "recv from %s: %s" % (pkt.frm, pkt.data)
 
 	def l2_recv(self, to, frm, rssi, pkt):
-		self.forward(frm, rssi, pkt)
+		to = to.upper()
+		frm = frm.upper()
+		self.forward(frm, -rssi, pkt)
 
-	def add_route(l2_from, cost):
-		new_route = Route()
+	def add_hop(l2_to, l2_from, cost):
+		# Add/update hop from neighbor
+		new_hop = Hop(l2_from, l2_from, 1, cost, time.time())
 
-		old_route = -1
-		for i, route in enumerate(self.routes):
-			if route.to == new_route.to and route.nxt == new_route.nxt:
-				if route.timestamp >= new_route:
-					print ("%s: new route to %s is old" % (self.name, new_route.to))
+		old_hop = -1
+		for i, hop in enumerate(self.hops):
+			if hop.to == new_hop.to and hop.frm == new_hop.frm:
+				if hop.timestamp >= new_hop:
+					print ("%s: new hop %s<-%s is old" % (self.name, new_hop.to, new_hop.frm))
 					return
-				old_route = i
+				old_hop = i
 
-		if old_route >= 0:
-			# print ("%s: replacing route to %s" % (self.name, new_route.to))
-			self.routes[old_route] = new_route
+		if old_hop >= 0:
+			# print ("%s: replacing hop to %s" % (self.name, new_hop.to))
+			self.hops[old_hop] = new_hop
 		else:
-			print ("%s: adding route to %s" % (self.name, new_route.to))
-			self.routes.append(new_route)
+			print ("%s: adding hop to %s" % (self.name, new_hop.to))
+			self.hops.append(new_hop)
 
-	def next_hop(self, to):
-		cost = 9999999999
-		hops = 9999999999
+	def find_next_hop(self, to):
+		return self._find_next_hop(to, [], 10)
+
+	def _find_next_hop(self, to, path, maxhops):
 		best = None
-		for route in self.routes:
-			if route.to != to:
-				pass
-			elif route.hops > 1 and hops > 1:
-				if route.hops < hops:
-					best = route.nxt
-					cost = route.cost
-			elif route.hops == 1 and hops > 1:
-				best = route.nxt
-				cost = route.cost
-			else:
-				if route.cost < cost:
-					best = route.next
-					cost = route.cost
-		return best
+		hopcount = 999999999
+		cost = 999999999
+
+		if maxhops <= 0:
+			# maximum diameter reached
+			return None, None, None
+
+		if self.name in path:
+			# loop detected
+			return None, None, None
+
+		path = path[:] + [to]
+
+		for hop in self.hops:
+			if hop.to != to:
+				continue
+
+			if hop.frm == self.name:
+				# we are neighbors to the destination
+				best = hop
+				hopcount = 0
+				cost = hop.cost
+				break
+
+			# found a station that is neighbor of the destination
+			# Find path to that station (hop.frm) recursively 
+			# TODO extremely inefficient way to find route
+
+			# Don't go further the best path we've already found
+			cmaxhops = min(maxhops - 1, hopcount)
+			candidate, chopcount, ccost = self._find_next_hop(hop.frm, path, cmaxhops)
+			if not candidate:
+				continue
+
+			if chopcount < hopcount or (chopcount == hopcount and ccost < cost):
+				best = hop
+				hopcount = chopcount
+				cost = ccost
+
+		return best, hopcount + 1, cost + 1000
 
 	def forward(self, l2_frm, l2_rssi, pkt):
-		self.add_route(l2_frm, l2_rssi)
+		if l2_from[0] != "Q":
+			self.add_hop(self.name, l2_frm, -l2_rssi)
 
 		if pkt.to == self.name:
 			self.recv(pkt)
@@ -84,7 +127,7 @@ class L3:
 				print "%s: packet %s<-%s discarded" % (self.name, pkt.to, pkt.frm)
 				return
 
-		nxt = self.next_hop(pkt.to)
+		nxt, hops, cost = self.find_next_hop(pkt.to)
 		if not nxt:
 			if pkt.frm != self.name:
 				print "%s: no route to %s" % (self.name, pkt.to)
@@ -93,4 +136,3 @@ class L3:
 			return
 
 		self.l2.send(nxt, self.name, pkt)
-
