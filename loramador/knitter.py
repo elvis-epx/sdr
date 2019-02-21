@@ -1,138 +1,114 @@
-#!/usr/bin/env/python3
+#!/usr/bin/env python3
 
-def Packet:
-	def __init__(to, frm, data):
+import random, math, asyncio
+
+loop = asyncio.get_event_loop()
+
+class Packet:
+	last_ident = 0
+
+	def __init__(self, to, via, fr0m, data):
 		self.to = to.upper()
-		self.frm = frm.upper()
-		self.data = data
-		self.ttl = 5
+		self.via = to.upper()
+		self.fr0m = fr0m.upper()
 
-class Hop:
-	def __init__(to, frm, cost, timestamp):
-		self.to = to.upper()
-		self.frm = frm.upper()
-		self.cost = cost
-		self.timestamp = ts
+		self.maxhops = 10
+		if to == "QB":
+			self.maxhops = 1
+		self.hopped = 0
+		Packet.last_ident += 1
+		self.data = ("%d" % Packet.last_ident) + " " + data
 
-class L2:
+class Radio:
 	def __init__(self):
-		self.vertexes = {}
-		self.l3 = {}
+		self.edges = {}
+		self.stations = {}
 
-	def attach(self, name, l3obj):
-		self.l3[name] = l3obj
+	def edge(self, to, fr0m):
+		if fr0m not in self.edges:
+			self.edges[fr0m] = {}
+		self.edges[fr0m][to] = 1
 
-	def send(self, to, frm, pkt):
-		if not self.vertexes[frm]:
-			print("L2: can't send pkt from %s to anywhere", frm)
+	def attach(self, prefix, station):
+		self.stations[prefix] = station
+
+	def send(self, fr0m, pkt):
+		if not self.edges[fr0m]:
+			print("radio: nobody listens to %s", fr0m)
 			return
-		for dest in self.vertexes[frm]:
-			self.vertexes[frm][dest].l2_recv(to, frm, -50-random.random()*50, pkt)
+		for dest in self.edges[fr0m].keys():
+			print("radio %s: broadcasting to %s" % (fr0m, dest))
+			rssi = -50 - random.random() * 50
+			async def asend():
+				await asyncio.sleep(0.1 + random.random())
+				self.stations[dest].radio_recv(rssi, pkt)
+			loop.create_task(asend())
 
-class L3:
-	def __init__(self, name, l2):
-		self.name = name.upper()
-		self.hops = []
-		self.l2 = l2
-		l2.attach(name, self)
+class Station:
+	def __init__(self, prefix, radio):
+		self.prefix = prefix.upper()
+		self.recv_pkts = []
+		self.radio = radio
+		radio.attach(prefix, self)
 
 	def send(self, to, data):
-		pkt = Packet(to, self.name, data)
-		self.forward(pkt)
+		pkt = Packet(to, "", self.prefix, data)
+		self._forward(None, pkt)
 
 	def recv(self, pkt):
-		print "recv from %s: %s" % (pkt.frm, pkt.data)
+		print("station %s: recv from %s msg %s" % (self.prefix, pkt.fr0m, pkt.data))
 
-	def l2_recv(self, to, frm, rssi, pkt):
-		to = to.upper()
-		frm = frm.upper()
-		self.forward(frm, -rssi, pkt)
+	def radio_recv(self, rssi, pkt):
+		# Sanity check
+		if not pkt.to or not pkt.fr0m:
+			print("station %s: bad pkt %s" % (pkt.data))
+			return
 
-	def add_hop(l2_to, l2_from, cost):
-		# Add/update hop from neighbor
-		new_hop = Hop(l2_from, l2_from, 1, cost, time.time())
+		# Duplicate detection
+		if pkt.data in self.recv_pkts:
+			print("station %s: recv dup <- %s: %s" % (self.name, pkt.fr0m, pkt.data))
+			return
+		self.recv_pkts.append(pkt.data)
 
-		old_hop = -1
-		for i, hop in enumerate(self.hops):
-			if hop.to == new_hop.to and hop.frm == new_hop.frm:
-				if hop.timestamp >= new_hop:
-					print ("%s: new hop %s<-%s is old" % (self.name, new_hop.to, new_hop.frm))
-					return
-				old_hop = i
+		self._forward(rssi, pkt)
 
-		if old_hop >= 0:
-			# print ("%s: replacing hop to %s" % (self.name, new_hop.to))
-			self.hops[old_hop] = new_hop
-		else:
-			print ("%s: adding hop to %s" % (self.name, new_hop.to))
-			self.hops.append(new_hop)
-
-	def find_next_hop(self, to):
-		return self._find_next_hop(to, [], 10)
-
-	def _find_next_hop(self, to, path, maxhops):
-		best = None
-		hopcount = 999999999
-		cost = 999999999
-
-		if maxhops <= 0:
-			# maximum diameter reached
-			return None, None, None
-
-		if self.name in path:
-			# loop detected
-			return None, None, None
-
-		path = path[:] + [to]
-
-		for hop in self.hops:
-			if hop.to != to:
-				continue
-
-			if hop.frm == self.name:
-				# we are neighbors to the destination
-				best = hop
-				hopcount = 0
-				cost = hop.cost
-				break
-
-			# found a station that is neighbor of the destination
-			# Find path to that station (hop.frm) recursively 
-			# TODO extremely inefficient way to find route
-
-			# Don't go further the best path we've already found
-			cmaxhops = min(maxhops - 1, hopcount)
-			candidate, chopcount, ccost = self._find_next_hop(hop.frm, path, cmaxhops)
-			if not candidate:
-				continue
-
-			if chopcount < hopcount or (chopcount == hopcount and ccost < cost):
-				best = hop
-				hopcount = chopcount
-				cost = ccost
-
-		return best, hopcount + 1, cost + 1000
-
-	def forward(self, l2_frm, l2_rssi, pkt):
-		if l2_from[0] != "Q":
-			self.add_hop(self.name, l2_frm, -l2_rssi)
-
-		if pkt.to == self.name:
+	def _forward(self, radio_rssi, pkt):
+		if pkt.to == self.prefix or pkt.to == "QL" or pkt.to == "Q":
+			# To myself
 			self.recv(pkt)
 			return
 
-		if pkt.frm != self.name:
-			pkt.ttl -= 1
-			if pkt.ttl <= 0:
-				print "%s: packet %s<-%s discarded" % (self.name, pkt.to, pkt.frm)
+		if pkt.to == "QB" or pkt.to == "QF":
+			# Broadcast pseudo-station, receive and also repeat
+			self.recv(pkt)
+
+		if pkt.fr0m != self.prefix:
+			# When repeating, check TTL
+			pkt.hopped += 1
+			if pkt.hopped >= pkt.maxhops:
+				print("station %s: drop %s <- %s: %s" % \
+					(self.prefix, pkt.to, pkt.fr0m, pkt.data))
 				return
 
-		nxt, hops, cost = self.find_next_hop(pkt.to)
-		if not nxt:
-			if pkt.frm != self.name:
-				print "%s: no route to %s" % (self.name, pkt.to)
-			else:
-				print "%s in behalf of %s: no route to %s" % (self.name, pkt.frm, pkt.to)
-			return
+		self.radio.send(self.prefix, pkt)
 
-		self.l2.send(nxt, self.name, pkt)
+
+class Beacon:
+	def __init__(self, station):
+		async def sweep():
+			await asyncio.sleep(random.random() * 1)
+			while True:
+				station.send("QB", "sweep")
+				await asyncio.sleep(30 + random.random() * 60)
+		loop.create_task(sweep())
+
+r = Radio()
+r.edge("B", "A") # B <- A
+r.edge("A", "B")
+a = Station("A", r)
+b = Station("B", r)
+a_beacon = Beacon(a)
+b_beacon = Beacon(b)
+
+loop.run_forever()
+loop.close()
