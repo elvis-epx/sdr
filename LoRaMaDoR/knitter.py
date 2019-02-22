@@ -2,6 +2,7 @@
 
 import random, math, asyncio
 
+STATION_COUNT=10
 VERBOSITY=61
 
 loop = asyncio.get_event_loop()
@@ -33,10 +34,10 @@ class Radio:
 				print("##### radio: sent %d pkts" % Radio.pkts_transmitted)
 		loop.create_task(transmitted())
 
-	def edge(self, to, fr0m):
+	def edge(self, to, fr0m, rssi):
 		if fr0m not in self.edges:
 			self.edges[fr0m] = {}
-		self.edges[fr0m][to] = 1
+		self.edges[fr0m][to] = rssi
 
 	def attach(self, callsign, station):
 		self.stations[callsign] = station
@@ -48,13 +49,19 @@ class Radio:
 			print("radio %s: nobody listens to me", fr0m)
 			return
 
-		for dest in self.edges[fr0m].keys():
-			if VERBOSITY > 70:
-				print("radio %s: broadcasting to %s" % (fr0m, dest))
-			rssi = -50 - random.random() * 50
+		for dest, rssi in self.edges[fr0m].items():
+			if rssi <= -99.9:
+				if VERBOSITY > 80:
+					print("radio %s: not bcasting to %s, rssi too low" % (fr0m, dest))
+				continue
+			else:
+				if VERBOSITY > 70:
+					print("radio %s: bcasting to %s" % (fr0m, dest))
+
 			async def asend(d, r, p):
 				await asyncio.sleep(0.1 + random.random())
 				self.stations[d].radio_recv(r, p)
+
 			loop.create_task(asend(dest, rssi, pkt))
 
 
@@ -85,6 +92,10 @@ class Station:
 				(self.callsign, pkt.to, pkt.fr0m, pkt.data))
 
 	def radio_recv(self, rssi, pkt):
+		if VERBOSITY > 80:
+			# we don't know who exactly transmitted this packet
+			print("%s: recv rssi %d" % rssi)
+
 		# Sanity check
 		if not pkt.to or not pkt.fr0m:
 			print("%s: bad pkt %s" % (pkt.data))
@@ -154,24 +165,61 @@ class RagChewer:
 
 
 r = Radio()
-# Mesh map
-r.edge("B", "A") # B <- A i.e. A can send to B
-r.edge("A", "B")
-r.edge("A", "C")
-r.edge("C", "A")
-r.edge("A", "D")
-r.edge("D", "A")
-r.edge("B", "C")
-r.edge("C", "B")
-r.edge("B", "D")
-r.edge("D", "B")
-r.edge("C", "D")
-r.edge("D", "C")
+stations = {}
 
-a = Station("A", r).add(Beacon).add(RagChewer)
-b = Station("B", r).add(Beacon).add(RagChewer)
-c = Station("C", r).add(Beacon).add(RagChewer)
-d = Station("D", r).add(Beacon).add(RagChewer)
+# create stations
+for i in range(0, STATION_COUNT):
+	prefix = chr(ord('A') + i)
+	stations[prefix] = Station(prefix, r)
+
+# create model mesh
+r.edge("A", "B", -50)  # "A" <- "B", rssi -50
+r.edge("A", "C", -70)
+
+r.edge("C", "A", -60)
+r.edge("C", "B", -75)
+r.edge("C", "E", -80)
+r.edge("C", "F", -60)
+
+r.edge("B", "A", -55)
+r.edge("B", "C", -75)
+r.edge("B", "D", -51)
+r.edge("B", "E", -51)
+
+r.edge("D", "B", -45)
+r.edge("D", "E", -65)
+r.edge("D", "G", -85)
+
+r.edge("E", "B", -70)
+r.edge("E", "C", -60)
+r.edge("E", "D", -90)
+r.edge("E", "F", -120) # out
+r.edge("E", "G", -65)
+r.edge("E", "H", -62)
+
+r.edge("F", "C", -120) # out
+r.edge("F", "E", -120) # out
+r.edge("F", "H", -80) 
+
+r.edge("G", "D", -61)
+r.edge("G", "E", -62)
+r.edge("G", "H", -63)
+r.edge("G", "I", -119) # out
+
+r.edge("H", "F", -120) # out
+r.edge("H", "E", -66) 
+r.edge("H", "G", -60) 
+r.edge("H", "I", -47) 
+
+r.edge("I", "G", -40) 
+r.edge("I", "H", -70) 
+r.edge("I", "J", -65)
+
+r.edge("J", "I", -60) 
+
+# add talkers
+for prefix, station in stations.items():
+	station.add(Beacon).add(RagChewer)
 
 async def list_pending_pkts():
 	while True:
