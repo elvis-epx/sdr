@@ -1,26 +1,37 @@
 #!/usr/bin/env python3
 
+# LoRaMaDoR (LoRa-based mesh network for hams) project
+# Mesh network simulator / routing algorithms testbed
+# Copyright (c) 2019 PU5EPX
+
 import random, math, asyncio
 
 STATION_COUNT=10
 VERBOSITY=100
+MAX_TTL = 8
+MAX_TTL_QM = (MAX_TTL + 1) * 2
 
 loop = asyncio.get_event_loop()
 
 class Packet:
 	last_ident = 0
 
-	def __init__(self, to, via, fr0m, data):
+	def __init__(self, to, via, fr0m, msg):
 		self.to = to.upper()
 		self.via = via.upper()
 		self.fr0m = fr0m.upper()
 
-		self.maxhops = 10
+		self.ttl = MAX_TTL
 		if to == "QB":
-			self.maxhops = 1
-		self.hopped = 0
+			self.ttl = 1
+		elif to == "QM":
+			self.ttl = MAX_TTL_QM
+
 		Packet.last_ident += 1
-		self.data = ("%d" % Packet.last_ident) + " " + data
+		if to == "QM":
+			self.msg = msg
+		else:
+			self.msg = ("%d" % Packet.last_ident) + " " + msg
 
 class Radio:
 	pkts_transmitted = 0
@@ -75,23 +86,24 @@ class Station:
 		self.radio = radio
 		radio.attach(callsign, self)
 
-	def send(self, to, data):
+	def send(self, to, msg):
 		# Called when we originate a packet
-		pkt = Packet(to, "", self.callsign, data)
-		Station.pending_pkts.append(pkt.data)
-		print("%s -> %s msg %s" % (self.callsign, pkt.to, pkt.data))
+		pkt = Packet(to, "", self.callsign, msg)
+		if pkt.to != "QM":
+			Station.pending_pkts.append(pkt.msg)
+		print("%s -> %s msg %s" % (self.callsign, pkt.to, pkt.msg))
 		self._forward(None, pkt)
 
 	def recv(self, pkt):
 		# Called when we are the recipient of a packet
-		if pkt.data in Station.pending_pkts:
-			Station.pending_pkts.remove(pkt.data)
+		if pkt.msg in Station.pending_pkts:
+			Station.pending_pkts.remove(pkt.msg)
 		if pkt.to == self.callsign:
 			print("%s <- %s msg %s" % 
-				(self.callsign, pkt.fr0m, pkt.data))
+				(self.callsign, pkt.fr0m, pkt.msg))
 		else:
 			print("%s (%s) <- %s msg %s" % 
-				(self.callsign, pkt.to, pkt.fr0m, pkt.data))
+				(self.callsign, pkt.to, pkt.fr0m, pkt.msg))
 
 	def radio_recv(self, rssi, pkt):
 		# Got a packet from radio, we don't know who sent it
@@ -100,7 +112,7 @@ class Station:
 
 		# Sanity check
 		if not pkt.to or not pkt.fr0m:
-			print("%s: bad pkt %s" % (pkt.data))
+			print("%s: bad pkt %s" % (pkt.msg))
 			return
 
 		# Level 3 handling
@@ -109,36 +121,46 @@ class Station:
 	def _forward(self, radio_rssi, pkt):
 		# Handle the packet in L3
 
+		if pkt.to == "QM" and pkt.fr0m != self.callsign:
+			# Mesh / route special message from remote
+			self._mesh_formation(radio_rssi, pkt)
+			return
+
 		# Discard duplicates
-		if pkt.data in self.recv_pkts:
+		if pkt.msg in self.recv_pkts:
 			if VERBOSITY > 80:
 				print("%s: recv dup %s <- %s: %s" % 
-					(self.callsign, pkt.to, pkt.fr0m, pkt.data))
+					(self.callsign, pkt.to, pkt.fr0m, pkt.msg))
 			return
-		self.recv_pkts.append(pkt.data)
+		self.recv_pkts.append(pkt.msg)
 
-		if pkt.to == self.callsign or pkt.to in ("QL", "Q"):
+		if pkt.to == self.callsign or pkt.to in ("QL", "Q", "QB"):
 			# We are the final destination
+			# QB one-hop policy is enforced, too
 			self.recv(pkt)
 			return
 
-		if pkt.to in ("QB", "QF"):
-			# We are one of the recipients
+		if pkt.to in ("QF"):
+			# We are one of many recipients
 			self.recv(pkt)
 
 		if pkt.fr0m == self.callsign:
-			# We are the originators
+			# We are the originators, destination is non-local
 			self.radio.send(self.callsign, pkt)
 			return
 
+		self._repeat(pkt)
+		return
+
+	def _repeat(pkt):
 		######## Repeater logic
 
 		# Hop count control
-		pkt.hopped += 1
-		if pkt.hopped >= pkt.maxhops:
+		pkt.ttl -= 1
+		if pkt.ttl <= 0:
 			if VERBOSITY > 90:
 				print("%s: drop %s <- %s: %s" % \
-					(self.callsign, pkt.to, pkt.fr0m, pkt.data))
+					(self.callsign, pkt.to, pkt.fr0m, pkt.msg))
 			return
 
 		if pkt.via:
@@ -147,7 +169,7 @@ class Station:
 				# Not for us to forward
 				if VERBOSITY > 80:
 					print("%s: not forwarding %s <- %s: %s" % \
-						(self.callsign, pkt.to, pkt.fr0m, pkt.data))
+						(self.callsign, pkt.to, pkt.fr0m, pkt.msg))
 					return
 
 			# Find next hop
@@ -155,26 +177,59 @@ class Station:
 			if not next_hop:
 				if VERBOSITY > 50:
 					print("%s: could not route %s -> %s: %s" % 
-						(self.callsign, pkt.fr0m, pkt.to, pkt.data))
+						(self.callsign, pkt.fr0m, pkt.to, pkt.msg))
 				return
 
 			pkt.via = next_hop
 
 			if VERBOSITY > 50:
 				print("%s: forwarding %s -> %s: %s" % 
-					(self.callsign, pkt.fr0m, pkt.to, pkt.data))
+					(self.callsign, pkt.fr0m, pkt.to, pkt.msg))
 
 		if not pkt.via:
 			# Diffusion routing, forwarding blindly
 			if VERBOSITY > 60:
 				print("%s: forwarding %s -> %s: %s" % 
-					(self.callsign, pkt.fr0m, pkt.to, pkt.data))
+					(self.callsign, pkt.fr0m, pkt.to, pkt.msg))
 
 		self.radio.send(self.callsign, pkt)
 
 	def get_next_hop(self, pkt):
 		# TODO implement routing logic
 		return None
+
+	def _mesh_formation(self, radio_rssi, pkt):
+		# Handle mesh formation packet
+
+		# Parse message into a path
+		msg = pkt.msg.upper().strip()
+		path = []
+		if msg:
+			path = msg.split("<")
+
+		if VERBOSITY > 50:
+			print("%s: learnt path %s <= %s <= %s" % (self.callsign, self.callsign, str(path), pkt.fr0m))
+
+		if self.callsign in path or self.callsign == pkt.fr0m:
+			# Either we sent this packet or it already passed through us
+			if VERBOSITY > 50:
+				print("\tcomplete loop")
+			return
+	
+		# Hop count control
+		pkt.ttl -= 1
+		if pkt.ttl <= 0:
+			if VERBOSITY > 90:
+				print("\tnot forwarding - ttl")
+			return
+		if len(path) >= MAX_TTL_QM:
+			if VERBOSITY > 90:
+				print("\tnot forwarding - ttl II")
+			return
+
+		# Forward with ourselves as a new hop in the path message
+		pkt.msg = "<".join([ self.callsign ] + path)
+		self.radio.send(self.callsign, pkt)
 
 	def add(self, klass):
 		self.generators.append(klass(self))
@@ -202,6 +257,15 @@ class RagChewer:
 				station.send(to, "bla")
 		loop.create_task(talk())
 
+
+class MeshFormation:
+	def __init__(self, station):
+		async def probe():
+			await asyncio.sleep(1 + random.random() * 30)
+			while True:
+				station.send("QM", "")
+				await asyncio.sleep(60 + random.random() * 60)
+		loop.create_task(probe())
 
 r = Radio()
 stations = {}
@@ -258,7 +322,8 @@ r.edge("J", "I", -60)
 
 # add talkers
 for callsign, station in stations.items():
-	station.add(Beacon).add(RagChewer)
+	# station.add(Beacon).add(RagChewer).add(MeshFormation)
+	station.add(MeshFormation)
 
 async def list_pending_pkts():
 	while True:
