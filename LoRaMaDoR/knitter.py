@@ -3,7 +3,7 @@
 import random, math, asyncio
 
 STATION_COUNT=10
-VERBOSITY=61
+VERBOSITY=100
 
 loop = asyncio.get_event_loop()
 
@@ -12,7 +12,7 @@ class Packet:
 
 	def __init__(self, to, via, fr0m, data):
 		self.to = to.upper()
-		self.via = to.upper()
+		self.via = via.upper()
 		self.fr0m = fr0m.upper()
 
 		self.maxhops = 10
@@ -76,12 +76,14 @@ class Station:
 		radio.attach(callsign, self)
 
 	def send(self, to, data):
+		# Called when we originate a packet
 		pkt = Packet(to, "", self.callsign, data)
 		Station.pending_pkts.append(pkt.data)
 		print("%s -> %s msg %s" % (self.callsign, pkt.to, pkt.data))
 		self._forward(None, pkt)
 
 	def recv(self, pkt):
+		# Called when we are the recipient of a packet
 		if pkt.data in Station.pending_pkts:
 			Station.pending_pkts.remove(pkt.data)
 		if pkt.to == self.callsign:
@@ -92,19 +94,22 @@ class Station:
 				(self.callsign, pkt.to, pkt.fr0m, pkt.data))
 
 	def radio_recv(self, rssi, pkt):
+		# Got a packet from radio, we don't know who sent it
 		if VERBOSITY > 80:
-			# we don't know who exactly transmitted this packet
-			print("%s: recv rssi %d" % rssi)
+			print("%s: recv rssi %d" % (self.callsign, rssi))
 
 		# Sanity check
 		if not pkt.to or not pkt.fr0m:
 			print("%s: bad pkt %s" % (pkt.data))
 			return
 
+		# Level 3 handling
 		self._forward(rssi, pkt)
 
 	def _forward(self, radio_rssi, pkt):
-		# Duplicate detection
+		# Handle the packet in L3
+
+		# Discard duplicates
 		if pkt.data in self.recv_pkts:
 			if VERBOSITY > 80:
 				print("%s: recv dup %s <- %s: %s" % 
@@ -113,29 +118,63 @@ class Station:
 		self.recv_pkts.append(pkt.data)
 
 		if pkt.to == self.callsign or pkt.to in ("QL", "Q"):
-			# I am the recipient
+			# We are the final destination
 			self.recv(pkt)
 			return
 
-		if pkt.fr0m != self.callsign:
-			# I am repeater
-			if pkt.to in ("QB", "QF"):
-				# Broadcast pseudo-destination, I am a recipient too
-				self.recv(pkt)
+		if pkt.to in ("QB", "QF"):
+			# We are one of the recipients
+			self.recv(pkt)
 
-			# Check TTL
-			pkt.hopped += 1
-			if pkt.hopped >= pkt.maxhops:
-				if VERBOSITY > 90:
-					print("%s: drop %s <- %s: %s" % \
+		if pkt.fr0m == self.callsign:
+			# We are the originators
+			self.radio.send(self.callsign, pkt)
+			return
+
+		######## Repeater logic
+
+		# Hop count control
+		pkt.hopped += 1
+		if pkt.hopped >= pkt.maxhops:
+			if VERBOSITY > 90:
+				print("%s: drop %s <- %s: %s" % \
+					(self.callsign, pkt.to, pkt.fr0m, pkt.data))
+			return
+
+		if pkt.via:
+			# Active routing
+			if pkt.via != self.callsign:
+				# Not for us to forward
+				if VERBOSITY > 80:
+					print("%s: not forwarding %s <- %s: %s" % \
 						(self.callsign, pkt.to, pkt.fr0m, pkt.data))
+					return
+
+			# Find next hop
+			next_hop = self.get_next_hop(pkt)
+			if not next_hop:
+				if VERBOSITY > 50:
+					print("%s: could not route %s -> %s: %s" % 
+						(self.callsign, pkt.fr0m, pkt.to, pkt.data))
 				return
 
+			pkt.via = next_hop
+
+			if VERBOSITY > 50:
+				print("%s: forwarding %s -> %s: %s" % 
+					(self.callsign, pkt.fr0m, pkt.to, pkt.data))
+
+		if not pkt.via:
+			# Diffusion routing, forwarding blindly
 			if VERBOSITY > 60:
-				print("%s: forward %s -> %s: %s" % 
+				print("%s: forwarding %s -> %s: %s" % 
 					(self.callsign, pkt.fr0m, pkt.to, pkt.data))
 
 		self.radio.send(self.callsign, pkt)
+
+	def get_next_hop(self, pkt):
+		# TODO implement routing logic
+		return None
 
 	def add(self, klass):
 		self.generators.append(klass(self))
@@ -169,8 +208,8 @@ stations = {}
 
 # create stations
 for i in range(0, STATION_COUNT):
-	prefix = chr(ord('A') + i)
-	stations[prefix] = Station(prefix, r)
+	callsign = chr(ord('A') + i)
+	stations[callsign] = Station(callsign, r)
 
 # create model mesh
 r.edge("A", "B", -50)  # "A" <- "B", rssi -50
@@ -218,7 +257,7 @@ r.edge("I", "J", -65)
 r.edge("J", "I", -60) 
 
 # add talkers
-for prefix, station in stations.items():
+for callsign, station in stations.items():
 	station.add(Beacon).add(RagChewer)
 
 async def list_pending_pkts():
