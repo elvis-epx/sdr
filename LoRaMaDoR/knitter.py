@@ -4,12 +4,13 @@
 # Mesh network simulator / routing algorithms testbed
 # Copyright (c) 2019 PU5EPX
 
-import random, math, asyncio
+import random, asyncio
 
-STATION_COUNT=10
-VERBOSITY=100
-MAX_TTL = 8
-MAX_TTL_QM = (MAX_TTL + 1) * 2
+L2_VERBOSITY=50
+L3_VERBOSITY=50
+ROUTER_VERBOSITY=80
+
+MAX_TTL = 5
 
 loop = asyncio.get_event_loop()
 
@@ -24,11 +25,10 @@ class Packet:
 		self.ttl = MAX_TTL
 		if to == "QB":
 			self.ttl = 1
-		elif to == "QM":
-			self.ttl = MAX_TTL_QM
 
 		Packet.last_ident += 1
 		if to == "QM":
+			self.fr0m = "QM"
 			self.msg = msg
 		else:
 			self.msg = ("%d" % Packet.last_ident) + " " + msg
@@ -62,11 +62,11 @@ class Radio:
 
 		for dest, rssi in self.edges[fr0m].items():
 			if rssi <= -99.9:
-				if VERBOSITY > 80:
+				if L2_VERBOSITY > 80:
 					print("radio %s: not bcasting to %s, rssi too low" % (fr0m, dest))
 				continue
 			else:
-				if VERBOSITY > 70:
+				if L2_VERBOSITY > 70:
 					print("radio %s: bcasting to %s" % (fr0m, dest))
 
 			async def asend(d, r, p):
@@ -74,6 +74,105 @@ class Radio:
 				self.stations[d].radio_recv(r, p)
 
 			loop.create_task(asend(dest, rssi, pkt))
+
+
+class Router:
+	def __init__(self, callsign):
+		self.routes = []
+		self.callsign = callsign
+		self.edges = {}
+		self.sent_edges = {}
+
+	def learn(self, ttl, path, last_hop_rssi):
+		# Extract graph edges from breadcrumb path
+		if not path:
+			return
+
+		if ttl > 0:
+			# path[0] is neighbor
+			path = [ self.callsign ] + path
+
+		if ROUTER_VERBOSITY > 90:
+			print("%s rt: learning path %s ttl %d" \
+				% (self.callsign, " < ".join(path), ttl))
+
+		for i in range(0, len(path) - 1):
+			to = path[i]
+			fr0m = path[i+1]
+
+			cost = 1000
+			if i == 0:
+				# Cost of adjacent node = -RSSI
+				cost = -last_hop_rssi
+
+			if to not in self.edges:
+				self.edges[to] = {}
+				self.sent_edges[to] = {}
+
+			if fr0m not in self.edges[to]:
+				self.edges[to][fr0m] = cost
+				self.sent_edges[to][fr0m] = False
+				if ROUTER_VERBOSITY > 50:
+					print("%s rt: learnt edge %s < %s" % \
+						(self.callsign, to, fr0m))
+
+
+
+	def prune(self, path):
+		# Remove heading and trailing edges that we have already published
+		# NOTE: assume that path was already learn()ed
+		path_before = path[:]
+		path = path[:]
+
+		if ROUTER_VERBOSITY > 90:
+			print("%s rt: pruning path %s" % (self.callsign, " < ".join(path)))
+
+		# Prune at left
+		while len(path) >= 2:
+			to = path[0]
+			fr0m = path[1]
+			if self.sent_edges[to][fr0m]:
+				# Already sent, prune
+				path = path[1:]
+				if ROUTER_VERBOSITY > 90:
+					print("%s rt: pruned edge %s < %s" % \
+						(self.callsign, to, fr0m))
+			else:
+				# Mark as sent and stop pruning this end
+				self.sent_edges[to][fr0m] = True
+				break
+
+		# Prune at right, make sure not to prune leftmost edge
+		while len(path) >= 3:
+			to = path[-2]
+			fr0m = path[-1]
+			if self.sent_edges[to][fr0m]:
+				# Already sent, prune
+				path = path[:-1]
+				if ROUTER_VERBOSITY > 90:
+					print("%s rt: pruned edge %s < %s" % \
+						(self.callsign, to, fr0m))
+			else:
+				# Mark as sent and stop pruning
+				self.sent_edges[to][fr0m] = True
+				break
+		
+		if len(path) < 2:
+			path = []
+
+		if ROUTER_VERBOSITY > 90:
+			if len(path_before) != len(path):
+				print("\tbefore pruning: %s" % " < ".join(path_before))
+				print("\tafter pruning: %s" % " < ".join(path))
+
+		return path
+
+	def sent(self, path):
+		if ROUTER_VERBOSITY > 60:
+			print("%s rt: sent %s" % (self.callsign, " < ".join(path)))
+
+		for i in range(0, len(path) - 1):
+			self.sent_edges[path[i]][path[i + 1]] = True
 
 
 class Station:
@@ -84,6 +183,7 @@ class Station:
 		self.recv_pkts = []
 		self.generators = []
 		self.radio = radio
+		self.router = Router(self.callsign)
 		radio.attach(callsign, self)
 
 	def send(self, to, msg):
@@ -92,7 +192,7 @@ class Station:
 		if pkt.to != "QM":
 			Station.pending_pkts.append(pkt.msg)
 		print("%s -> %s msg %s" % (self.callsign, pkt.to, pkt.msg))
-		self._forward(None, pkt)
+		self._forward(None, pkt, True)
 
 	def recv(self, pkt):
 		# Called when we are the recipient of a packet
@@ -107,7 +207,7 @@ class Station:
 
 	def radio_recv(self, rssi, pkt):
 		# Got a packet from radio, we don't know who sent it
-		if VERBOSITY > 80:
+		if L3_VERBOSITY > 80:
 			print("%s: recv rssi %d" % (self.callsign, rssi))
 
 		# Sanity check
@@ -116,25 +216,37 @@ class Station:
 			return
 
 		# Level 3 handling
-		self._forward(rssi, pkt)
+		self._forward(rssi, pkt, False)
 
-	def _forward(self, radio_rssi, pkt):
+	def _forward(self, radio_rssi, pkt, from_us):
 		# Handle the packet in L3
 
-		if pkt.to == "QM" and pkt.fr0m != self.callsign:
+		if from_us:
+			# We are the origin
+			if pkt.to in ("QL", "Q", self.callsign):
+				# Loopback
+				self.recv(pkt)
+				return
+			# Annotate to detect duplicates
+			self.recv_pkts.append(pkt.msg)
+			# Send away
+			self.radio.send(self.callsign, pkt)
+			return
+
+		if pkt.to == "QM" or pkt.fr0m == "QM":
 			# Mesh / route special message from remote
 			self._mesh_formation(radio_rssi, pkt)
 			return
 
-		# Discard duplicates
+		# Discard received duplicates
 		if pkt.msg in self.recv_pkts:
-			if VERBOSITY > 80:
+			if L3_VERBOSITY > 80:
 				print("%s: recv dup %s <- %s: %s" % 
 					(self.callsign, pkt.to, pkt.fr0m, pkt.msg))
 			return
 		self.recv_pkts.append(pkt.msg)
 
-		if pkt.to == self.callsign or pkt.to in ("QL", "Q", "QB"):
+		if pkt.to in (self.callsign, "QB"):
 			# We are the final destination
 			# QB one-hop policy is enforced, too
 			self.recv(pkt)
@@ -143,11 +255,6 @@ class Station:
 		if pkt.to in ("QF"):
 			# We are one of many recipients
 			self.recv(pkt)
-
-		if pkt.fr0m == self.callsign:
-			# We are the originators, destination is non-local
-			self.radio.send(self.callsign, pkt)
-			return
 
 		self._repeat(pkt)
 		return
@@ -158,7 +265,7 @@ class Station:
 		# Hop count control
 		pkt.ttl -= 1
 		if pkt.ttl <= 0:
-			if VERBOSITY > 90:
+			if L3_VERBOSITY > 90:
 				print("%s: drop %s <- %s: %s" % \
 					(self.callsign, pkt.to, pkt.fr0m, pkt.msg))
 			return
@@ -167,7 +274,7 @@ class Station:
 			# Active routing
 			if pkt.via != self.callsign:
 				# Not for us to forward
-				if VERBOSITY > 80:
+				if L3_VERBOSITY > 80:
 					print("%s: not forwarding %s <- %s: %s" % \
 						(self.callsign, pkt.to, pkt.fr0m, pkt.msg))
 					return
@@ -175,20 +282,20 @@ class Station:
 			# Find next hop
 			next_hop = self.get_next_hop(pkt)
 			if not next_hop:
-				if VERBOSITY > 50:
+				if L3_VERBOSITY > 50:
 					print("%s: could not route %s -> %s: %s" % 
 						(self.callsign, pkt.fr0m, pkt.to, pkt.msg))
 				return
 
 			pkt.via = next_hop
 
-			if VERBOSITY > 50:
+			if L3_VERBOSITY > 50:
 				print("%s: forwarding %s -> %s: %s" % 
 					(self.callsign, pkt.fr0m, pkt.to, pkt.msg))
 
 		if not pkt.via:
 			# Diffusion routing, forwarding blindly
-			if VERBOSITY > 60:
+			if L3_VERBOSITY > 60:
 				print("%s: forwarding %s -> %s: %s" % 
 					(self.callsign, pkt.fr0m, pkt.to, pkt.msg))
 
@@ -201,35 +308,48 @@ class Station:
 	def _mesh_formation(self, radio_rssi, pkt):
 		# Handle mesh formation packet
 
-		# Parse message into a path
-		msg = pkt.msg.upper().strip()
-		path = []
-		if msg:
-			path = msg.split("<")
-
-		if VERBOSITY > 50:
-			print("%s: learnt path %s <= %s <= %s" % (self.callsign, self.callsign, str(path), pkt.fr0m))
-
-		if self.callsign in path or self.callsign == pkt.fr0m:
-			# Either we sent this packet or it already passed through us
-			if VERBOSITY > 50:
-				print("\tcomplete loop")
+		if pkt.to != "QM" or pkt.fr0m != "QM":
+			if ROUTER_VERBOSITY > 40:
+				print("%s: Bad QM packet addr", self.callsign)
 			return
-	
+
+		msg = pkt.msg.upper().strip()
+		if not msg:
+			if ROUTER_VERBOSITY > 40:
+				print("%s: Bad QM packet msg", self.callsign)
+			return
+
+
+		# Parse message into a path
+		path = msg.split("<")
+		if ROUTER_VERBOSITY > 50:
+			print("%s: qm path %s" % (self.callsign, "<".join(path)))
+
+		self.router.learn(pkt.ttl, path, radio_rssi)
+
 		# Hop count control
 		pkt.ttl -= 1
-		if pkt.ttl <= 0:
-			if VERBOSITY > 90:
+
+		if pkt.ttl <= -MAX_TTL:
+			if ROUTER_VERBOSITY > 60:
 				print("\tnot forwarding - ttl")
 			return
-		if len(path) >= MAX_TTL_QM:
-			if VERBOSITY > 90:
-				print("\tnot forwarding - ttl II")
+
+		# Only add ourselves to path if len(path) < TTL
+		if pkt.ttl > 0:
+			path = [ self.callsign ] + path
+
+		# Prune parts of the route we've alreaady broadcasted
+		path = self.router.prune(path)
+		if len(path) < 2:
+			if ROUTER_VERBOSITY > 90:
+				print("\tnothing left after pruning")
 			return
 
-		# Forward with ourselves as a new hop in the path message
-		pkt.msg = "<".join([ self.callsign ] + path)
+		# Forward with updated path
+		pkt.msg = "<".join(path)
 		self.radio.send(self.callsign, pkt)
+		self.router.sent(path)
 
 	def add(self, klass):
 		self.generators.append(klass(self))
@@ -261,75 +381,25 @@ class RagChewer:
 class MeshFormation:
 	def __init__(self, station):
 		async def probe():
-			await asyncio.sleep(1 + random.random() * 30)
+			await asyncio.sleep(1 + random.random() * 5)
 			while True:
-				station.send("QM", "")
+				station.send("QM", station.callsign)
 				await asyncio.sleep(60 + random.random() * 60)
 		loop.create_task(probe())
 
-r = Radio()
-stations = {}
 
-# create stations
-for i in range(0, STATION_COUNT):
-	callsign = chr(ord('A') + i)
-	stations[callsign] = Station(callsign, r)
+def radio():
+	return Radio()
 
-# create model mesh
-r.edge("A", "B", -50)  # "A" <- "B", rssi -50
-r.edge("A", "C", -70)
+def aioloop():
+	return loop
 
-r.edge("C", "A", -60)
-r.edge("C", "B", -75)
-r.edge("C", "E", -80)
-r.edge("C", "F", -60)
+def run():
+	async def list_pending_pkts():
+		while True:
+			await asyncio.sleep(10)
+			print("Packets pending delivery:", Station.pending_pkts)
+	loop.create_task(list_pending_pkts())
 
-r.edge("B", "A", -55)
-r.edge("B", "C", -75)
-r.edge("B", "D", -51)
-r.edge("B", "E", -51)
-
-r.edge("D", "B", -45)
-r.edge("D", "E", -65)
-r.edge("D", "G", -85)
-
-r.edge("E", "B", -70)
-r.edge("E", "C", -60)
-r.edge("E", "D", -90)
-r.edge("E", "F", -120) # out
-r.edge("E", "G", -65)
-r.edge("E", "H", -62)
-
-r.edge("F", "C", -120) # out
-r.edge("F", "E", -120) # out
-r.edge("F", "H", -80) 
-
-r.edge("G", "D", -61)
-r.edge("G", "E", -62)
-r.edge("G", "H", -63)
-r.edge("G", "I", -119) # out
-
-r.edge("H", "F", -120) # out
-r.edge("H", "E", -66) 
-r.edge("H", "G", -60) 
-r.edge("H", "I", -47) 
-
-r.edge("I", "G", -40) 
-r.edge("I", "H", -70) 
-r.edge("I", "J", -65)
-
-r.edge("J", "I", -60) 
-
-# add talkers
-for callsign, station in stations.items():
-	# station.add(Beacon).add(RagChewer).add(MeshFormation)
-	station.add(MeshFormation)
-
-async def list_pending_pkts():
-	while True:
-		await asyncio.sleep(10)
-		print("Packets pending delivery:", Station.pending_pkts)
-loop.create_task(list_pending_pkts())
-
-loop.run_forever()
-loop.close()
+	loop.run_forever()
+	loop.close()
