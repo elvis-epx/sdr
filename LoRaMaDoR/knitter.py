@@ -4,9 +4,9 @@
 # Mesh network simulator / routing algorithms testbed
 # Copyright (c) 2019 PU5EPX
 
-import random, asyncio
+import random, asyncio, sys
 
-L2_VERBOSITY=50
+L2_VERBOSITY=100
 L3_VERBOSITY=50
 ROUTER_VERBOSITY=80
 
@@ -15,7 +15,7 @@ MAX_TTL = 5
 loop = asyncio.get_event_loop()
 
 class Packet:
-	last_ident = 0
+	last_ident = 1000
 
 	def __init__(self, to, via, fr0m, msg):
 		self.to = to.upper()
@@ -27,11 +27,18 @@ class Packet:
 			self.ttl = 1
 
 		Packet.last_ident += 1
+		self.ident = "%d" % Packet.last_ident
 		if to == "QM":
 			self.fr0m = "QM"
 			self.msg = msg
 		else:
-			self.msg = ("%d" % Packet.last_ident) + " " + msg
+			self.msg = self.ident + " " + msg
+
+	def dup(self):
+		p = Packet(self.to, self.via, self.fr0m, self.msg)
+		Packet.last_ident -= 1
+		p.ident = self.ident + "'"
+		return p
 
 class Radio:
 	pkts_transmitted = 0
@@ -50,6 +57,12 @@ class Radio:
 			self.edges[fr0m] = {}
 		self.edges[fr0m][to] = rssi
 
+	def dbledge(self, to, fr0m, rssi1, rssi2=None):
+		if rssi2 is None:
+			rssi2 = rssi1
+		self.edge(to, fr0m, rssi1)
+		self.edge(fr0m, to, rssi2)
+
 	def attach(self, callsign, station):
 		self.stations[callsign] = station
 
@@ -63,27 +76,30 @@ class Radio:
 		for dest, rssi in self.edges[fr0m].items():
 			if rssi <= -99.9:
 				if L2_VERBOSITY > 80:
-					print("radio %s: not bcasting to %s, rssi too low" % (fr0m, dest))
+					print("radio %s: not bcasting to %s, rssi too low" % \
+						(fr0m, dest))
 				continue
 			else:
 				if L2_VERBOSITY > 70:
-					print("radio %s: bcasting to %s" % (fr0m, dest))
+					print("radio %s: bcasting to %s msg %s ident %s" % \
+						(fr0m, dest, pkt.msg, pkt.ident))
 
 			async def asend(d, r, p):
 				await asyncio.sleep(0.1 + random.random())
 				self.stations[d].radio_recv(r, p)
 
-			loop.create_task(asend(dest, rssi, pkt))
+			loop.create_task(asend(dest, rssi, pkt.dup()))
 
 
 class Router:
-	def __init__(self, callsign):
+	def __init__(self, callsign, helper):
 		self.routes = []
 		self.callsign = callsign
 		self.edges = {}
 		self.sent_edges = {}
+		self.helper = helper
 
-	def learn(self, ttl, path, last_hop_rssi):
+	def learn(self, ident, ttl, path, last_hop_rssi):
 		# Extract graph edges from breadcrumb path
 		if not path:
 			return
@@ -93,17 +109,24 @@ class Router:
 			path = [ self.callsign ] + path
 
 		if ROUTER_VERBOSITY > 90:
-			print("%s rt: learning path %s ttl %d" \
-				% (self.callsign, " < ".join(path), ttl))
+			print("%s rt: learning path %s ident %s ttl %d" \
+				% (self.callsign, " < ".join(path), ident, ttl))
 
 		for i in range(0, len(path) - 1):
 			to = path[i]
 			fr0m = path[i+1]
+			print("#### %s %s %s" % (str(path), to, fr0m))
+
+			if to == fr0m:
+				print("#### FATAL %s <- %s" % (to, fr0m))
+				sys.exit(1)
 
 			cost = 1000
 			if i == 0:
 				# Cost of adjacent node = -RSSI
 				cost = -last_hop_rssi
+
+			# FIXME cost not being propagated
 
 			if to not in self.edges:
 				self.edges[to] = {}
@@ -116,9 +139,20 @@ class Router:
 					print("%s rt: learnt edge %s < %s" % \
 						(self.callsign, to, fr0m))
 
+			elif self.edges[to][fr0m] > cost:
+				self.edges[to][fr0m] = cost
+				if ROUTER_VERBOSITY > 50:
+					print("%s rt: reduced cost %s < %s" % \
+						(self.callsign, to, fr0m))
 
+		if ROUTER_VERBOSITY > 50:
+			learnt_edges = sum(len(v.keys()) for k, v in self.edges.items())
+			total_edges = self.helper['total_edges']()
+			pp = 100 * learnt_edges / total_edges
+			print("%s (dbg) rt knows %.1f%% of the graph" % (self.callsign, pp))
+			print("\tknows: ", self.edges)
 
-	def prune(self, path):
+	def prune(self, left_is_us, path):
 		# Remove heading and trailing edges that we have already published
 		# NOTE: assume that path was already learn()ed
 		path_before = path[:]
@@ -127,23 +161,28 @@ class Router:
 		if ROUTER_VERBOSITY > 90:
 			print("%s rt: pruning path %s" % (self.callsign, " < ".join(path)))
 
-		# Prune at left
+		if left_is_us:
+			# Cannot prune at left because of guarantee that
+			# path[0] == ourselves when ttl > 0
+			pass
+		else:
+			# Prune at left
+			while len(path) >= 2:
+				to = path[0]
+				fr0m = path[1]
+				if self.sent_edges[to][fr0m]:
+					# Already sent, prune
+					path = path[1:]
+					if ROUTER_VERBOSITY > 90:
+						print("%s rt: pruned edge %s < %s" % \
+							(self.callsign, to, fr0m))
+				else:
+					# Mark as sent and stop pruning this end
+					self.sent_edges[to][fr0m] = True
+					break
+	
+		# Prune at right
 		while len(path) >= 2:
-			to = path[0]
-			fr0m = path[1]
-			if self.sent_edges[to][fr0m]:
-				# Already sent, prune
-				path = path[1:]
-				if ROUTER_VERBOSITY > 90:
-					print("%s rt: pruned edge %s < %s" % \
-						(self.callsign, to, fr0m))
-			else:
-				# Mark as sent and stop pruning this end
-				self.sent_edges[to][fr0m] = True
-				break
-
-		# Prune at right, make sure not to prune leftmost edge
-		while len(path) >= 3:
 			to = path[-2]
 			fr0m = path[-1]
 			if self.sent_edges[to][fr0m]:
@@ -167,9 +206,10 @@ class Router:
 
 		return path
 
-	def sent(self, path):
+	def sent(self, ident, ttl, path):
 		if ROUTER_VERBOSITY > 60:
-			print("%s rt: sent %s" % (self.callsign, " < ".join(path)))
+			print("%s rt: sent ttl %d ident %s path %s" % \
+				(self.callsign, ttl, ident, " < ".join(path)))
 
 		for i in range(0, len(path) - 1):
 			self.sent_edges[path[i]][path[i + 1]] = True
@@ -183,7 +223,13 @@ class Station:
 		self.recv_pkts = []
 		self.generators = []
 		self.radio = radio
-		self.router = Router(self.callsign)
+
+		# For debugging purposes
+		def total_edges():
+			return sum(len(v.keys()) for k, v in self.radio.edges.items())
+		helper = {"total_edges": total_edges}
+
+		self.router = Router(self.callsign, helper)
 		radio.attach(callsign, self)
 
 	def send(self, to, msg):
@@ -323,9 +369,10 @@ class Station:
 		# Parse message into a path
 		path = msg.split("<")
 		if ROUTER_VERBOSITY > 50:
-			print("%s: qm path %s" % (self.callsign, "<".join(path)))
+			print("%s: rt recv path %s ttl %d ident %s" % \
+				(self.callsign, "<".join(path), pkt.ttl, pkt.ident))
 
-		self.router.learn(pkt.ttl, path, radio_rssi)
+		self.router.learn(pkt.ident, pkt.ttl, path, radio_rssi)
 
 		# Hop count control
 		pkt.ttl -= 1
@@ -339,8 +386,9 @@ class Station:
 		if pkt.ttl > 0:
 			path = [ self.callsign ] + path
 
-		# Prune parts of the route we've alreaady broadcasted
-		path = self.router.prune(path)
+		# Prune parts of the route we've already broadcasted
+		# but guarantee that path[0] = us when ttl > 0
+		path = self.router.prune(pkt.ttl > 0, path)
 		if len(path) < 2:
 			if ROUTER_VERBOSITY > 90:
 				print("\tnothing left after pruning")
@@ -349,7 +397,7 @@ class Station:
 		# Forward with updated path
 		pkt.msg = "<".join(path)
 		self.radio.send(self.callsign, pkt)
-		self.router.sent(path)
+		self.router.sent(pkt.ident, pkt.ttl, path)
 
 	def add(self, klass):
 		self.generators.append(klass(self))
@@ -397,7 +445,7 @@ def aioloop():
 def run():
 	async def list_pending_pkts():
 		while True:
-			await asyncio.sleep(10)
+			await asyncio.sleep(120)
 			print("Packets pending delivery:", Station.pending_pkts)
 	loop.create_task(list_pending_pkts())
 
