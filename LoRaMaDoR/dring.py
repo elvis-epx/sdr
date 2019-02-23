@@ -26,4 +26,5 @@ for callsign, station in stations.items():
 	# station.add(Beacon).add(RagChewer).add(MeshFormation)
 	station.add(knitter.MeshFormation)
 
+knitter.ttl(2)
 knitter.run()
