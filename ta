@@ -1,0 +1,4 @@
+#!/bin/sh -x
+
+# rtl_sdr -f 462.63750M -g 30 -s 960k - | ./talkabout.py
+rtl_sdr -f 93.1M -s 256k -n 288000 - | ./talkabout.py
