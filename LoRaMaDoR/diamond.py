@@ -4,17 +4,20 @@
 # Mesh network simulator / routing algorithms testbed
 # Copyright (c) 2019 PU5EPX
 
-import random, math, asyncio, knitter
+import random, math, asyncio
+from sim_radio import Radio
+from sim_network import Station, ttl, run
+from sim_trafficgen import *
 
 STATION_COUNT=10
 
 stations = {}
-r = knitter.radio()
+r = Radio()
 
 # create stations
 for i in range(0, STATION_COUNT):
 	callsign = chr(ord('A') + i)
-	stations[callsign] = knitter.Station(callsign, r)
+	stations[callsign] = Station(callsign, r)
 
 # create model mesh
 r.edge("A", "B", -50)  # "A" <- "B", rssi -50
@@ -37,20 +40,20 @@ r.edge("D", "G", -85)
 r.edge("E", "B", -70)
 r.edge("E", "C", -60)
 r.edge("E", "D", -90)
-r.edge("E", "F", -120) # out
+r.edge("E", "F", None) # out
 r.edge("E", "G", -65)
 r.edge("E", "H", -62)
 
-r.edge("F", "C", -120) # out
-r.edge("F", "E", -120) # out
+r.edge("F", "C", None) # out
+r.edge("F", "E", None) # out
 r.edge("F", "H", -80) 
 
 r.edge("G", "D", -61)
 r.edge("G", "E", -62)
 r.edge("G", "H", -63)
-r.edge("G", "I", -119) # out
+r.edge("G", "I", None) # out
 
-r.edge("H", "F", -120) # out
+r.edge("H", "F", None) # out
 r.edge("H", "E", -66) 
 r.edge("H", "G", -60) 
 r.edge("H", "I", -47) 
@@ -64,7 +67,7 @@ r.edge("J", "I", -60)
 # add talkers
 for callsign, station in stations.items():
 	# station.add(Beacon).add(RagChewer).add(MeshFormation)
-	station.add(knitter.MeshFormation)
+	station.add_traffic_gen(MeshFormation)
 
-knitter.ttl(5)
-knitter.run()
+ttl(5)
+run()
