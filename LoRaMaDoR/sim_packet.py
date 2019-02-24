@@ -21,8 +21,6 @@ class Packet:
 			self.ident = "%d" % Packet.last_ident
 		else:
 			self.ident = ident + "'"
-		if to == "QM":
-			self.fr0m = "QM"
 
 		self.frozen = True
 
@@ -37,7 +35,7 @@ class Packet:
 
 	def __eq__(self, other):
 		return self.to == other.to \
-			and self.fr0m == other.fr-m \
+			and self.fr0m == other.fr0m \
 			and self.msg == other.msg
 
 	def __hash__(self):

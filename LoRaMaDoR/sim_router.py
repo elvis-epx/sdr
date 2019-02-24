@@ -5,6 +5,7 @@
 # Copyright (c) 2019 PU5EPX
 
 import random, asyncio, sys
+from sim_packet import Packet
 
 ROUTER_VERBOSITY=50
 
@@ -15,6 +16,7 @@ class Router:
 		self.edges = {}
 		self.sent_edges = {}
 		self.helper = helper
+		self.routines = [ MeshFormation(self.callsign, self.helper) ]
 
 	def learn(self, ident, ttl, path, last_hop_rssi):
 		# Extract graph edges from breadcrumb path
@@ -131,19 +133,17 @@ class Router:
 		# TODO implement routing logic
 		return None
 
-	def handle_qm(self, radio_rssi, pkt):
+	def handle_pkt(self, radio_rssi, pkt):
 		# Handle mesh formation packet
 
 		if pkt.to != "QM" or pkt.fr0m != "QM":
-			if ROUTER_VERBOSITY > 40:
-				print("%s: Bad QM packet addr", self.callsign)
-			return
+			return False
 
 		msg = pkt.msg.upper().strip()
 		if not msg:
 			if ROUTER_VERBOSITY > 40:
 				print("%s: Bad QM packet msg", self.callsign)
-			return
+			return True
 
 		# Parse message into a path
 		path = msg.split("<")
@@ -158,7 +158,7 @@ class Router:
 		if pkt.ttl < -self.helper['max_ttl']():
 			if ROUTER_VERBOSITY > 60:
 				print("\tnot forwarding - ttl")
-			return
+			return True
 
 		# Only add ourselves to path if len(path) <= TTL
 		if pkt.ttl >= 0:
@@ -170,9 +170,24 @@ class Router:
 		if len(path) < 2:
 			if ROUTER_VERBOSITY > 90:
 				print("\tnothing left after pruning")
-			return
+			return True
 
 		# Forward with updated path
 		pkt = pkt.replace_msg("<".join(path))
 		self.helper['sendmsg'](pkt)
 		self.sent(pkt.ident, pkt.ttl, path)
+
+		return True
+
+
+loop = asyncio.get_event_loop()
+
+class MeshFormation:
+	def __init__(self, station, helper):
+		async def probe():
+			await asyncio.sleep(1 + random.random() * 5)
+			while True:
+				pkt = Packet("QM", "", "QM", helper['max_ttl'](), station)
+				helper['sendmsg'](pkt)
+				await asyncio.sleep(60 + random.random() * 60)
+		loop.create_task(probe())

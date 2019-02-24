@@ -66,8 +66,8 @@ r.edge("J", "I", -60)
 
 # add talkers
 for callsign, station in stations.items():
-	# station.add(Beacon).add(RagChewer).add(MeshFormation)
-	station.add_traffic_gen(MeshFormation)
+	# station.add_traffig_gen(RagChewer)
+	pass
 
 ttl(5)
 run()

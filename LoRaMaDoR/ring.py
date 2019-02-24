@@ -26,8 +26,8 @@ r.edge("E", "D", -65)
 r.edge("A", "E", -65)
 
 for callsign, station in stations.items():
-	# station.add_trafficgen(Beacon).add_trafficgen(RagChewer).add_trafficgen(MeshFormation)
-	station.add_traffic_gen(MeshFormation)
+	# station.add_trafficgen(RagChewer)
+	pass
 
 ttl(4)
 run()

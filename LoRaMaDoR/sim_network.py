@@ -16,8 +16,6 @@ def ttl(t):
 	global MAX_TTL
 	MAX_TTL = t
 
-loop = asyncio.get_event_loop()
-
 class Station:
 	pending_pkts = []
 
@@ -40,6 +38,8 @@ class Station:
 		self.router = Router(self.callsign, helper)
 		radio.attach(callsign, self)
 
+		self.add_traffic_gen(Beacon)
+
 	def send(self, to, msg):
 		# Called when we originate a packet
 		ttl = MAX_TTL
@@ -49,14 +49,13 @@ class Station:
 		self.sendmsg(pkt)
 
 	def sendmsg(self, pkt):
-		if pkt.to != "QM":
-			Station.pending_pkts.append(pkt.msg)
+		Station.pending_pkts.append(pkt)
 		print("%s => %s" % (self.callsign, pkt))
 		self._forward(None, pkt, True)
 
 	def recv(self, pkt):
 		# Called when we are the recipient of a packet
-		if pkt.msg in Station.pending_pkts:
+		if pkt in Station.pending_pkts:
 			Station.pending_pkts.remove(pkt)
 		print("%s <= %s" % (self.callsign, pkt))
 
@@ -87,9 +86,9 @@ class Station:
 			self.radio.send(self.callsign, pkt)
 			return
 
-		if pkt.to == "QM" or pkt.fr0m == "QM":
-			# Mesh / route special message from remote
-			self.router.handle_qm(radio_rssi, pkt)
+		# Offer packet to router, drop if fully handled by router
+		if self.router.handle_pkt(radio_rssi, pkt):
+			self.recv_pkts.append(pkt)
 			return
 
 		# Discard received duplicates
@@ -112,7 +111,7 @@ class Station:
 		self._repeat(pkt)
 		return
 
-	def _repeat(pkt):
+	def _repeat(self, pkt):
 		######## Repeater logic
 
 		# Hop count control
@@ -153,6 +152,18 @@ class Station:
 	def add_traffic_gen(self, klass):
 		self.traffic_gens.append(klass(self))
 		return self
+
+
+loop = asyncio.get_event_loop()
+
+class Beacon:
+	def __init__(self, station):
+		async def beacon():
+			await asyncio.sleep(random.random() * 1)
+			while True:
+				station.send("QB", "beacon")
+				await asyncio.sleep(30 + random.random() * 60)
+		loop.create_task(beacon())
 
 
 def run():

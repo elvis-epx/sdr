@@ -4,27 +4,27 @@
 # Mesh network simulator / routing algorithms testbed
 # Copyright (c) 2019 PU5EPX
 
-import random, math, asyncio, knitter
+import random, math, asyncio
+from sim_radio import Radio
+from sim_network import Station, ttl, run
+from sim_trafficgen import *
 
 STATION_COUNT=3
 
 stations = {}
-r = knitter.radio()
+r = Radio()
 
 # create stations
 for i in range(0, STATION_COUNT):
 	callsign = chr(ord('A') + i)
-	stations[callsign] = knitter.Station(callsign, r)
+	stations[callsign] = Station(callsign, r)
 
-r.dbledge("B", "A", -40) 
-r.dbledge("C", "B", -70) 
-# r.dbledge("D", "C", -65)
-# r.dbledge("E", "D", -65)
-# r.dbledge("A", "E", -65)
+r.biedge("B", "A", -40, -45) 
+r.biedge("C", "B", -70, -60) 
 
 for callsign, station in stations.items():
-	# station.add(Beacon).add(RagChewer).add(MeshFormation)
-	station.add(knitter.MeshFormation)
+	# station.add(RagChewer)
+	pass
 
-knitter.ttl(2)
-knitter.run()
+ttl(2)
+run()
