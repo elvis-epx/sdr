@@ -6,6 +6,7 @@
 
 class Packet:
 	last_ident = 1000
+	last_tag = 1
 
 	def __init__(self, to, via, fr0m, ttl, msg, ident=None):
 		self.frozen = False
@@ -16,13 +17,29 @@ class Packet:
 		self.ttl = ttl
 		self.msg = msg
 
-		Packet.last_ident += 1
+		# tag: ID for debugging purposes
+		Packet.last_tag += 1
+		self.tag = Packet.last_tag
+
+		# ident: an ID for human consumption
+		# Derived packets have similar (but different) idents
 		if not ident:
+			Packet.last_ident += 1
 			self.ident = "%d" % Packet.last_ident
 		else:
 			self.ident = ident + "'"
 
 		self.frozen = True
+
+	def encode(self):
+		return self.to + "<" + self.via + "<" + self.fr0m + " " + \
+			("%d" % self.ttl) + " " + self.msg
+
+	def decode(s):
+		raise Exception("TODO")
+
+	def __len__(self):
+		return len(self.encode())
 
 	def decrement_ttl(self):
 		return Packet(self.to, self.via, self.fr0m, self.ttl - 1, self.msg, self.ident)
@@ -34,12 +51,18 @@ class Packet:
 		return Packet(self.to, self.via, self.fr0m, self.ttl, msg, self.ident)
 
 	def __eq__(self, other):
-		return self.to == other.to \
-			and self.fr0m == other.fr0m \
-			and self.msg == other.msg
+		raise Exception("Packets cannot be compared")
 
-	def __hash__(self):
-		return hash(self.to + "<" + self.fr0m + "<" + self.msg)
+	def __ne__(self, other):
+		raise Exception("Packets cannot be compared")
+
+	# Pseudo encoding for packet equality test
+	def meaning(self):
+		return self.to + "<" + self.fr0m + " " + self.msg
+
+	# "Equal" in terms of content
+	def equal(self, other):
+		return self.meaning() == other.meaning()
 
 	def myrepr(self):
 		return "pkt %s < %s < %s ttl %d id %s msg %s" % \

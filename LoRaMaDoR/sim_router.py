@@ -189,5 +189,5 @@ class MeshFormation:
 			while True:
 				pkt = Packet("QM", "", "QM", helper['max_ttl'](), station)
 				helper['sendmsg'](pkt)
-				await asyncio.sleep(60 + random.random() * 60)
+				await asyncio.sleep(120 + random.random() * 60)
 		loop.create_task(probe())

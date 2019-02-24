@@ -4,11 +4,11 @@
 # Mesh network simulator / routing algorithms testbed
 # Copyright (c) 2019 PU5EPX
 
-import random, asyncio, sys
+import random, asyncio, sys, time, string
 from sim_router import Router
 from sim_packet import Packet
 
-L3_VERBOSITY=50
+VERBOSITY=80
 
 MAX_TTL=0
 
@@ -17,11 +17,17 @@ def ttl(t):
 	MAX_TTL = t
 
 class Station:
-	pending_pkts = []
+	all_callsigns = []
+	dbg_pending_delivery_pkts = {}
+
+	def get_all_callsigns():
+		return Station.all_callsigns[:]
 
 	def __init__(self, callsign, radio):
 		self.callsign = callsign.upper()
-		self.recv_pkts = []
+		if self.callsign not in Station.all_callsigns:
+			Station.all_callsigns.append(self.callsign)
+		self.already_received_pkts = {}
 		self.traffic_gens = []
 		self.radio = radio
 
@@ -40,6 +46,19 @@ class Station:
 
 		self.add_traffic_gen(Beacon)
 
+		async def cleanup():
+			while True:
+				await asyncio.sleep(60)
+				now = time.time()
+				n = 0
+				for k, v in self.already_received_pkts.items():
+					if (now - v[1]) > 120:
+						del self.already_received_pkts[k]
+						n += 1
+				if VERBOSITY > 90:
+					print("%s: expired memory of %d pkts" % (self.callsign, n))
+		loop.create_task(cleanup())
+
 	def send(self, to, msg):
 		# Called when we originate a packet
 		ttl = MAX_TTL
@@ -49,20 +68,20 @@ class Station:
 		self.sendmsg(pkt)
 
 	def sendmsg(self, pkt):
-		Station.pending_pkts.append(pkt)
+		Station.dbg_pending_delivery_pkts[pkt.tag] = pkt
 		print("%s => %s" % (self.callsign, pkt))
 		self._forward(None, pkt, True)
 
 	def recv(self, pkt):
 		# Called when we are the recipient of a packet
-		if pkt in Station.pending_pkts:
-			Station.pending_pkts.remove(pkt)
+		if pkt.tag in Station.dbg_pending_delivery_pkts:
+			del Station.dbg_pending_delivery_pkts[pkt.tag]
 		print("%s <= %s" % (self.callsign, pkt))
 
 	def radio_recv(self, rssi, pkt):
 		# Got a packet from radio
-		if L3_VERBOSITY > 80:
-			print("%s <= rssi %s pkt " % (self.callsign, pkt))
+		if VERBOSITY > 80:
+			print("%s <= rssi %d pkt %s" % (self.callsign, rssi, pkt))
 
 		# Level 3 handling
 		self._forward(rssi, pkt, False)
@@ -82,21 +101,23 @@ class Station:
 				self.recv(pkt)
 				return
 			# Annotate to detect duplicates
-			self.recv_pkts.append(pkt)
+			self.already_received_pkts[pkt.meaning()] = (pkt, time.time())
 			self.radio.send(self.callsign, pkt)
 			return
 
 		# Offer packet to router, drop if fully handled by router
 		if self.router.handle_pkt(radio_rssi, pkt):
-			self.recv_pkts.append(pkt)
+			if pkt.tag in Station.dbg_pending_delivery_pkts:
+				del Station.dbg_pending_delivery_pkts[pkt.tag]
+			self.already_received_pkts[pkt.meaning()] = (pkt, time.time())
 			return
 
 		# Discard received duplicates
-		if pkt in self.recv_pkts:
-			if L3_VERBOSITY > 80:
-				print("%s <= recv dup %s" % (self.callsign, pkt))
+		if pkt.meaning() in self.already_received_pkts:
+			if VERBOSITY > 80:
+				print("%s DUP recv %s" % (self.callsign, pkt))
 			return
-		self.recv_pkts.append(pkt)
+		self.already_received_pkts[pkt.meaning()] = (pkt, time.time())
 
 		if pkt.to in (self.callsign, "QB"):
 			# We are the final destination
@@ -117,7 +138,7 @@ class Station:
 		# Hop count control
 		pkt = pkt.decrement_ttl()
 		if pkt.ttl <= 0:
-			if L3_VERBOSITY > 90:
+			if VERBOSITY > 90:
 				print("%s: dropped %s" % (self.callsign, pkt))
 			return
 
@@ -125,26 +146,26 @@ class Station:
 			# Active routing
 			if pkt.via != self.callsign:
 				# Not for us to forward
-				if L3_VERBOSITY > 80:
-					print("%s: not forwarding %s" % (self.callsign, pkt))
+				if VERBOSITY > 80:
+					print("%s: not relaying %s" % (self.callsign, pkt))
 					return
 
 			# Find next hop
 			next_hop = self.router.get_next_hop(pkt)
 			if not next_hop:
-				if L3_VERBOSITY > 50:
+				if VERBOSITY > 50:
 					print("%s: no route for %s" % (self.callsign, pkt))
 				return
 
 			pkt = pkt.update_via(next_hop)
 
-			if L3_VERBOSITY > 50:
-				print("%s: forwarding %s" % (self.callsign, pkt))
+			if VERBOSITY > 50:
+				print("%s: relaying %s" % (self.callsign, pkt))
 
 		if not pkt.via:
 			# Diffusion routing, forwarding blindly
-			if L3_VERBOSITY > 60:
-				print("%s: forwarding %s" % (self.callsign, pkt))
+			if VERBOSITY > 50:
+				print("%s: d-relaying %s" % (self.callsign, pkt))
 
 		# Send away
 		self.radio.send(self.callsign, pkt)
@@ -161,7 +182,9 @@ class Beacon:
 		async def beacon():
 			await asyncio.sleep(random.random() * 1)
 			while True:
-				station.send("QB", "beacon")
+				msg = ''.join(random.choice(string.ascii_lowercase + string.digits) \
+					for _ in range(3))
+				station.send("QB", msg)
 				await asyncio.sleep(30 + random.random() * 60)
 		loop.create_task(beacon())
 
@@ -170,7 +193,7 @@ def run():
 	async def list_pending_pkts():
 		while True:
 			await asyncio.sleep(120)
-			print("Packets pending delivery:", Station.pending_pkts)
+			print("Packets pending delivery:", Station.dbg_pending_delivery_pkts)
 	loop.create_task(list_pending_pkts())
 
 	loop.run_forever()

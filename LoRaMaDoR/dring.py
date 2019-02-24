@@ -23,7 +23,7 @@ r.biedge("B", "A", -40, -45)
 r.biedge("C", "B", -70, -60) 
 
 for callsign, station in stations.items():
-	# station.add(RagChewer)
+	station.add_traffic_gen(RagChewer)
 	pass
 
 ttl(2)

@@ -26,7 +26,7 @@ r.edge("E", "D", -65)
 r.edge("A", "E", -65)
 
 for callsign, station in stations.items():
-	# station.add_trafficgen(RagChewer)
+	station.add_traffic_gen(RagChewer)
 	pass
 
 ttl(4)

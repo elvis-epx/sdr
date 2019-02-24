@@ -66,7 +66,7 @@ r.edge("J", "I", -60)
 
 # add talkers
 for callsign, station in stations.items():
-	# station.add_traffig_gen(RagChewer)
+	station.add_traffic_gen(RagChewer)
 	pass
 
 ttl(5)

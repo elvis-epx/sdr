@@ -49,6 +49,8 @@ class Radio:
 
 	def send(self, fr0m, pkt):
 		Radio.pkts_transmitted += 1
+		# 13 is LoRa preamble
+		Radio.bits_transmitted += 8 * (13 + len(pkt))
 
 		if fr0m not in self.edges or not self.edges[fr0m]:
 			print("radio %s: nobody listens to me", fr0m)
