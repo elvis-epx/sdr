@@ -9,6 +9,9 @@ from sim_packet import Packet
 
 ROUTER_VERBOSITY=50
 
+CAN_DIFFUSE_UNKNOWN = True
+CAN_DIFFUSE_NOROUTE = True
+
 class Router:
 	def __init__(self, callsign, helper):
 		self.routes = []
@@ -176,14 +179,50 @@ class Router:
 		return True
 
 	def get_first_hop(self, to):
-		# TODO implement routing logic
-		return ""
+		return self.get_next_hop(to, None, self.callsign)
+
+	# Calculate next 'via' station.
+	# Returns: "" to resort to diffusion routing
+	#          None if packet should not be repeated
 
 	def get_next_hop(self, to, via, fr0m):
-		# TODO implement routing logic
-		if via is None or via == "":
-			return ""
-		return None
+		repeater, cost = self._get_next_hop(to, fr0m)
+
+	def _get_next_hop(self, to, fr0m):
+		# FIXME cache w/ timeout
+		# FIXME detect loop
+		if to == fr0m:
+			# should not happen
+			raise Exception("%s rt: asked route to itself" % self.callsign)
+
+		if to not in self.edges:
+			# Unknown destination
+			if CAN_DIFFUSE_UNKNOWN:
+				return "", 999999999
+			return None, 999999999
+
+		if fr0m in self.edges[to]:
+			# last hop
+			return to, self.edges[to][fr0m]
+
+		# Try to find cheapest route, backtracking from 'to'
+		best_cost = 999999999
+		best_via = None
+		for penultimate, pcost in self.edges[to].items():
+			via, cost = self._get_next_hop(penultimate, fr0m)
+			# add cost of hop 'to < penultimate'
+			cost += pcost
+			if via and (not best_via or cost < best_cost):
+				best_via = via
+				best_cost = cost
+
+		if not best_via:
+			# Did not find route
+			if CAN_DIFFUSE_NOROUTE:
+				return "", 999999999
+			return None, 999999999
+
+		return best, best_cost + 1000
 
 
 loop = asyncio.get_event_loop()

@@ -149,11 +149,11 @@ class Station:
 			return
 
 		if pkt.via:
-			# Active routing
+			# Explicit routing
 			if pkt.via != self.callsign:
-				# Not for us to forward
+				# Not our problem
 				if VERBOSITY > 80:
-					print("%s: not relaying %s" % (self.callsign, pkt))
+					print("%s: ignoring %s" % (self.callsign, pkt))
 					return
 
 			# Find next hop
