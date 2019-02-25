@@ -5,26 +5,15 @@ import struct, numpy, sys, math, wave, filters
 INPUT_RATE = 960000
 
 MAX_DEVIATION = 10000 # Hz
-CENTER = 462500000
-'''
-freqs = [462562500, 462587500, 462612500, 462637500, 462662500, 462687500, 462712500,
-	 462550000, 462575000, 462600000, 462625000, 462650000, 462675000, 462725000]
-'''
-freqs = [462575000, 462587500]
+CENTER = 152500000 
+freqs = [152390000]
 IF_BANDWIDTH = 20000
 IF_RATE = 20000
 AUDIO_BANDWIDTH = 4000
 AUDIO_RATE = 10000
 
-'''
-MAX_DEVIATION = 200000 # Hz
-CENTER = 92900000
-freqs = [93100000]
-IF_BANDWIDTH = 200000
-IF_RATE = 240000
-AUDIO_BANDWIDTH = 15000
-AUDIO_RATE = 48000
-'''
+# -45..-48 dbFS is the minimum, 6db = 1 bit of audio
+THRESHOLD = -39
 
 assert (INPUT_RATE // IF_RATE) == (INPUT_RATE / IF_RATE)
 assert (IF_RATE // AUDIO_RATE) == (IF_RATE / AUDIO_RATE)
@@ -40,6 +29,7 @@ class Demodulator:
 		self.wav.setnchannels(1)
 		self.wav.setsampwidth(1)
 		self.wav.setframerate(AUDIO_RATE)
+		self.recording = False
 
 		# Energy estimation
 		self.energy = 0
@@ -79,7 +69,7 @@ class Demodulator:
 		self.last_if_sample = ifsamples[-1:]
 
 		# Finds angles (phase) of I/Q pairs
-		# angles = numpy.angle(ifsamples)
+		angles = numpy.angle(ifsamples)
 
 		# Average signal strengh
 		energy = numpy.sum(numpy.absolute(ifsamples)) \
@@ -87,10 +77,20 @@ class Demodulator:
 			/ len(ifsamples)
 		self.energy = 0.5 * energy + 0.5 * self.energy
 		db = 20 * math.log10(self.energy)
-		print("%f: signal %f dbFS" % (self.freq, db))
 
-		return
-	
+		print("%f: signal %f dbFS" % (self.freq, db))
+		if not self.recording:
+			if db > THRESHOLD:
+				print("%f: signal %f dbFS, starting to record" % (self.freq, db))
+				self.recording = True
+		else:
+			if db < THRESHOLD:
+				print("%f: signal %f dbFS, stopping to record" % (self.freq, db))
+				self.recording = False
+
+		if not self.recording:
+			return
+
 		# Determine phase rotation between samples
 		# (Output one element less, that's we always save last sample
 		# in remaining_data)
@@ -101,13 +101,13 @@ class Demodulator:
 	
 		# Convert rotations to baseband signal 
 		output_raw = numpy.multiply(rotations, DEVIATION_X_SIGNAL)
-		output_raw = numpy.clip(output_raw, -0.999, +0.999)
 
 		# Filter to audio bandwidth and decimate
 		output_raw = self.audio_filter.feed(output_raw)
 		output_raw = self.audio_decimator.feed(output_raw)
 
 		# Scale to unsigned 8-bit int with offset (8-bit WAV)
+		output_raw = numpy.clip(output_raw, -0.999, +0.999)
 		output_raw = numpy.multiply(output_raw, 127) + 127
 		output_raw = output_raw.astype(int)
 	
