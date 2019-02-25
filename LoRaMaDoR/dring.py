@@ -9,7 +9,7 @@ from sim_radio import Radio
 from sim_network import Station, ttl, run
 from sim_trafficgen import *
 
-STATION_COUNT=3
+STATION_COUNT = 5
 
 stations = {}
 r = Radio()
@@ -21,6 +21,9 @@ for i in range(0, STATION_COUNT):
 
 r.biedge("B", "A", -40, -45) 
 r.biedge("C", "B", -70, -60) 
+r.biedge("D", "C", -70, -60) 
+r.biedge("E", "D", -70, -60) 
+r.biedge("A", "E", -70, -60) 
 
 for callsign, station in stations.items():
 	station.add_traffic_gen(RagChewer)

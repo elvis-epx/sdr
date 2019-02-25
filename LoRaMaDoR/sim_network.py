@@ -68,7 +68,7 @@ class Station:
 		via = self.router.get_first_hop(to)
 		if via is None:
 			if VERBOSITY > 40:
-				print("%s: send: cannot route %s" % (self.callsign, str(pkt)))
+				print("%s: no route to %s" % (self.callsign, to))
 			return
 		pkt = Packet(to, via, self.callsign, ttl, msg)
 		self.sendmsg(pkt)
