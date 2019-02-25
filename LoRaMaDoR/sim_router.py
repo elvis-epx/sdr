@@ -129,10 +129,6 @@ class Router:
 		for i in range(0, len(path) - 1):
 			self.sent_edges[path[i]][path[i + 1]] = True
 
-	def get_next_hop(self, pkt):
-		# TODO implement routing logic
-		return None
-
 	def handle_pkt(self, radio_rssi, pkt):
 		# Handle mesh formation packet
 
@@ -178,6 +174,16 @@ class Router:
 		self.sent(pkt.ident, pkt.ttl, path)
 
 		return True
+
+	def get_first_hop(self, to):
+		# TODO implement routing logic
+		return ""
+
+	def get_next_hop(self, to, via, fr0m):
+		# TODO implement routing logic
+		if via is None or via == "":
+			return ""
+		return None
 
 
 loop = asyncio.get_event_loop()

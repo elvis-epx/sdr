@@ -50,13 +50,14 @@ class Station:
 			while True:
 				await asyncio.sleep(60)
 				now = time.time()
-				n = 0
+				old = []
 				for k, v in self.already_received_pkts.items():
 					if (now - v[1]) > 120:
-						del self.already_received_pkts[k]
-						n += 1
+						old.append(k)
+				for k in old:
+					del self.already_received_pkts[k]
 				if VERBOSITY > 90:
-					print("%s: expired memory of %d pkts" % (self.callsign, n))
+					print("%s: expired memory of %d pkts" % (self.callsign, len(old)))
 		loop.create_task(cleanup())
 
 	def send(self, to, msg):
@@ -64,7 +65,12 @@ class Station:
 		ttl = MAX_TTL
 		if to == "QB":
 			ttl = 1
-		pkt = Packet(to, "", self.callsign, ttl, msg)
+		via = self.router.get_first_hop(to)
+		if via is None:
+			if VERBOSITY > 40:
+				print("%s: send: cannot route %s" % (self.callsign, str(pkt)))
+			return
+		pkt = Packet(to, via, self.callsign, ttl, msg)
 		self.sendmsg(pkt)
 
 	def sendmsg(self, pkt):
@@ -151,8 +157,8 @@ class Station:
 					return
 
 			# Find next hop
-			next_hop = self.router.get_next_hop(pkt)
-			if not next_hop:
+			next_hop = self.router.get_next_hop(pkt.to, pkt.via, pkt.fr0m)
+			if next_hop is None:
 				if VERBOSITY > 50:
 					print("%s: no route for %s" % (self.callsign, pkt))
 				return
@@ -192,7 +198,7 @@ class Beacon:
 def run():
 	async def list_pending_pkts():
 		while True:
-			await asyncio.sleep(120)
+			await asyncio.sleep(30)
 			print("Packets pending delivery:", Station.dbg_pending_delivery_pkts)
 	loop.create_task(list_pending_pkts())
 

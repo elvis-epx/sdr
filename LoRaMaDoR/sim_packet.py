@@ -8,7 +8,7 @@ class Packet:
 	last_ident = 1000
 	last_tag = 1
 
-	def __init__(self, to, via, fr0m, ttl, msg, ident=None):
+	def __init__(self, to, via, fr0m, ttl, msg, base_pkt=None):
 		self.frozen = False
 
 		self.to = to.upper()
@@ -17,17 +17,18 @@ class Packet:
 		self.ttl = ttl
 		self.msg = msg
 
-		# tag: ID for debugging purposes
-		Packet.last_tag += 1
-		self.tag = Packet.last_tag
-
-		# ident: an ID for human consumption
-		# Derived packets have similar (but different) idents
-		if not ident:
+		if not base_pkt:
+			# New packet
+			# ident: ID for human logging
 			Packet.last_ident += 1
 			self.ident = "%d" % Packet.last_ident
+			# tag: ID for delivery debugging
+			Packet.last_tag += 1
+			self.tag = Packet.last_tag
 		else:
-			self.ident = ident + "'"
+			# Derived packet
+			self.ident = base_pkt.ident + "'"
+			self.tag = base_pkt.tag
 
 		self.frozen = True
 
@@ -42,13 +43,13 @@ class Packet:
 		return len(self.encode())
 
 	def decrement_ttl(self):
-		return Packet(self.to, self.via, self.fr0m, self.ttl - 1, self.msg, self.ident)
+		return Packet(self.to, self.via, self.fr0m, self.ttl - 1, self.msg, self)
 
 	def update_via(self, via):
-		return Packet(self.to, via, self.fr0m, self.ttl, self.msg, self.ident)
+		return Packet(self.to, via, self.fr0m, self.ttl, self.msg, self)
 
 	def replace_msg(self, msg):
-		return Packet(self.to, self.via, self.fr0m, self.ttl, msg, self.ident)
+		return Packet(self.to, self.via, self.fr0m, self.ttl, msg, self)
 
 	def __eq__(self, other):
 		raise Exception("Packets cannot be compared")
@@ -65,8 +66,11 @@ class Packet:
 		return self.meaning() == other.meaning()
 
 	def myrepr(self):
-		return "pkt %s < %s < %s ttl %d id %s msg %s" % \
-			(self.to, self.via, self.fr0m, self.ttl, self.ident, self.msg)
+		if self.via:
+			return "pkt %s < %s < %s ttl %d id %s msg %s" % \
+				(self.to, self.via, self.fr0m, self.ttl, self.ident, self.msg)
+		return "pkt %s << %s ttl %d id %s msg %s" % \
+			(self.to, self.fr0m, self.ttl, self.ident, self.msg)
 
 	def __repr__(self):
 		return self.myrepr()
