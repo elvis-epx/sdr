@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import struct, numpy, sys, math, wave, filters
+import struct, numpy, sys, math, wave, filters, time, datetime
 
 INPUT_RATE = 1000000
 
@@ -92,14 +92,16 @@ class Demodulator:
 		db = 20 * math.log10(energy)
 		self.energy = 0.5 * db + 0.5 * self.energy
 
-		print("%f: signal %f dbFS" % (self.freq, self.energy))
+		# print("%f: signal %f dbFS" % (self.freq, self.energy))
 		if not self.recording:
 			if self.energy > THRESHOLD:
-				print("%f: signal %f dbFS, starting to record" % (self.freq, self.energy))
+				print("%s %f: signal %f dbFS, recording" % \
+					(str(datetime.datetime.now()), self.freq, self.energy))
 				self.recording = True
 		else:
 			if self.energy < THRESHOLD:
-				print("%f: signal %f dbFS, stopping to record" % (self.freq, self.energy))
+				print("%s %f: signal %f dbFS, stopping tape" % \
+					(str(datetime.datetime.now()), self.freq, self.energy))
 				self.recording = False
 
 		if not self.recording:
