@@ -18,7 +18,6 @@ class Router:
 		self.edges = {}
 		self.sent_edges = {}
 		self.helper = helper
-		self.routines = [ MeshFormation(self.callsign, self.helper) ]
 		self.cache = {}
 
 		async def cache_expire():
@@ -40,6 +39,7 @@ class Router:
 				for to in expired:
 					del self.cache[to]
 
+		loop = asyncio.get_event_loop()
 		loop.create_task(cache_expire())
 
 	def learn(self, ident, ttl, path, last_hop_rssi):
@@ -154,31 +154,43 @@ class Router:
 			self.sent_edges[path[i]][path[i + 1]] = True
 
 	def handle_pkt(self, radio_rssi, pkt):
-		# Handle mesh formation packet
+		# Use some incoming packets to discover routing
+		# Returns True if the packet is exhausted (e.g. routing protocol packets)
+		#  and does not need further handling
 
-		if pkt.to != "QM" or pkt.fr0m != "QM":
+		if pkt.to == "QB" and pkt.fr0m != "QB" and pkt.fr0m != self.callsign:
+			# Beacon packet from neighbor
+			kind = "QB"
+			msg = pkt.fr0m.strip()
+		elif pkt.to == "QM" and pkt.fr0m == "QM":
+			# QM packet, sent by another router
+			kind = "QM"
+			msg = pkt.msg.strip()
+		else:
 			return False
 
-		msg = pkt.msg.upper().strip()
 		if not msg:
 			if ROUTER_VERBOSITY > 40:
-				print("%s: Bad QM packet msg", self.callsign)
-			return True
+				print("%s: Bad QM/QB path %s", (self.callsign, msg))
+			return kind == "QM"
 
-		# Parse message into a path
-		path = msg.split("<")
+		path = msg.strip().upper().split("<")
+
 		if ROUTER_VERBOSITY > 50:
 			print("%s: rt recv path %s ttl %d ident %s" % \
 				(self.callsign, "<".join(path), pkt.ttl, pkt.ident))
 
 		self.learn(pkt.ident, pkt.ttl, path, radio_rssi)
 
-		# Hop count control
+		if kind == "QB":
+			# Create new QM packet
+			pkt = Packet("QM", "", "QM", self.helper['max_ttl'](), self.callsign)
+
 		pkt = pkt.decrement_ttl()
 		if pkt.ttl < -self.helper['max_ttl']():
 			if ROUTER_VERBOSITY > 60:
-				print("\tnot forwarding - ttl")
-			return True
+				print("\tnot forwarding - max hop count")
+			return kind == "QM"
 
 		# Only add ourselves to path if len(path) <= TTL
 		if pkt.ttl >= 0:
@@ -190,14 +202,14 @@ class Router:
 		if len(path) < 2:
 			if ROUTER_VERBOSITY > 90:
 				print("\tnothing left after pruning")
-			return True
+			return kind == "QM"
 
-		# Forward with updated path
+		# Update pkt.msg and send
 		pkt = pkt.replace_msg("<".join(path))
 		self.helper['sendmsg'](pkt)
 		self.sent(pkt.ident, pkt.ttl, path)
 
-		return True
+		return kind == "QM"
 
 	# Calculate next 'via' station.
 	# Returns: "" to resort to diffusion routing
@@ -230,25 +242,25 @@ class Router:
 					(recursion, self.callsign, to, via, self.callsign))
 			return via, cost
 
-		if ROUTER_VERBOSITY > 90:
-			print("%s%s rt: looking for route %s < %s" % \
-				(recursion, self.callsign, to, self.callsign))
-
 		if to not in self.edges:
 			# Unknown destination
 			if CAN_DIFFUSE_UNKNOWN:
 				if ROUTER_VERBOSITY > 90:
-					print("%s \tdestination unknown, use diffusion" % (recursion, to))
+					print("%s%s rt: dest %s unknown, use diffusion" % \
+						(recursion, self.callsign, to))
 				return "", 999999999
 			if ROUTER_VERBOSITY > 90:
-				print("%s \tdestination unknown, cannot route" % (recursion, to))
+				print("%s%s rt: dest %s unknown, cannot route" % \
+					(recursion, self.callsign, to))
 			return None, 999999999
 
 		if self.callsign in self.edges[to]:
-			# last hop
-			if ROUTER_VERBOSITY > 90:
-				print("%s \tlast hop" % recursion)
+			# last hop, no actual routing
 			return to, self.edges[to][self.callsign]
+
+		if ROUTER_VERBOSITY > 90:
+			print("%s%s rt: looking for route %s < %s" % \
+				(recursion, self.callsign, to, self.callsign))
 
 		# Try to find cheapest route, walking backwards from 'to'
 		best_cost = 999999999
@@ -298,16 +310,3 @@ class Router:
 					(recursion, self.callsign, to, best_via, self.callsign, cost))
 
 		return best_via, best_cost
-
-
-loop = asyncio.get_event_loop()
-
-class MeshFormation:
-	def __init__(self, station, helper):
-		async def probe():
-			await asyncio.sleep(1 + random.random() * 5)
-			while True:
-				pkt = Packet("QM", "", "QM", helper['max_ttl'](), station)
-				helper['sendmsg'](pkt)
-				await asyncio.sleep(120 + random.random() * 60)
-		loop.create_task(probe())
