@@ -6,44 +6,24 @@
 
 import random, asyncio, sys, time
 from sim_packet import Packet
+from sim_router_a import AbstractRouter, ROUTER_VERBOSITY
 
-ROUTER_VERBOSITY = 100
+# This router uses "breadcrumb" packets to discover the network graph
+# Packets with QM pseudo-addr destination are diffused, each node adds
+# itself to the message, in the end revealing the packet trajectory
+# and therefore a set of viable graph edges.
+# QM packets are added nodes until ttl = 0, but they are diffused further
+# until ttl = -MAX_TTL because graphs may be one-way, the extended diffusion
+# allows the edges to "reach back" -- think about a ring network of 5 nodes
+# and TTL=3, A can only learn about D if the QM packet can go D > E > A.
 
-CAN_DIFFUSE_UNKNOWN = True
-CAN_DIFFUSE_NOROUTE = True
-
-class Router:
+class Router(AbstractRouter):
 	def __init__(self, callsign, helper):
-		self.callsign = callsign
-		self.edges = {}
-		self.sent_edges = {}
-		self.helper = helper
-		self.cache = {}
+		super().__init__(callsign, helper)
 
-		async def cache_expire():
-			while True:
-				await asyncio.sleep(120 + random.random() * 60)
-				if ROUTER_VERBOSITY > 90:
-					print("%s rt: cache expiration control" % self.callsign)
-
-				now = time.time()
-				expired = []
-
-				for to, item in self.cache.items():
-					via, cost, timestamp = item
-					if (now - timestamp) > 120:
-						expired.append(to)
-					if ROUTER_VERBOSITY > 90:
-						print("%s rt: expiring cached %s < %s < %s" % \
-							(self.callsign, to, via, self.callsign))
-				for to in expired:
-					del self.cache[to]
-
-		loop = asyncio.get_event_loop()
-		loop.create_task(cache_expire())
+	# Extract graph edges from breadcrumb path
 
 	def learn(self, ident, ttl, path, last_hop_rssi):
-		# Extract graph edges from breadcrumb path
 		if not path:
 			return
 
@@ -95,9 +75,10 @@ class Router:
 			print("%s rt knows %.1f%%" % (self.callsign, pp))
 			# print("\tknows: ", self.edges)
 
+	# Remove heading and trailing edges that we have already published
+	# NOTE: assume that path was already learn()ed
+
 	def prune(self, left_is_us, path):
-		# Remove heading and trailing edges that we have already published
-		# NOTE: assume that path was already learn()ed
 		path_before = path[:]
 		path = path[:]
 
@@ -145,6 +126,8 @@ class Router:
 
 		return path
 
+	# Mark the edges of this path as sent
+
 	def sent(self, ident, ttl, path):
 		if ROUTER_VERBOSITY > 60:
 			print("%s rt: sent ttl %d ident %s path %s" % \
@@ -153,10 +136,11 @@ class Router:
 		for i in range(0, len(path) - 1):
 			self.sent_edges[path[i]][path[i + 1]] = True
 
+	# Use some incoming packets to discover routing
+	# Returns True if the packet is exhausted (e.g. routing protocol packets)
+	#  and does not need further handling
+
 	def handle_pkt(self, radio_rssi, pkt):
-		# Use some incoming packets to discover routing
-		# Returns True if the packet is exhausted (e.g. routing protocol packets)
-		#  and does not need further handling
 
 		if pkt.to == "QB" and pkt.fr0m != "QB" and pkt.fr0m != self.callsign:
 			# Beacon packet from neighbor
@@ -210,103 +194,3 @@ class Router:
 		self.sent(pkt.ident, pkt.ttl, path)
 
 		return kind == "QM"
-
-	# Calculate next 'via' station.
-	# Returns: "" to resort to diffusion routing
-	#          None if packet should not be repeated
-
-	def get_next_hop(self, to):
-		repeater, cost = self._get_next_hop(to, (to, ))
-		if repeater == self.callsign:
-			repeater = "QB"
-		return repeater
-
-	def _get_next_hop(self, to, path):
-		if to == "QF" or to == "QB" or to == "QM":
-			# these always go by diffusion
-			return "", 0
-		elif to and to[0] == "Q":
-			raise Exception("%s rt: asked route to %s" % (self.callsign, to))
-		elif to == self.callsign:
-			# should not happen
-			raise Exception("%s rt: asked route to itself" % self.callsign)
-
-		recursion = "=|" * (len(path) - 1)
-		if recursion:
-			recursion += " "
-
-		if to in self.cache:
-			via, cost, _ = self.cache[to]
-			if ROUTER_VERBOSITY > 90:
-				print("%s%s rt: using cached %s < %s < %s" % \
-					(recursion, self.callsign, to, via, self.callsign))
-			return via, cost
-
-		if to not in self.edges:
-			# Unknown destination
-			if CAN_DIFFUSE_UNKNOWN:
-				if ROUTER_VERBOSITY > 90:
-					print("%s%s rt: dest %s unknown, use diffusion" % \
-						(recursion, self.callsign, to))
-				return "", 999999999
-			if ROUTER_VERBOSITY > 90:
-				print("%s%s rt: dest %s unknown, cannot route" % \
-					(recursion, self.callsign, to))
-			return None, 999999999
-
-		if self.callsign in self.edges[to]:
-			# last hop, no actual routing
-			return to, self.edges[to][self.callsign]
-
-		if ROUTER_VERBOSITY > 90:
-			print("%s%s rt: looking for route %s < %s" % \
-				(recursion, self.callsign, to, self.callsign))
-
-		# Try to find cheapest route, walking backwards from 'to'
-		best_cost = 999999999
-		best_via = None
-		for penultimate, pcost in self.edges[to].items():
-			if ROUTER_VERBOSITY > 90:
-				print("%s \tlooking for route to %s" % (recursion, penultimate))
-
-			if penultimate in path:
-				# would create a loop
-				if ROUTER_VERBOSITY > 90:
-					print("%s \t\tloop %s" % (recursion, str(path)))
-				continue
-
-			via, cost = self._get_next_hop(penultimate, (penultimate,) + path)
-			cost += pcost
-
-			if not via:
-				print("%s \t\tno route" % recursion)
-				continue
-
-			if ROUTER_VERBOSITY > 90:
-				print("%s \t\tcandidate %s < %s < %s < %s cost %d" % \
-					(recursion, to, penultimate, via, self.callsign, cost))
-
-			if not best_via or cost < best_cost:
-				best_via = via
-				best_cost = cost
-
-		if not best_via:
-			# Did not find route
-			if CAN_DIFFUSE_NOROUTE:
-				if ROUTER_VERBOSITY > 90:
-					print("%s \troute not found, using diffusion" % recursion)
-				return "", 999999999
-			if ROUTER_VERBOSITY > 90:
-				print("%s \troute not found, giving up" % recursion)
-			return None, 999999999
-
-		if ROUTER_VERBOSITY > 90:
-			print("%s \tadopted %s < %s < %s cost %d" % (recursion, to, via, self.callsign, best_cost))
-
-		if best_via:
-			self.cache[to] = (best_via, cost, time.time())
-			if ROUTER_VERBOSITY > 90:
-				print("%s%s rt: caching %s < %s < %s cost %d" % \
-					(recursion, self.callsign, to, best_via, self.callsign, cost))
-
-		return best_via, best_cost

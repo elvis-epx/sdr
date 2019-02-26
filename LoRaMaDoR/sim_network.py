@@ -5,7 +5,7 @@
 # Copyright (c) 2019 PU5EPX
 
 import random, asyncio, sys, time, string
-from sim_router import Router
+from sim_router_bread import Router
 from sim_packet import Packet
 
 VERBOSITY=80
