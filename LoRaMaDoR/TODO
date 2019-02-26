@@ -1,3 +1,4 @@
 Use * instead of Via when it is expected to be last hop
 Test route expiration
 Create QB + edge-based routing algo
+To < QB < From as last hop

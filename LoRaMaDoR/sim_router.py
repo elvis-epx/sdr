@@ -21,22 +21,26 @@ class Router:
 		self.routines = [ MeshFormation(self.callsign, self.helper) ]
 		self.cache = {}
 
-		async def probe():
+		async def cache_expire():
 			while True:
 				await asyncio.sleep(120 + random.random() * 60)
+				if ROUTER_VERBOSITY > 90:
+					print("%s rt: cache expiration control" % self.callsign)
+
 				now = time.time()
 				expired = []
-				for to, x in self.cache.items():
-					for fr0m, y in x.items():
-						via, cost, timestamp = y
-						if (now - timestamp) > 120:
-							expiry = (to, via, fr0m)
-				for to, via, fr0m in expired:
+
+				for to, item in self.cache.items():
+					via, cost, timestamp = item
+					if (now - timestamp) > 120:
+						expired.append(to)
 					if ROUTER_VERBOSITY > 90:
 						print("%s rt: expiring cached %d < %d < %d" % \
-							(to, via, fr0m))
-					del self.cache[to][fr0m]
-		loop.create_task(probe())
+							(self.callsign, to, via, self.callsign))
+				for to in expired:
+					del self.cache[to]
+
+		loop.create_task(cache_expire())
 
 	def learn(self, ident, ttl, path, last_hop_rssi):
 		# Extract graph edges from breadcrumb path
@@ -195,83 +199,79 @@ class Router:
 
 		return True
 
-	def get_first_hop(self, to):
-		return self.get_next_hop(to, None, self.callsign)
-
 	# Calculate next 'via' station.
 	# Returns: "" to resort to diffusion routing
 	#          None if packet should not be repeated
 
-	def get_next_hop(self, to, via, fr0m):
-		repeater, cost = self._get_next_hop(to, fr0m, (to, ))
+	def get_next_hop(self, to):
+		repeater, cost = self._get_next_hop(to, (to, ))
 		return repeater
 
-	def _get_next_hop(self, to, fr0m, path):
+	def _get_next_hop(self, to, path):
 		if to == "QF" or to == "QB" or to == "QM":
 			# these always go by diffusion
 			return "", 0
 		elif to and to[0] == "Q":
 			raise Exception("%s rt: asked route to %s" % (self.callsign, to))
-
-		# FIXME cache w/ timeout
-		if to == fr0m:
+		elif to == self.callsign:
 			# should not happen
 			raise Exception("%s rt: asked route to itself" % self.callsign)
 
-		recursion = "$" * (len(path) - 1)
+		recursion = "=|" * (len(path) - 1)
 		if recursion:
 			recursion += " "
 
-		if to in self.cache and fr0m in self.cache[to]:
-			via, cost, _ = self.cache[to][fr0m]
+		if to in self.cache:
+			via, cost, _ = self.cache[to]
 			if ROUTER_VERBOSITY > 90:
 				print("%s%s rt: using cached %s < %s < %s" % \
-					(recursion, self.callsign, to, via, fr0m))
+					(recursion, self.callsign, to, via, self.callsign))
 			return via, cost
 
 		if ROUTER_VERBOSITY > 90:
 			print("%s%s rt: looking for route %s < %s" % \
-				(recursion, self.callsign, to, fr0m))
+				(recursion, self.callsign, to, self.callsign))
 
 		if to not in self.edges:
 			# Unknown destination
 			if CAN_DIFFUSE_UNKNOWN:
 				if ROUTER_VERBOSITY > 90:
-					print("\tdestination unknown, use diffusion" % to)
+					print("%s \tdestination unknown, use diffusion" % (recursion, to))
 				return "", 999999999
 			if ROUTER_VERBOSITY > 90:
-				print("\tdestination unknown, cannot route" % to)
+				print("%s \tdestination unknown, cannot route" % (recursion, to))
 			return None, 999999999
 
-		if fr0m in self.edges[to]:
+		if self.callsign in self.edges[to]:
 			# last hop
 			if ROUTER_VERBOSITY > 90:
-				print("\tlast hop")
-			return to, self.edges[to][fr0m]
+				print("%s \tlast hop" % recursion)
+			return to, self.edges[to][self.callsign]
 
-		# Try to find cheapest route, backtracking from 'to'
+		# Try to find cheapest route, walking backwards from 'to'
 		best_cost = 999999999
 		best_via = None
 		for penultimate, pcost in self.edges[to].items():
 			if ROUTER_VERBOSITY > 90:
-				print("\tlooking for route to %s" % penultimate)
+				print("%s \tlooking for route to %s" % (recursion, penultimate))
 
 			if penultimate in path:
 				# would create a loop
 				if ROUTER_VERBOSITY > 90:
-					print("\t\tloop %s" % str(path))
+					print("%s \t\tloop %s" % (recursion, str(path)))
 				continue
 
-			via, cost = self._get_next_hop(penultimate, fr0m, (penultimate,) + path)
+			via, cost = self._get_next_hop(penultimate, (penultimate,) + path)
+			cost += pcost
+
 			if not via:
-				print("\t\tno route")
+				print("%s \t\tno route" % recursion)
 				continue
 
 			if ROUTER_VERBOSITY > 90:
-				print("\t\tcandidate %s < %s < %s cost %d" % (to, via, fr0m, cost))
+				print("%s \t\tcandidate %s < %s < %s < %s cost %d" % \
+					(recursion, to, penultimate, via, self.callsign, cost))
 
-			# add cost of hast hop
-			cost += pcost
 			if not best_via or cost < best_cost:
 				best_via = via
 				best_cost = cost
@@ -280,25 +280,22 @@ class Router:
 			# Did not find route
 			if CAN_DIFFUSE_NOROUTE:
 				if ROUTER_VERBOSITY > 90:
-					print("\troute not found, using diffusion")
+					print("%s \troute not found, using diffusion" % recursion)
 				return "", 999999999
 			if ROUTER_VERBOSITY > 90:
-				print("\troute not found, giving up")
+				print("%s \troute not found, giving up" % recursion)
 			return None, 999999999
 
 		if ROUTER_VERBOSITY > 90:
-			print("\tadopted %s < %s < %s cost %d" % (to, via, fr0m, best_cost))
+			print("%s \tadopted %s < %s < %s cost %d" % (recursion, to, via, self.callsign, best_cost))
 
 		if best_via:
-			if to not in self.cache:
-				self.cache[to] = {}
-			if fr0m not in self.cache[to]:	
-				self.cache[to][fr0m] = (best_via, cost, time.time())
-				if ROUTER_VERBOSITY > 90:
-					print("%s rt: caching %s < %s < %s cost %d" % \
-						(self.callsign, to, best_via, fr0m, cost))
+			self.cache[to] = (best_via, cost, time.time())
+			if ROUTER_VERBOSITY > 90:
+				print("%s%s rt: caching %s < %s < %s cost %d" % \
+					(recursion, self.callsign, to, best_via, self.callsign, cost))
 
-		return best_via, best_cost + 1000
+		return best_via, best_cost
 
 
 loop = asyncio.get_event_loop()

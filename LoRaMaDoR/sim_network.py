@@ -56,7 +56,7 @@ class Station:
 						old.append(k)
 				for k in old:
 					del self.already_received_pkts[k]
-				if VERBOSITY > 90:
+				if VERBOSITY > 0:
 					print("%s: expired memory of %d pkts" % (self.callsign, len(old)))
 		loop.create_task(cleanup())
 
@@ -65,10 +65,10 @@ class Station:
 		ttl = MAX_TTL
 		if to == "QB":
 			ttl = 1
-		via = self.router.get_first_hop(to)
+		via = self.router.get_next_hop(to)
 		if via is None:
 			if VERBOSITY > 40:
-				print("%s: no route to %s" % (self.callsign, to))
+				print("%s: send: no route to %s" % (self.callsign, to))
 			return
 		pkt = Packet(to, via, self.callsign, ttl, msg)
 		self.sendmsg(pkt)
@@ -76,7 +76,9 @@ class Station:
 	def sendmsg(self, pkt):
 		Station.dbg_pending_delivery_pkts[pkt.tag] = pkt
 		print("%s => %s" % (self.callsign, pkt))
-		self._forward(None, pkt, True)
+		async def asend():
+			self._forward(None, pkt, True)
+		loop.create_task(asend())
 
 	def recv(self, pkt):
 		# Called when we are the recipient of a packet
@@ -100,14 +102,15 @@ class Station:
 			print("%s: bad pkt %s" % (self.callsign, pkt))
 			return
 
+		# Are we the origin?
 		if from_us:
-			# We are the origin
+			# Destination is loopback?
 			if pkt.to in ("QL", "Q", self.callsign):
-				# Loopback
 				self.recv(pkt)
 				return
 			# Annotate to detect duplicates
 			self.already_received_pkts[pkt.meaning()] = (pkt, time.time())
+			# Transmit
 			self.radio.send(self.callsign, pkt)
 			return
 
@@ -125,14 +128,13 @@ class Station:
 			return
 		self.already_received_pkts[pkt.meaning()] = (pkt, time.time())
 
+		# Are we the final destination?
 		if pkt.to in (self.callsign, "QB"):
-			# We are the final destination
-			# QB one-hop policy is enforced, too
 			self.recv(pkt)
 			return
 
+		# Are we one of the recipients?
 		if pkt.to in ("QF"):
-			# We are one of many recipients
 			self.recv(pkt)
 
 		self._repeat(pkt)
@@ -148,30 +150,34 @@ class Station:
 				print("%s: dropped %s" % (self.callsign, pkt))
 			return
 
-		if pkt.via:
-			# Explicit routing
-			if pkt.via != self.callsign:
-				# Not our problem
-				if VERBOSITY > 80:
-					print("%s: ignoring %s" % (self.callsign, pkt))
-					return
-
-			# Find next hop
-			next_hop = self.router.get_next_hop(pkt.to, pkt.via, pkt.fr0m)
-			if next_hop is None:
-				if VERBOSITY > 50:
-					print("%s: no route for %s" % (self.callsign, pkt))
-				return
-
-			pkt = pkt.update_via(next_hop)
-
-			if VERBOSITY > 50:
-				print("%s: relaying %s" % (self.callsign, pkt))
-
 		if not pkt.via:
-			# Diffusion routing, forwarding blindly
+			# Diffusion routing
 			if VERBOSITY > 50:
 				print("%s: d-relaying %s" % (self.callsign, pkt))
+			self.radio.send(self.callsign, pkt)
+			return
+
+		# Explicit routing
+
+		if pkt.via != self.callsign:
+			# Not our responsability to repeat
+			if VERBOSITY > 80:
+				print("%s: not repeating %s" % (self.callsign, pkt))
+			return
+
+		# Find next hop
+		next_hop = self.router.get_next_hop(pkt.to)
+		# next hop can be "", None, or station
+		# the router decides whether deny route or resort to diffusion
+		if next_hop is None:
+			if VERBOSITY > 50:
+				print("%s: no route for %s" % (self.callsign, pkt))
+			return
+
+		pkt = pkt.update_via(next_hop)
+
+		if VERBOSITY > 50:
+			print("%s: relaying %s" % (self.callsign, pkt))
 
 		# Send away
 		self.radio.send(self.callsign, pkt)
