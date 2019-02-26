@@ -35,7 +35,7 @@ class Router:
 					if (now - timestamp) > 120:
 						expired.append(to)
 					if ROUTER_VERBOSITY > 90:
-						print("%s rt: expiring cached %d < %d < %d" % \
+						print("%s rt: expiring cached %s < %s < %s" % \
 							(self.callsign, to, via, self.callsign))
 				for to in expired:
 					del self.cache[to]
@@ -205,6 +205,8 @@ class Router:
 
 	def get_next_hop(self, to):
 		repeater, cost = self._get_next_hop(to, (to, ))
+		if repeater == self.callsign:
+			repeater = "QB"
 		return repeater
 
 	def _get_next_hop(self, to, path):
