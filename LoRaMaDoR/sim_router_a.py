@@ -22,16 +22,16 @@ class AbstractRouter:
 		self.helper = helper
 		self.cache = {}
 
-		async def cache_expire():
+		async def run_cache_expire():
 			while True:
 				await asyncio.sleep(120 + random.random() * 60)
 				self.cache_expire()
 
 
 		loop = asyncio.get_event_loop()
-		loop.create_task(cache_expire())
+		loop.create_task(run_cache_expire())
 
-	def cache_expire():
+	def cache_expire(self):
 		if ROUTER_VERBOSITY > 90:
 			print("%s rt: cache expiration control" % self.callsign)
 
