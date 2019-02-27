@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 
-import struct, numpy, sys, math, wave, filters, time, datetime
+import struct, numpy, sys, math, wave, filters, time, datetime, random
 
 INPUT_RATE = 1000000
 
+INGEST_SIZE = INPUT_RATE
+
 MAX_DEVIATION = 10000 # Hz
-CENTER = 152500000 
-freqs = [152390000]
+# CENTER = 152500000 
+CENTER = 153000000
+# freqs = [152390000]
+freqs = [152772500]
 STEP = 2500
 IF_BANDWIDTH = 20000
 IF_RATE = 25000
-AUDIO_BANDWIDTH = 4000
+AUDIO_BANDWIDTH = 3400
 AUDIO_RATE = 12500
 
 # -45..-48 dbFS is the minimum, 6db = 1 bit of audio
@@ -45,20 +49,20 @@ class Demodulator:
 		self.if_freq = CENTER - freq
 		# works because both if_freq and INPUT_RATE are multiples of STEP
 		self.carrier_table = [ math.cos(t * tau * (self.if_freq / INPUT_RATE))
-				for t in range(0, INPUT_RATE // 4) ]
+				for t in range(0, INGEST_SIZE * 2) ]
 		self.carrier_table = numpy.array(self.carrier_table)
 		# actually, this is the biggest period (carrier of 2500Hz)
 		self.if_period = INPUT_RATE // STEP
 		self.if_phase = 0
-		self.last_if_sample = []
+		self.last_if_sample = numpy.array([])
 
 		# IF filtering
 		# complex samples, filter goes from -freq to +freq
-		self.if_filter = filters.low_pass(INPUT_RATE, IF_BANDWIDTH / 2, 48)
+		self.if_filter = filters.low_pass(INPUT_RATE, IF_BANDWIDTH / 2, 24)
 		self.if_decimator = filters.decimator(INPUT_RATE // IF_RATE)
 
 		# Audio filter
-		self.audio_filter = filters.band_pass(IF_RATE, 30, AUDIO_BANDWIDTH, 24)
+		self.audio_filter = filters.band_pass(IF_RATE, 300, AUDIO_BANDWIDTH, 18)
 		self.audio_decimator = filters.decimator(IF_RATE // AUDIO_RATE)
 
 
@@ -71,19 +75,22 @@ class Demodulator:
 		self.if_phase = (self.if_phase + len(iqsamples)) % self.if_period
 		# Demodulate
 		ifsamples = iqsamples * carrier
+		print("%s %f" % ('f demod', time.time() - tmbase))
 
 		# Filter IF to radio bandwidth and decimate
 		ifsamples = self.if_filter.feed(ifsamples)
 		ifsamples = self.if_decimator.feed(ifsamples)
+		print("%s %f" % ('f filter', time.time() - tmbase))
 
 		# Get last sample from last batch
-		ifsamples = self.last_if_sample + ifsamples
+		ifsamples = numpy.concatenate((self.last_if_sample, ifsamples))
 
 		# Save last sample to next batch
 		self.last_if_sample = ifsamples[-1:]
 
 		# Finds angles (phase) of I/Q pairs
 		angles = numpy.angle(ifsamples)
+		# print("%s %f" % ('f angle', time.time() - tmbase))
 
 		# Average signal strengh
 		energy = numpy.sum(numpy.absolute(ifsamples)) \
@@ -91,6 +98,7 @@ class Demodulator:
 			/ len(ifsamples)
 		db = 20 * math.log10(energy)
 		self.energy = 0.5 * db + 0.5 * self.energy
+		# print("%s %f" % ('f energy', time.time() - tmbase))
 
 		# print("%f: signal %f dbFS" % (self.freq, self.energy))
 		if not self.recording:
@@ -111,6 +119,7 @@ class Demodulator:
 		# (Output one element less, that's we always save last sample
 		# in remaining_data)
 		rotations = numpy.ediff1d(angles)
+		# print("%s %f" % ('f rotations', time.time() - tmbase))
 
 		# Wrap rotations >= +/-180º
 		rotations = (rotations + numpy.pi) % (2 * numpy.pi) - numpy.pi
@@ -129,6 +138,7 @@ class Demodulator:
 	
 		bits = struct.pack('%dB' % len(output_raw), *output_raw)
 		self.wav.writeframes(bits)
+		# print("%s %f" % ('f wav', time.time() - tmbase))
 
 demodulators = {}
 for freq in freqs:
@@ -139,13 +149,17 @@ for freq in freqs:
 # prefilter = filters.low_pass(INPUT_RATE, 240000, 48)
 
 remaining_data = b''
+
+tmbase = 0
 	
 while True:
-	# Ingest up to 0.1s worth of data
-	data = sys.stdin.buffer.read(INPUT_RATE * 2 // 10)
+	# Ingest data
+	data = sys.stdin.buffer.read(INGEST_SIZE * 2)
 	if not data:
 		break
 	data = remaining_data + data
+
+	tmbase = time.time()
 
 	# Save odd byte
 	if len(data) % 2 == 1:
@@ -154,8 +168,11 @@ while True:
 		data = data[:-1]
 
 	# Convert to complex numbers
-	iqdata = [ ((data[n * 2 + 0] - 127.5) + (0+1j) * (data[n * 2 + 1] - 127.5)) / 128.0
-		for n in range(0, len(data) // 2) ]
+	iqdata = numpy.frombuffer(data, dtype=numpy.uint8)
+	iqdata = iqdata - 127.5
+	iqdata = iqdata / 128.0
+	iqdata = iqdata.view(complex)
+
 	iqdata = numpy.array(iqdata)
 
 	# Forward I/Q samples to all channels

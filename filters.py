@@ -148,8 +148,11 @@ class decimator(filter):
 		# Gets the last n-th sample of every n (n = factor)
 		# If e.g. gets 12 samples, gets s[4] and s[9], and
 		# stoves s[10:] to the next round
+		'''
 		decimated = [ original[ self.factor * i + self.factor - 1 ] \
 			for i in range(0, len(original) // self.factor) ]
+		'''
+		decimated = original[(self.factor - 1)::self.factor]
 		self.buf2 = original[:-len(original) % self.factor]
 
 		return decimated
