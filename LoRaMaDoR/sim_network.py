@@ -5,7 +5,6 @@
 # Copyright (c) 2019 PU5EPX
 
 import random, asyncio, sys, time, string
-from sim_router_edge import Router
 from sim_packet import Packet
 
 VERBOSITY=80
@@ -23,7 +22,7 @@ class Station:
 	def get_all_callsigns():
 		return Station.all_callsigns[:]
 
-	def __init__(self, callsign, radio):
+	def __init__(self, callsign, radio, router_class):
 		self.callsign = callsign.upper()
 		if self.callsign not in Station.all_callsigns:
 			Station.all_callsigns.append(self.callsign)
@@ -41,7 +40,7 @@ class Station:
 			return MAX_TTL
 		helper = {"total_edges": total_edges, "sendmsg": sendmsg, "max_ttl": max_ttl}
 
-		self.router = Router(self.callsign, helper)
+		self.router = router_class(self.callsign, helper)
 		radio.attach(callsign, self)
 
 		self.add_traffic_gen(Beacon)
