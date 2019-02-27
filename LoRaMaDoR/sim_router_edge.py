@@ -10,10 +10,19 @@ from sim_router_a import AbstractRouter, ROUTER_VERBOSITY
 
 # FIXME
 
+# FIXME flexible TTL x detected network size
+
 class Router(AbstractRouter):
 	def __init__(self, callsign, helper):
 		super().__init__(callsign, helper)
-		# FIXME expire edges (possibly in superclass, chk breadcrumb)
+		# FIXME expire edges (possibly in superclass)
+		async def send_qm():
+			await asyncio.sleep(random.random() * 10)
+			while True:
+				self.send_qm()
+				await asyncio.sleep(20 + random.random() * 10)
+		loop = asyncio.get_event_loop()
+		loop.create_task(send_qm())
 
 	def learn(self, to, fr0m, rssi):
 		if to == fr0m:
@@ -46,8 +55,8 @@ class Router(AbstractRouter):
 			print("%s rt knows %.1f%% of the graph" % (self.callsign, pp))
 			# print("\tknows: ", self.edges)
 
-	def _parse_qm(self, msg):
-		info = msg.strip().upper().split(":")
+	def _parse_qm_item(self, msg):
+		info = msg.strip().split(":")
 		if len(info) != 3:
 			return None, None, None
 		to, fr0m, rssi = tuple(info)
@@ -64,48 +73,67 @@ class Router(AbstractRouter):
 
 		return to, fr0m, rssi
 
+	def _parse_qm(self, msg):
+		ei = 0
+		edges = {}
+		infos = msg.strip().upper().split(" ")
+		if not infos:
+			return None
+		for info in infos:
+			to, fr0m, rssi = self._parse_qm_item(info)
+			if not to:
+				return None
+			ei += 1
+			edges[ei] = {"to": to, "from": fr0m, "rssi": rssi}
+		return edges
+
 	def handle_pkt(self, radio_rssi, pkt):
 		if pkt.to == "QB" and pkt.fr0m != "QB" and pkt.fr0m != self.callsign:
 			# Beacon packet from neighbor
 			print("%s rt: got QB pkt %s" % (self.callsign, pkt))
 			kind = "QB"
-			to = self.callsign
-			fr0m = pkt.fr0m
-			rssi = radio_rssi
+			edges = {"qb": {"to": self.callsign, "from": pkt.fr0m, "rssi": radio_rssi}}
 		elif pkt.to == "QM" and pkt.fr0m == "QM":
 			# QM packet, sent by another router
 			print("%s rt: got QM pkt %s" % (self.callsign, pkt))
 			kind = "QM"
-			to, fr0m, rssi = self._parse_qm(pkt.msg)
-			if to is None:
+			edges = self._parse_qm(pkt.msg)
+			if not edges:
 				if ROUTER_VERBOSITY > 40:
 					print("%s: Bad QM msg %s", (self.callsign, pkt.msg))
 				return False
 		else:
 			return False
 
-		self.learn(to, fr0m, rssi)
-
-		# Has this edge information been diffused already?
-		if self.sent_edges[to][fr0m]:
-			return kind == "QM"
-
-		if kind == "QB":
-			# Create new QM packet to diffuse this edge
-			msg = "%s:%s:%.1f" % (to, fr0m, rssi)
-			pkt = Packet("QM", "", "QM", self.helper['max_ttl'](), msg)
-
-		pkt = pkt.decrement_ttl()
-		if pkt.ttl < -self.helper['max_ttl']():
-			if ROUTER_VERBOSITY > 60:
-				print("\tmax hop count")
-			return kind == "QM"
-
-		if ROUTER_VERBOSITY > 50:
-			print("%s: rt diffusing %s < %s rssi %f ttl %d ident %s" % \
-				(self.callsign, to, fr0m, rssi, pkt.ttl, pkt.ident))
-
-		self.helper['sendmsg'](pkt)
-		self.sent_edges[to][fr0m] = True
+		for k, edge in edges.items():
+			self.learn(edge["to"], edge["from"], edge["rssi"])
 
 		return kind == "QM"
+
+	def send_qm(self):
+		# Collect and send QM packet with unpublished edges
+		msg = ""
+		for to, v in self.sent_edges.items():
+			for fr0m, published in v.items():
+				if not published:
+					self.sent_edges[to][fr0m] = True
+					cost = self.edges[to][fr0m]
+					rssi = -cost
+					if msg:
+						msg += " "
+					msg += "%s:%s:%.0f" % (to, fr0m, rssi)
+					if len(msg) > 50:
+						break
+			if len(msg) > 50:
+				break
+
+		if not msg:
+			return
+
+		pkt = Packet("QM", "", "QM", self.helper['max_ttl'](), msg)
+
+		if ROUTER_VERBOSITY > 50:
+			print("%s: rt publishing %s" % \
+				(self.callsign, msg))
+
+		self.helper['sendmsg'](pkt)

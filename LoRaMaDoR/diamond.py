@@ -17,53 +17,53 @@ r = Radio()
 
 # create stations
 for i in range(0, STATION_COUNT):
-	callsign = chr(ord('A') + i)
+	callsign = chr(ord('A') + i) * 5
 	stations[callsign] = Station(callsign, r, Router)
 
 # create model mesh
-r.edge("A", "B", -50)  # "A" <- "B", rssi -50
-r.edge("A", "C", -70)
+r.edge("AAAAA", "BBBBB", -50)  # "AAAAA" <- "BBBBB", rssi -50
+r.edge("AAAAA", "CCCCC", -70)
 
-r.edge("C", "A", -60)
-r.edge("C", "B", -75)
-r.edge("C", "E", -80)
-r.edge("C", "F", -60)
+r.edge("CCCCC", "AAAAA", -60)
+r.edge("CCCCC", "BBBBB", -75)
+r.edge("CCCCC", "EEEEE", -80)
+r.edge("CCCCC", "FFFFF", -60)
 
-r.edge("B", "A", -55)
-r.edge("B", "C", -75)
-r.edge("B", "D", -51)
-r.edge("B", "E", -51)
+r.edge("BBBBB", "AAAAA", -55)
+r.edge("BBBBB", "CCCCC", -75)
+r.edge("BBBBB", "DDDDD", -51)
+r.edge("BBBBB", "EEEEE", -51)
 
-r.edge("D", "B", -45)
-r.edge("D", "E", -65)
-r.edge("D", "G", -85)
+r.edge("DDDDD", "BBBBB", -45)
+r.edge("DDDDD", "EEEEE", -65)
+r.edge("DDDDD", "GGGGG", -85)
 
-r.edge("E", "B", -70)
-r.edge("E", "C", -60)
-r.edge("E", "D", -90)
-r.edge("E", "F", None) # out
-r.edge("E", "G", -65)
-r.edge("E", "H", -62)
+r.edge("EEEEE", "BBBBB", -70)
+r.edge("EEEEE", "CCCCC", -60)
+r.edge("EEEEE", "DDDDD", -90)
+r.edge("EEEEE", "FFFFF", None) # out
+r.edge("EEEEE", "GGGGG", -65)
+r.edge("EEEEE", "HHHHH", -62)
 
-r.edge("F", "C", None) # out
-r.edge("F", "E", None) # out
-r.edge("F", "H", -80) 
+r.edge("FFFFF", "CCCCC", None) # out
+r.edge("FFFFF", "EEEEE", None) # out
+r.edge("FFFFF", "HHHHH", -80) 
 
-r.edge("G", "D", -61)
-r.edge("G", "E", -62)
-r.edge("G", "H", -63)
-r.edge("G", "I", None) # out
+r.edge("GGGGG", "DDDDD", -61)
+r.edge("GGGGG", "EEEEE", -62)
+r.edge("GGGGG", "HHHHH", -63)
+r.edge("GGGGG", "IIIII", None) # out
 
-r.edge("H", "F", None) # out
-r.edge("H", "E", -66) 
-r.edge("H", "G", -60) 
-r.edge("H", "I", -47) 
+r.edge("HHHHH", "FFFFF", None) # out
+r.edge("HHHHH", "EEEEE", -66) 
+r.edge("HHHHH", "GGGGG", -60) 
+r.edge("HHHHH", "IIIII", -47) 
 
-r.edge("I", "G", -40) 
-r.edge("I", "H", -70) 
-r.edge("I", "J", -65)
+r.edge("IIIII", "GGGGG", -40) 
+r.edge("IIIII", "HHHHH", -70) 
+r.edge("IIIII", "JJJJJ", -65)
 
-r.edge("J", "I", -60) 
+r.edge("JJJJJ", "IIIII", -60) 
 
 # add talkers
 for callsign, station in stations.items():

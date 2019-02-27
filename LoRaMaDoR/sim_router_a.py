@@ -9,8 +9,8 @@ from sim_packet import Packet
 
 ROUTER_VERBOSITY = 100
 
-CAN_DIFFUSE_UNKNOWN = True
-CAN_DIFFUSE_NOROUTE = True
+CAN_DIFFUSE_UNKNOWN = False
+CAN_DIFFUSE_NOROUTE = False
 
 # Base route class. Can route packets, but does not learn routes
 

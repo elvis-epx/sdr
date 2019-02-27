@@ -7,6 +7,7 @@
 import random, math, asyncio
 from sim_radio import Radio
 from sim_network import Station, ttl, run
+from sim_router_edge import Router
 from sim_trafficgen import *
 
 STATION_COUNT = 5
@@ -17,7 +18,7 @@ r = Radio()
 # create stations
 for i in range(0, STATION_COUNT):
 	callsign = chr(ord('A') + i)
-	stations[callsign] = Station(callsign, r)
+	stations[callsign] = Station(callsign, r, Router)
 
 r.biedge("B", "A", -40, -45) 
 r.biedge("C", "B", -70, -60) 

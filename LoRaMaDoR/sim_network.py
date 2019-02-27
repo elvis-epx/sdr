@@ -191,12 +191,12 @@ loop = asyncio.get_event_loop()
 class Beacon:
 	def __init__(self, station):
 		async def beacon():
-			await asyncio.sleep(random.random() * 1)
+			await asyncio.sleep(random.random() * 10)
 			while True:
 				msg = ''.join(random.choice(string.ascii_lowercase + string.digits) \
 					for _ in range(3))
 				station.send("QB", msg)
-				await asyncio.sleep(30 + random.random() * 60)
+				await asyncio.sleep(90 + random.random() * 45)
 		loop.create_task(beacon())
 
 

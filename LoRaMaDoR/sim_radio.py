@@ -20,8 +20,8 @@ class Radio:
 		self.stations = {}
 		async def transmitted():
 			while True:
-				await asyncio.sleep(60)
-				Radio.runtime += 60
+				await asyncio.sleep(30)
+				Radio.runtime += 30
 				print("##### radio: sent %d pkts %d bits %d bps" % 
 					(Radio.pkts_transmitted, Radio.bits_transmitted,
 					Radio.bits_transmitted / Radio.runtime))
