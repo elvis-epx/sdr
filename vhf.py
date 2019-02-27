@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-import struct, numpy, sys, math, wave, filters, time, datetime, random
+import struct, numpy, sys, math, wave, filters, time, datetime
+import queue, threading
 
 INPUT_RATE = 1000000
 
@@ -65,8 +66,31 @@ class Demodulator:
 		self.audio_filter = filters.band_pass(IF_RATE, 300, AUDIO_BANDWIDTH, 18)
 		self.audio_decimator = filters.decimator(IF_RATE // AUDIO_RATE)
 
+		# Thread
+		def worker():
+			while True:
+				iqsamples = self.queue.get()
+				if iqsamples is None:
+					break
+				self._ingest(iqsamples)
+				self.queue.task_done()
+
+		self.queue = queue.Queue()
+		self.thread = threading.Thread(target=worker)
+		self.thread.start()
+
+	def close_queue(self):
+		self.queue.put(None)
+
+	def drain_queue(self):
+		self.thread.join()
 
 	def ingest(self, iqsamples):
+		self.queue.put(iqsamples)
+
+	def _ingest(self, iqsamples):
+		self.tmbase = time.time()
+
 		# Center frequency of samples on desired frequency
 
 		# Get a cosine table in correct phase
@@ -75,12 +99,12 @@ class Demodulator:
 		self.if_phase = (self.if_phase + len(iqsamples)) % self.if_period
 		# Demodulate
 		ifsamples = iqsamples * carrier
-		print("%s %f" % ('f demod', time.time() - tmbase))
+		# print("%s %f" % ('f demod', time.time() - self.tmbase))
 
 		# Filter IF to radio bandwidth and decimate
 		ifsamples = self.if_filter.feed(ifsamples)
 		ifsamples = self.if_decimator.feed(ifsamples)
-		print("%s %f" % ('f filter', time.time() - tmbase))
+		# print("%s %f" % ('f filter', time.time() - self.tmbase))
 
 		# Get last sample from last batch
 		ifsamples = numpy.concatenate((self.last_if_sample, ifsamples))
@@ -90,7 +114,7 @@ class Demodulator:
 
 		# Finds angles (phase) of I/Q pairs
 		angles = numpy.angle(ifsamples)
-		# print("%s %f" % ('f angle', time.time() - tmbase))
+		# print("%s %f" % ('f angle', time.time() - self.tmbase))
 
 		# Average signal strengh
 		energy = numpy.sum(numpy.absolute(ifsamples)) \
@@ -98,7 +122,7 @@ class Demodulator:
 			/ len(ifsamples)
 		db = 20 * math.log10(energy)
 		self.energy = 0.5 * db + 0.5 * self.energy
-		# print("%s %f" % ('f energy', time.time() - tmbase))
+		# print("%s %f" % ('f energy', time.time() - self.tmbase))
 
 		# print("%f: signal %f dbFS" % (self.freq, self.energy))
 		if not self.recording:
@@ -119,7 +143,7 @@ class Demodulator:
 		# (Output one element less, that's we always save last sample
 		# in remaining_data)
 		rotations = numpy.ediff1d(angles)
-		# print("%s %f" % ('f rotations', time.time() - tmbase))
+		# print("%s %f" % ('f rotations', time.time() - self.tmbase))
 
 		# Wrap rotations >= +/-180º
 		rotations = (rotations + numpy.pi) % (2 * numpy.pi) - numpy.pi
@@ -138,7 +162,7 @@ class Demodulator:
 	
 		bits = struct.pack('%dB' % len(output_raw), *output_raw)
 		self.wav.writeframes(bits)
-		# print("%s %f" % ('f wav', time.time() - tmbase))
+		# print("%s %f" % ('f wav', time.time() - self.tmbase))
 
 demodulators = {}
 for freq in freqs:
@@ -150,8 +174,6 @@ for freq in freqs:
 
 remaining_data = b''
 
-tmbase = 0
-	
 while True:
 	# Ingest data
 	data = sys.stdin.buffer.read(INGEST_SIZE * 2)
@@ -179,3 +201,9 @@ while True:
 	for k, d in demodulators.items():
 		# d.ingest(prefilter.feed(iqdata))
 		d.ingest(iqdata)
+
+for k, d in demodulators.items():
+	d.close_queue()
+
+for k, d in demodulators.items():
+	d.drain_queue()
