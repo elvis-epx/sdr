@@ -5,17 +5,21 @@ import queue, threading
 
 monitor_strength = "-e" in sys.argv
 
-INPUT_RATE = 1000000
+INPUT_RATE = int(sys.argv[2])
 
 INGEST_SIZE = INPUT_RATE // 10
 
 MAX_DEVIATION = 10000 # Hz
-CENTER = 153000000
-freqs = [152772500]
 
-CENTER = 462500000
-freqs = [462562500, 462587500, 462612500, 462637500, 462662500, 462687500, 462712500,
-	 462550000, 462575000, 462600000, 462625000, 462650000, 462675000, 462725000]
+CENTER=int(sys.argv[1])
+
+freqs = []
+
+for i in range(3, len(sys.argv)):
+	if sys.argv[i] == ".":
+		break
+	freqs.append(int(sys.argv[i]))
+
 STEP = 2500
 IF_BANDWIDTH = 20000
 IF_RATE = 25000
@@ -28,11 +32,13 @@ THRESHOLD = -39
 assert (INPUT_RATE // IF_RATE) == (INPUT_RATE / IF_RATE)
 assert (IF_RATE // AUDIO_RATE) == (IF_RATE / AUDIO_RATE)
 
-# Makes sure IF demodulation carrier will be a multiple of STEP Hz
+# Makes sure IF demodulation carrier will be a multiple of STEP Hz 
+# and it is in bandwidth range (80% of INPUT_RATE)
 assert (INPUT_RATE / STEP == INPUT_RATE // STEP)
 for f in freqs:
 	if_freq = abs(CENTER - f)
 	assert(if_freq / STEP == if_freq // STEP)
+	assert(if_freq < (0.4 * INPUT_RATE))
 
 DEVIATION_X_SIGNAL = 0.99 / (math.pi * MAX_DEVIATION / (IF_RATE / 2))
 
