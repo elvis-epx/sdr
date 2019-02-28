@@ -2,5 +2,11 @@
 
 CENTER=462400000
 RATE=900000
-FREQS="462562500 462587500 462612500 462637500 462662500 462687500 462712500 462550000 462575000 462600000 462625000 462650000 462675000 462725000"
+FREQS="462562500 462587500 462612500 462637500 462662500 462687500 462712500 462550000 462575000 462600000 462625000 462650000 462675000 462700000 462725000"
 rtl_sdr -f $CENTER -g 30 -s $RATE - | ./vhf.py $CENTER $RATE $FREQS . $*
+
+# See CFR §95.1763 GMRS channels.
+#  The GMRS is allotted 30 channels—16 main channels and 14 interstitial channels. GMRS stations may transmit on any of the channels as indicated below.
+# (a) 462 MHz main channels. Only mobile, hand-held portable, repeater, base and fixed stations may transmit on these 8 channels. The channel center frequencies are: 462.5500, 462.5750, 462.6000, 462.6250, 462.6500, 462.6750, 462.7000, and 462.7250 MHz.
+# (b) 462 MHz interstitial channels. Only mobile, hand-held portable and base stations may transmit on these 7 channels. The channel center frequencies are: 462.5625, 462.5875, 462.6125, 462.6375, 462.6625, 462.6875, and 462.7125 MHz.
+# https://www.buytwowayradios.com/blog/2006/07/frs_and_gmrs_frequencies.html
