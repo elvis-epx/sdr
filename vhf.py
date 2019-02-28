@@ -3,9 +3,11 @@
 import struct, numpy, sys, math, wave, filters, time, datetime
 import queue, threading
 
+monitor_strength = "-e" in sys.argv
+
 INPUT_RATE = 1000000
 
-INGEST_SIZE = INPUT_RATE
+INGEST_SIZE = INPUT_RATE // 10
 
 MAX_DEVIATION = 10000 # Hz
 CENTER = 153000000
@@ -47,6 +49,7 @@ class Demodulator:
 
 		# Energy estimation
 		self.energy = -48
+		self.ecount = 0
 
 		# IF
 		self.if_freq = CENTER - freq
@@ -124,9 +127,11 @@ class Demodulator:
 			/ len(ifsamples)
 		db = 20 * math.log10(energy)
 		self.energy = 0.5 * db + 0.5 * self.energy
+		self.ecount = (self.ecount + 1) % 10
 		# print("%s %f" % ('f energy', time.time() - self.tmbase))
 
-		# print("%f: signal %f dbFS" % (self.freq, self.energy))
+		if monitor_strength and self.ecount == 0:
+			print("%f: signal %f dbFS" % (self.freq, self.energy))
 		if not self.recording:
 			if self.energy > THRESHOLD:
 				print("%s %f: signal %f dbFS, recording" % \
@@ -201,7 +206,6 @@ while True:
 
 	# Forward I/Q samples to all channels
 	for k, d in demodulators.items():
-		# d.ingest(prefilter.feed(iqdata))
 		d.ingest(iqdata)
 
 for k, d in demodulators.items():
