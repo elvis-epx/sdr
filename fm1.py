@@ -30,12 +30,13 @@ while True:
 
 	samples = len(data) // 2
 
-	# Finds angles (phase) of I/Q pairs
-	angles = [
-		math.atan2(
-			(data[n * 2 + 1] - 127.5) / 128.0, 
-			(data[n * 2 + 0] - 127.5) / 128.0
-		) for n in range(0, samples) ]
+	# find angle (phase) of I/Q pairs
+	iqdata = numpy.frombuffer(data, dtype=numpy.uint8)
+	iqdata = iqdata - 127.5
+	iqdata = iqdata / 128.0
+	iqdata = iqdata.view(complex)
+
+	angles = numpy.angle(iqdata)
 
 	# Determine phase rotation between samples
 	# (Output one element less, that's we always save last sample
