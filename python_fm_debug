@@ -1,5 +1,7 @@
 #!/bin/sh -x
 
+# Debug FM stereo decoding
+
 rtl_sdr -f 89.5M -s 256k -n 2560000 teste.iq
 cat teste.iq | ./fm1s.py -d --disable-pll > teste.raw
 sox -t raw -r 256000 -b 16 -c 3 -L -e signed-integer teste.raw teste.wav

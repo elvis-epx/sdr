@@ -1,3 +1,5 @@
 #!/bin/bash
 
+# Decode ACARS messages using acarsdec.
+
 acarsdec -v  -p -1 -g 300 -r 0 -f 131.550 | tee ~/acars.log

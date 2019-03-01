@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
 
+# Multi-channel narrowband FM demodulator for VHF, UHF, Talkabout, etc.
+#
+# Requisites: - all channels must be within 80% of the raw I/Q bandwidth
+#             - the computer must have enough CPU
+#               (use less channels, or batch process the I/Q samples,
+#               in case your computer can't demodulate in real-time)
+#             - Center frequency, bandwidth and channels must be all
+#               multiples of 2500.
+
 import struct, numpy, sys, math, wave, filters, time, datetime
 import queue, threading
 

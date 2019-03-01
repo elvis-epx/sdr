@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-
-# FM demodulator based on I/Q (quadrature)
+# FM demodulator based on I/Q (quadrature) samples
 
 import struct, math, random, sys, numpy, filters, time
 
@@ -11,7 +10,7 @@ if disable_pll:
 	optimized = False
 
 if optimized:
-	import fastmodul # Cython
+	import fastfm # Cython
 
 MAX_DEVIATION = 200000.0 # Hz
 INPUT_RATE = 256000
@@ -116,7 +115,7 @@ while True:
 	if optimized:
 		output_jstereo, pll, STEREO_CARRIER, \
 		last_pilot, deviation_avg, last_deviation_avg = \
-			fastmodul.demod_stereo(output_jstereo_mod,
+			fastfm.demod_stereo(output_jstereo_mod,
 						pll,
 						STEREO_CARRIER,
 						INPUT_RATE,

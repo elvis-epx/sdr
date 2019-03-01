@@ -1,2 +1,5 @@
+#!/bin/sh
+# Narrow FM demodulator/audio player
+
 # To save: replace -d by name.wav
 rtl_fm -M fm -f 813610000 -p -1 -g 49 -s 48000 -l 8 - | sox -t raw -r 48000 -b 16 -c 1 -L -e signed-integer - -d rate 8000

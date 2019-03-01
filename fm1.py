@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# FM demodulator based on I/Q (quadrature)
+# FM demodulator based on I/Q (quadrature) samples
 
 import struct, numpy, sys, math
 

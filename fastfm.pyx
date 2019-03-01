@@ -1,5 +1,8 @@
 # cython: language_level=3
 
+# Does FM stereo decoding. Implements a PLL to generate the
+# stereo carrier using the pilot tone as reference.
+
 import math
 
 tau = 2 * math.pi

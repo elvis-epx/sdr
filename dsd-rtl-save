@@ -1,4 +1,6 @@
-#!/bin/bash -x
+#!/bin/sh -x
+# Decode digital radio (DMR et al.) and save audio as WAV
+# using rtl_fm as front-end
 
 if [ "$1" = "" ]; then
 	FREQ="162093200"

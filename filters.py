@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# Common DSP filters using pure Python
+
 import numpy, math, sys, time
 from numpy import fft
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# Estimate signal strengh in dBFS
+
 import struct, numpy, sys, math, filters
 
 INPUT_RATE = 960000

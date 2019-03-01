@@ -1,3 +1,4 @@
 #!/bin/sh -x
 
+# Estimate signal strengh in dBFS
 rtl_sdr -f 462637500 -g 30 -s 960k - | ./power.py

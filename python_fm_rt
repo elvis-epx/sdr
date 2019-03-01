@@ -1,3 +1,5 @@
 #!/bin/sh -x
 
+# Decode and play stereo broadcast FM in realtime.
+
 rtl_sdr -f 93.1M -s 256k - | ./fm1.py -o | sox -t raw -r 256000 -b 16 -c 1 -L -e signed-integer - -d rate 32000

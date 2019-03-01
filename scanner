@@ -1,2 +1,5 @@
 #!/bin/sh -x
+
+# Use the rtl_fm scanner function to find and record airband speeches
+
 rtl_fm -M am -f 118M:137M:25k -s 12k -g 50 -l 500 | play -r 12k -t raw -e s -b 16 -c 1 -V1 -

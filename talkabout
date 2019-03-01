@@ -1,9 +1,11 @@
 #!/bin/sh -x
 
+# Record Talkabout channels as sound WAV files.
+
 CENTER=462400000
 RATE=900000
 FREQS="462562500 462587500 462612500 462637500 462662500 462687500 462712500 462550000 462575000 462600000 462625000 462650000 462675000 462700000 462725000"
-rtl_sdr -f $CENTER -g 30 -s $RATE - | ./vhf.py $CENTER $RATE $FREQS . $*
+rtl_sdr -f $CENTER -g 30 -s $RATE - | ./nfm.py $CENTER $RATE $FREQS . $*
 
 # See CFR §95.1763 GMRS channels.
 #  The GMRS is allotted 30 channels—16 main channels and 14 interstitial channels. GMRS stations may transmit on any of the channels as indicated below.
