@@ -7,7 +7,7 @@
 #               (use less channels, or batch process the I/Q samples,
 #               in case your computer can't demodulate in real-time)
 #             - Center frequency, bandwidth and channels must be all
-#               multiples of 2500.
+#               multiples of STEP.
 
 import struct, numpy, sys, math, wave, filters, time, datetime
 import queue, threading
@@ -56,10 +56,7 @@ tau = 2 * math.pi
 class Demodulator:
 	def __init__(self, freq):
 		self.freq = freq
-		self.wav = wave.open("%d.wav" % freq, "w")
-		self.wav.setnchannels(1)
-		self.wav.setsampwidth(1)
-		self.wav.setframerate(AUDIO_RATE)
+		self.wav = None
 		self.recording = False
 
 		# Energy estimation
@@ -72,7 +69,6 @@ class Demodulator:
 		self.carrier_table = [ math.cos(t * tau * (self.if_freq / INPUT_RATE))
 				for t in range(0, INGEST_SIZE * 2) ]
 		self.carrier_table = numpy.array(self.carrier_table)
-		# actually, this is the biggest period (carrier of 2500Hz)
 		self.if_period = INPUT_RATE // STEP
 		self.if_phase = 0
 		self.last_if_sample = numpy.array([])
@@ -98,6 +94,12 @@ class Demodulator:
 		self.queue = queue.Queue()
 		self.thread = threading.Thread(target=worker)
 		self.thread.start()
+
+	def create_wav(self):
+		self.wav = wave.open("%d.wav" % freq, "w")
+		self.wav.setnchannels(1)
+		self.wav.setsampwidth(1)
+		self.wav.setframerate(AUDIO_RATE)
 
 	def close_queue(self):
 		self.queue.put(None)
@@ -161,6 +163,9 @@ class Demodulator:
 		if not self.recording:
 			return
 
+		if not self.wav:
+			self.create_wav()
+
 		# Determine phase rotation between samples
 		# (Output one element less, that's we always save last sample
 		# in remaining_data)
@@ -190,10 +195,6 @@ demodulators = {}
 for freq in freqs:
 	demodulators[freq] = Demodulator(freq)
 
-# Prefilter to get +/-240kHz out of +/-480kHz band
-# Complex samples, bandwidth goes from -freq to +freq
-# prefilter = filters.low_pass(INPUT_RATE, 240000, 48)
-
 remaining_data = b''
 
 while True:
@@ -216,8 +217,6 @@ while True:
 	iqdata = iqdata - 127.5
 	iqdata = iqdata / 128.0
 	iqdata = iqdata.view(complex)
-
-	iqdata = numpy.array(iqdata)
 
 	# Forward I/Q samples to all channels
 	for k, d in demodulators.items():

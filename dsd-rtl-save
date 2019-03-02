@@ -3,9 +3,9 @@
 # using rtl_fm as front-end
 
 if [ "$1" = "" ]; then
-	FREQ="162093200"
+	FREQ="162656000"
 else
 	FREQ="$1"
 fi
-RTLFM="rtl_fm -M fm -f $FREQ -p -4 -g 49 -s 48000 -"
-$RTLFM | dsd -i - -w ~/${FREQ}.wav -pe -pl -ps -pt
+RTLFM="rtl_fm -M fm -f $FREQ -p 0 -g 25 -s 48000 -"
+$RTLFM | dsd -i - -w ${FREQ}.wav -pe -pl -ps -pt

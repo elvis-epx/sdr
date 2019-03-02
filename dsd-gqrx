@@ -2,4 +2,4 @@
 
 # Decode digital radio (DMR et al.) using GQRX as front-end and FM demodulator
 
-socat stdout udp6-recv:7355 | dsd -i - -w ~/teste.wav -v 10 $*
+socat stdout udp6-recv:7355 | dsd -i - -w dmr.wav -v 10 $*

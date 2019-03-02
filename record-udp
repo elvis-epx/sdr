@@ -2,5 +2,5 @@
 
 # Save audio from GQRX with squelch
 
-socat stdout udp6-recv:7355 | sox -t raw -r 48000 -b 16 -c 1 -L -e signed-integer - ~/gravacao.wav \
+socat stdout udp6-recv:7355 | sox -t raw -r 48000 -b 16 -c 1 -L -e signed-integer - gravacao.wav \
 	silence 1 0.5t 0.1% -1 0.5t 0.1%
