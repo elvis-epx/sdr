@@ -18,7 +18,7 @@ INPUT_RATE = int(sys.argv[2])
 
 INGEST_SIZE = INPUT_RATE // 10
 
-MAX_DEVIATION = 10000 # Hz
+MAX_DEVIATION = 5000 # Hz
 
 CENTER=int(sys.argv[1])
 
@@ -30,13 +30,12 @@ for i in range(3, len(sys.argv)):
 	freqs.append(int(sys.argv[i]))
 
 STEP = 2500
-IF_BANDWIDTH = 20000
+IF_BANDWIDTH = 10000
 IF_RATE = 25000
 AUDIO_BANDWIDTH = 3400
 AUDIO_RATE = 12500
 
-# -45..-48 dbFS is the minimum, 6db = 1 bit of audio
-THRESHOLD = -39
+THRESHOLD = 9 # 9dB SNR = 1.5 bit
 
 assert (INPUT_RATE // IF_RATE) == (INPUT_RATE / IF_RATE)
 assert (IF_RATE // AUDIO_RATE) == (IF_RATE / AUDIO_RATE)
@@ -60,7 +59,8 @@ class Demodulator:
 		self.recording = False
 
 		# Energy estimation
-		self.energy = -48
+		self.energy_avg = None
+		self.energy_off = 0
 		self.ecount = 0
 
 		# IF
@@ -142,22 +142,35 @@ class Demodulator:
 		energy = numpy.sum(numpy.absolute(ifsamples)) \
 			* math.sqrt(INPUT_RATE / IF_RATE) \
 			/ len(ifsamples)
-		db = 20 * math.log10(energy)
-		self.energy = 0.5 * db + 0.5 * self.energy
-		self.ecount = (self.ecount + 1) % 10
+		energy = 20 * math.log10(energy)
+
+		if self.energy_avg is None:
+			self.energy_avg = energy
+		else:
+			self.energy_avg = 0.03 * energy + 0.97 * self.energy_avg
+
+		self.ecount = (self.ecount + 1) % 25
 		# print("%s %f" % ('f energy', time.time() - self.tmbase))
 
 		if monitor_strength and self.ecount == 0:
-			print("%f: signal %f dbFS" % (self.freq, self.energy))
+			print("%f: signal avg %.1f offavg %.1f" % \
+				(self.freq, self.energy_avg, self.energy_off))
+
 		if not self.recording:
-			if self.energy > THRESHOLD:
-				print("%s %f: signal %f dbFS, recording" % \
-					(str(datetime.datetime.now()), self.freq, self.energy))
+			if energy > (self.energy_off + THRESHOLD):
+				print("%s %f: signal %.1f, recording" % \
+					(str(datetime.datetime.now()), self.freq, energy))
 				self.recording = True
+			else:
+				# Accept as "off" sample
+				if energy < self.energy_off:
+					self.energy_off = 0.05 * energy + 0.95 * self.energy_off
+				else:
+					self.energy_off = 0.005 * energy + 0.995 * self.energy_off
 		else:
-			if self.energy < THRESHOLD:
-				print("%s %f: signal %f dbFS, stopping tape" % \
-					(str(datetime.datetime.now()), self.freq, self.energy))
+			if energy < (self.energy_off + THRESHOLD - 3):
+				print("%s %f: signal %.1f, stopping" % \
+					(str(datetime.datetime.now()), self.freq, energy))
 				self.recording = False
 
 		if not self.recording:
