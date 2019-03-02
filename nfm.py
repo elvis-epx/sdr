@@ -96,7 +96,7 @@ class Demodulator:
 		self.thread.start()
 
 	def create_wav(self):
-		self.wav = wave.open("%d.wav" % freq, "w")
+		self.wav = wave.open("%d.wav" % self.freq, "w")
 		self.wav.setnchannels(1)
 		self.wav.setsampwidth(1)
 		self.wav.setframerate(AUDIO_RATE)
@@ -205,8 +205,8 @@ class Demodulator:
 		# print("%s %f" % ('f wav', time.time() - self.tmbase))
 
 demodulators = {}
-for freq in freqs:
-	demodulators[freq] = Demodulator(freq)
+for f in freqs:
+	demodulators[f] = Demodulator(f)
 
 remaining_data = b''
 
