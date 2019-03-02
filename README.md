@@ -30,6 +30,9 @@ dsd-gqrx: Gets UDP audio packets from GQRX or other SDR software, and feeds
 into DSD to decode digital radio (DMR et al). DSD must be installed in your
 system, version 1.7 or better is recommended (had no luck decoding DMR with 1.6).
 
+dsd-rtl-save: usess rtl\_fm instead of GQRX as front-end. Saves audio as
+$FREQ.wav.
+
 The 'test\_samples' folder contains raw
 I/Q data from RTL-SDR to test scripts without the need of a dongle (and a
 live radio station).

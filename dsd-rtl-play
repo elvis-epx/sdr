@@ -1,4 +1,4 @@
 #!/bin/sh -x
 # Play audio from FIFO (which is fed by dsd-rtl-gen)
 
-play -r 8000 -t raw -e s -b 16 -c 1 -V1 dsd-rtl.fifo
+cat dsd-rtl.fifo | play -r 8000 -t raw -e s -b 16 -c 1 -V1 -

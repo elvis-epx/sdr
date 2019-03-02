@@ -1,8 +1,0 @@
-#!/bin/sh
-# Decode digital radio (DMR et al.) using rtl_fm as front-end and FM demodulator
-# Audio is sunk into a FIFO, dsd-rtl-play must be run to play it
-
-RTLFM="rtl_fm -M fm -f 162093200 -p -4 -g 49 -s 48000 -"
-
-mkfifo dsd-rtl.fifo
-$RTLFM | dsd -i - -w dsd-rtl.fifo -v 1000
