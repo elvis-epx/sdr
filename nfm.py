@@ -13,6 +13,7 @@ import struct, numpy, sys, math, wave, filters, time, datetime
 import queue, threading
 
 monitor_strength = "-e" in sys.argv
+use_autocorrelation = "-a" in sys.argv
 
 INPUT_RATE = int(sys.argv[2])
 
@@ -35,7 +36,9 @@ IF_RATE = 25000
 AUDIO_BANDWIDTH = 3400
 AUDIO_RATE = 12500
 
-THRESHOLD = 9 # 9dB SNR = 1.5 bit
+THRESHOLD_SNR = 9 # 9dB SNR = 1.5 bit
+THRESHOLD_AC = 0.2
+HISTERESIS = 2
 
 assert (INPUT_RATE // IF_RATE) == (INPUT_RATE / IF_RATE)
 assert (IF_RATE // AUDIO_RATE) == (IF_RATE / AUDIO_RATE)
@@ -56,12 +59,15 @@ class Demodulator:
 	def __init__(self, freq):
 		self.freq = freq
 		self.wav = None
-		self.recording = False
+		self.recording = 0
 
 		# Energy estimation
 		self.energy_avg = None
 		self.energy_off = 0
 		self.ecount = 0
+
+		# Autocorrelation average
+		self.ac_avg = None
 
 		# IF
 		self.if_freq = CENTER - freq
@@ -151,33 +157,35 @@ class Demodulator:
 
 		self.ecount = (self.ecount + 1) % 25
 		# print("%s %f" % ('f energy', time.time() - self.tmbase))
+		rec_prev = self.recording
 
-		if monitor_strength and self.ecount == 0:
-			print("%f: signal avg %.1f offavg %.1f" % \
+		if not use_autocorrelation:
+			if monitor_strength and self.ecount == 0:
+				print("%f: signal avg %.1f offavg %.1f" % \
 				(self.freq, self.energy_avg, self.energy_off))
 
-		if not self.recording:
-			if energy > (self.energy_off + THRESHOLD):
-				print("%s %f: signal %.1f, recording" % \
-					(str(datetime.datetime.now()), self.freq, energy))
-				self.recording = True
+			if energy > (self.energy_off + THRESHOLD_SNR):
+				self.recording = HISTERESIS
+
+				if rec_prev <= 0:
+					print("%s %f: signal %.1f, recording" % \
+						(str(datetime.datetime.now()), self.freq, energy))
 			else:
-				# Accept as "off" sample
+				self.recording -= 1
+				self.recording = max(0, self.recording)
+
+				if self.recording <= 0 and rec_prev > 0:
+					print("%s %f: signal %.1f, stopping" % \
+						(str(datetime.datetime.now()), self.freq, energy))
+	
+			if self.recording <= 0:
+				# Use sample to find background noise level
 				if energy < self.energy_off:
 					self.energy_off = 0.05 * energy + 0.95 * self.energy_off
 				else:
 					self.energy_off = 0.005 * energy + 0.995 * self.energy_off
-		else:
-			if energy < (self.energy_off + THRESHOLD - 3):
-				print("%s %f: signal %.1f, stopping" % \
-					(str(datetime.datetime.now()), self.freq, energy))
-				self.recording = False
-
-		if not self.recording:
-			return
-
-		if not self.wav:
-			self.create_wav()
+				return
+	
 
 		# Determine phase rotation between samples
 		# (Output one element less, that's we always save last sample
@@ -191,16 +199,49 @@ class Demodulator:
 		# Convert rotations to baseband signal 
 		output_raw = numpy.multiply(rotations, DEVIATION_X_SIGNAL)
 
+		if use_autocorrelation:
+			# Calculate autocorrelation metric
+			ac_r = numpy.abs(numpy.correlate(output_raw, output_raw, 'same'))
+			ac_metric = numpy.sum(ac_r) / numpy.max(ac_r) / len(output_raw)
+
+			if self.ac_avg is None:
+				self.ac_avg = ac_metric
+			else:
+				self.ac_avg = 0.1 * ac_metric + 0.9 * self.ac_avg
+
+			if monitor_strength and self.ecount == 0:
+				print("%f: signal avg %.1f autocorrelation %f" % \
+					(self.freq, self.energy_avg, self.ac_avg))
+
+			if ac_metric > THRESHOLD_AC:
+				self.recording = HISTERESIS
+				if rec_prev <= 0:
+					print("%s %f: autocorrelation %f, recording" % \
+						(str(datetime.datetime.now()), self.freq, ac_metric))
+			else:
+				self.recording -= 1
+				self.recording = max(self.recording, 0)
+
+				if self.recording <= 0 and rec_prev > 0:
+					print("%s %f: autocorrelation %.1f, stopping" % \
+						(str(datetime.datetime.now()), self.freq, ac_metric))
+
+			if self.recording <= 0:
+				return
+
 		# Filter to audio bandwidth and decimate
 		output_raw = self.audio_filter.feed(output_raw)
 		output_raw = self.audio_decimator.feed(output_raw)
+		output_raw = numpy.clip(output_raw, -0.999, +0.999)
 
 		# Scale to unsigned 8-bit int with offset (8-bit WAV)
-		output_raw = numpy.clip(output_raw, -0.999, +0.999)
+		# output_raw = numpy.clip(output_raw, -0.999, +0.999)
 		output_raw = numpy.multiply(output_raw, 127) + 127
 		output_raw = output_raw.astype(int)
 	
 		bits = struct.pack('%dB' % len(output_raw), *output_raw)
+		if not self.wav:
+			self.create_wav()
 		self.wav.writeframes(bits)
 		# print("%s %f" % ('f wav', time.time() - self.tmbase))
 
