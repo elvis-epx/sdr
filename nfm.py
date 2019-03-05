@@ -15,22 +15,18 @@ import queue, threading
 monitor_strength = "-e" in sys.argv
 use_autocorrelation = "-a" in sys.argv
 
-INPUT_RATE = int(sys.argv[2])
-
-INGEST_SIZE = INPUT_RATE // 10
-
-MAX_DEVIATION = 5000 # Hz
-
 CENTER=int(sys.argv[1])
-
+INPUT_RATE = int(sys.argv[2])
+STEP = int(sys.argv[3])
 freqs = []
-
-for i in range(3, len(sys.argv)):
+for i in range(4, len(sys.argv)):
 	if sys.argv[i] == ".":
 		break
 	freqs.append(int(sys.argv[i]))
 
-STEP = 2500
+INGEST_SIZE = INPUT_RATE // 10
+MAX_DEVIATION = 5000 # Hz
+
 IF_BANDWIDTH = 10000
 IF_RATE = 25000
 AUDIO_BANDWIDTH = 3400
@@ -223,7 +219,7 @@ class Demodulator:
 				self.recording = max(self.recording, 0)
 
 				if self.recording <= 0 and rec_prev > 0:
-					print("%s %f: autocorrelation %.1f, stopping" % \
+					print("%s %f: autocorrelation %f, stopping" % \
 						(str(datetime.datetime.now()), self.freq, ac_metric))
 
 			if self.recording <= 0:

@@ -14,9 +14,10 @@ for f in $FREQS; do
 	s=$(($s + $f))
 	n=$(($n + 1))
 done
+STEP=2500
 CENTR=$(($s / $n - 20000))
-CENTR=$(($CENTR / 2500))
-CENTR=$(($CENTR * 2500))
+CENTR=$(($CENTR / $STEP))
+CENTR=$(($CENTR * $STEP))
 
 BW=1000000
-rtl_sdr -f $CENTR -g 25 -s $BW - | ./nfm.py $CENTR $BW $FREQS . $*
+rtl_sdr -f $CENTR -g 25 -s $BW - | ./nfm.py $CENTR $BW $STEP $FREQS . $*
