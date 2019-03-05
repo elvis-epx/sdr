@@ -1,0 +1,20 @@
+#!/bin/bash -x
+
+# Record narrow FM channels (most commonly VHF and UHF) as audio WAV files
+
+FREQS="119650000"
+
+# Determine center automatically
+s=0
+n=0
+for f in $FREQS; do
+	s=$(($s + $f))
+	n=$(($n + 1))
+done
+STEP=2500
+CENTR=$(($s / $n - 50000))
+CENTR=$(($CENTR / $STEP))
+CENTR=$(($CENTR * $STEP))
+
+BW=250000
+rtl_sdr -f $CENTR -g 43 -s $BW - | ./nfm.py $CENTR $BW $STEP $FREQS . --am $*

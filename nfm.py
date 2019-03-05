@@ -14,6 +14,7 @@ import queue, threading
 
 monitor_strength = "-e" in sys.argv
 use_autocorrelation = "-a" in sys.argv
+am = "--am" in sys.argv
 
 CENTER=int(sys.argv[1])
 INPUT_RATE = int(sys.argv[2])
@@ -139,12 +140,8 @@ class Demodulator:
 		# Get last sample from last batch
 		ifsamples = numpy.concatenate((self.last_if_sample, ifsamples))
 
-		# Save last sample to next batch
+		# Save last sample to next batch for FM
 		self.last_if_sample = ifsamples[-1:]
-
-		# Finds angles (phase) of I/Q pairs
-		angles = numpy.angle(ifsamples)
-		# print("%s %f" % ('f angle', time.time() - self.tmbase))
 
 		# Signal strengh
 		energy = numpy.sum(numpy.absolute(ifsamples)) \
@@ -158,20 +155,27 @@ class Demodulator:
 			self.energy_avg = 0.03 * energy + 0.97 * self.energy_avg
 		self.display_count = (self.display_count + 1) % 25
 
-		# print("%s %f" % ('f energy', time.time() - self.tmbase))
+		if am:
+			# AM
+			output_raw = numpy.absolute(ifsamples)[1:] / 1.4
+			# DC bias added by carrier will be removed by audio_filter
+		else:
+			# Narrow FM
 
-		# Determine phase rotation between samples
-		# (Output one element less, that's we always save last sample
-		# in remaining_data)
-		rotations = numpy.ediff1d(angles)
-		# print("%s %f" % ('f rotations', time.time() - self.tmbase))
+			# Finds angles (phase) of I/Q pairs
+			angles = numpy.angle(ifsamples)
 
-		# Wrap rotations >= +/-180º
-		rotations = (rotations + numpy.pi) % (2 * numpy.pi) - numpy.pi
+			# Determine phase rotation between samples
+			# (Output one element less, that's we always save last sample
+			# in remaining_data)
+			rotations = numpy.ediff1d(angles)
 	
-		# Convert rotations to baseband signal 
-		output_raw = numpy.multiply(rotations, DEVIATION_X_SIGNAL)
-
+			# Wrap rotations >= +/-180º
+			rotations = (rotations + numpy.pi) % (2 * numpy.pi) - numpy.pi
+		
+			# Convert rotations to baseband signal 
+			output_raw = numpy.multiply(rotations, DEVIATION_X_SIGNAL)
+	
 		squelch, output_raw = self.squelch(energy, output_raw)
 		if squelch:
 			return
@@ -182,7 +186,6 @@ class Demodulator:
 		output_raw = numpy.clip(output_raw, -0.999, +0.999)
 
 		# Scale to unsigned 8-bit int with offset (8-bit WAV)
-		# output_raw = numpy.clip(output_raw, -0.999, +0.999)
 		output_raw = numpy.multiply(output_raw, 127) + 127
 		output_raw = output_raw.astype(int)
 	
