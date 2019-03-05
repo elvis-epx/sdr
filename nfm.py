@@ -34,7 +34,8 @@ AUDIO_RATE = 12500
 
 THRESHOLD_SNR = 9 # 9dB SNR = 1.5 bit
 THRESHOLD_AC = 0.2
-HISTERESIS = 2
+HISTERESIS_UP = -3      # not recording -> recording
+HISTERESIS_DOWN = 1    # recording -> stop
 
 assert (INPUT_RATE // IF_RATE) == (INPUT_RATE / IF_RATE)
 assert (IF_RATE // AUDIO_RATE) == (IF_RATE / AUDIO_RATE)
@@ -50,17 +51,22 @@ for f in freqs:
 DEVIATION_X_SIGNAL = 0.99 / (math.pi * MAX_DEVIATION / (IF_RATE / 2))
 
 tau = 2 * math.pi
+silence = numpy.zeros(IF_RATE // 10)
 
 class Demodulator:
 	def __init__(self, freq):
 		self.freq = freq
 		self.wav = None
-		self.recording = 0
 
-		# Energy estimation
+		self.histeresis = HISTERESIS_UP
+		self.old_histeresis = 0
+		self.is_recording = False
+		self.memory_up = []
+
+		# Energy (signal strength) estimation
 		self.energy_avg = None
 		self.energy_off = 0
-		self.ecount = 0
+		self.display_count = 0
 
 		# Autocorrelation average
 		self.ac_avg = None
@@ -140,7 +146,7 @@ class Demodulator:
 		angles = numpy.angle(ifsamples)
 		# print("%s %f" % ('f angle', time.time() - self.tmbase))
 
-		# Average signal strengh
+		# Signal strengh
 		energy = numpy.sum(numpy.absolute(ifsamples)) \
 			* math.sqrt(INPUT_RATE / IF_RATE) \
 			/ len(ifsamples)
@@ -150,38 +156,9 @@ class Demodulator:
 			self.energy_avg = energy
 		else:
 			self.energy_avg = 0.03 * energy + 0.97 * self.energy_avg
+		self.display_count = (self.display_count + 1) % 25
 
-		self.ecount = (self.ecount + 1) % 25
 		# print("%s %f" % ('f energy', time.time() - self.tmbase))
-		rec_prev = self.recording
-
-		if not use_autocorrelation:
-			if monitor_strength and self.ecount == 0:
-				print("%f: signal avg %.1f offavg %.1f" % \
-				(self.freq, self.energy_avg, self.energy_off))
-
-			if energy > (self.energy_off + THRESHOLD_SNR):
-				self.recording = HISTERESIS
-
-				if rec_prev <= 0:
-					print("%s %f: signal %.1f, recording" % \
-						(str(datetime.datetime.now()), self.freq, energy))
-			else:
-				self.recording -= 1
-				self.recording = max(0, self.recording)
-
-				if self.recording <= 0 and rec_prev > 0:
-					print("%s %f: signal %.1f, stopping" % \
-						(str(datetime.datetime.now()), self.freq, energy))
-	
-			if self.recording <= 0:
-				# Use sample to find background noise level
-				if energy < self.energy_off:
-					self.energy_off = 0.05 * energy + 0.95 * self.energy_off
-				else:
-					self.energy_off = 0.005 * energy + 0.995 * self.energy_off
-				return
-	
 
 		# Determine phase rotation between samples
 		# (Output one element less, that's we always save last sample
@@ -195,35 +172,9 @@ class Demodulator:
 		# Convert rotations to baseband signal 
 		output_raw = numpy.multiply(rotations, DEVIATION_X_SIGNAL)
 
-		if use_autocorrelation:
-			# Calculate autocorrelation metric
-			ac_r = numpy.abs(numpy.correlate(output_raw, output_raw, 'same'))
-			ac_metric = numpy.sum(ac_r) / numpy.max(ac_r) / len(output_raw)
-
-			if self.ac_avg is None:
-				self.ac_avg = ac_metric
-			else:
-				self.ac_avg = 0.1 * ac_metric + 0.9 * self.ac_avg
-
-			if monitor_strength and self.ecount == 0:
-				print("%f: signal avg %.1f autocorrelation %f" % \
-					(self.freq, self.energy_avg, self.ac_avg))
-
-			if ac_metric > THRESHOLD_AC:
-				self.recording = HISTERESIS
-				if rec_prev <= 0:
-					print("%s %f: autocorrelation %f, recording" % \
-						(str(datetime.datetime.now()), self.freq, ac_metric))
-			else:
-				self.recording -= 1
-				self.recording = max(self.recording, 0)
-
-				if self.recording <= 0 and rec_prev > 0:
-					print("%s %f: autocorrelation %f, stopping" % \
-						(str(datetime.datetime.now()), self.freq, ac_metric))
-
-			if self.recording <= 0:
-				return
+		squelch, output_raw = self.squelch(energy, output_raw)
+		if squelch:
+			return
 
 		# Filter to audio bandwidth and decimate
 		output_raw = self.audio_filter.feed(output_raw)
@@ -240,6 +191,86 @@ class Demodulator:
 			self.create_wav()
 		self.wav.writeframes(bits)
 		# print("%s %f" % ('f wav', time.time() - self.tmbase))
+
+	# Determine if audio should be squelched or recorded
+
+	def squelch(self, energy, output_raw):
+		self.old_histeresis = self.histeresis
+		if use_autocorrelation:
+			vote = self.vote_by_autocorrelation(output_raw)
+		else:
+			vote = self.vote_by_energy(energy)
+		self.histeresis += vote
+		self.histeresis = min(HISTERESIS_DOWN, max(HISTERESIS_UP, self.histeresis))
+		if self.histeresis != self.old_histeresis and monitor_strength:
+			print("%d: hist %d energy %.1f" % (self.freq, self.histeresis, energy))
+
+		# Decide start/stop recording
+		if not self.is_recording:
+			if vote > 0:
+				# Save samples so we can record to WAV retroactively
+				self.memory_up.append(output_raw)
+			else:
+				self.memory_up = []
+
+			if self.histeresis >= 0:
+				print("%s %f recording" % (str(datetime.datetime.now()), self.freq))
+				self.is_recording = True
+				self.histeresis = HISTERESIS_DOWN
+				output_raw = numpy.concatenate(tuple(self.memory_up))
+				self.memory_up = []
+		else:
+			if self.histeresis <= 0:
+				print("%s %f stopping" % (str(datetime.datetime.now()), self.freq))
+				self.is_recording = False
+				self.histeresis = HISTERESIS_UP
+				self.memory_up = []
+				# Return a small silence block to finish audio
+				return False, silence
+
+		return not self.is_recording, output_raw
+
+	# Vote record/stop based on signal strengh
+
+	def vote_by_energy(self, energy):
+		if monitor_strength and self.display_count == 0:
+			print("%d: signal avg %.1f offavg %.1f hist %d" % \
+				(self.freq, self.energy_avg, self.energy_off, self.histeresis))
+
+		vote = -1
+		if energy > (self.energy_off + THRESHOLD_SNR):
+			vote = +1
+
+		if not self.is_recording and vote < 0:
+			# Use sample to find background noise level
+			if energy < self.energy_off:
+				self.energy_off = 0.05 * energy + 0.95 * self.energy_off
+			else:
+				self.energy_off = 0.005 * energy + 0.995 * self.energy_off
+
+		return vote
+
+	# Voice record/stop based on signal autocorrelation
+		
+	def vote_by_autocorrelation(self, output_raw):
+		# Calculate autocorrelation metric
+		ac_r = numpy.abs(numpy.correlate(output_raw, output_raw, 'same'))
+		ac_metric = numpy.sum(ac_r) / numpy.max(ac_r) / len(output_raw)
+
+		if self.ac_avg is None:
+			self.ac_avg = ac_metric
+		else:
+			self.ac_avg = 0.1 * ac_metric + 0.9 * self.ac_avg
+
+		if monitor_strength and self.display_count == 0:
+			print("%d: signal avg %.1f autocorrelation %f hist %d" % \
+				(self.freq, self.energy_avg, self.ac_avg, self.histeresis))
+
+		vote = -1
+		if ac_metric > THRESHOLD_AC:
+			vote = +1
+		return vote
+
 
 demodulators = {}
 for f in freqs:
