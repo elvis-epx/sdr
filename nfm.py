@@ -64,6 +64,7 @@ class Demodulator:
 		self.old_histeresis = 0
 		self.is_recording = False
 		self.memory_up = []
+		self.insert_timestamp = False
 
 		# Energy (signal strength) estimation
 		self.energy_avg = None
@@ -189,6 +190,10 @@ class Demodulator:
 		# Scale to unsigned 8-bit int with offset (8-bit WAV)
 		output_raw = numpy.multiply(output_raw, 127) + 127
 		output_raw = output_raw.astype(int)
+
+		if self.insert_timestamp:
+			output_raw = numpy.concatenate((self.gen_timestamp(output_raw), output_raw))
+			self.insert_timestamp = False
 	
 		bits = struct.pack('%dB' % len(output_raw), *output_raw)
 		if not self.wav:
@@ -220,6 +225,7 @@ class Demodulator:
 			if self.histeresis >= 0:
 				print("%s %f recording" % (str(datetime.datetime.now()), self.freq))
 				self.is_recording = True
+				self.insert_timestamp = True
 				self.histeresis = HISTERESIS_DOWN
 				output_raw = numpy.concatenate(tuple(self.memory_up))
 				self.memory_up = []
@@ -278,6 +284,28 @@ class Demodulator:
 			vote = +1
 		return vote
 
+	def gen_timestamp(self, output_raw):
+		offset = datetime.timedelta(seconds=(len(output_raw) / AUDIO_RATE))
+		now = datetime.datetime.utcnow() - offset
+		data = [ 0x81, 0x82 ]
+		data.append(127 - 5 + (now.year % 10000) // 1000)
+		data.append(127 - 5 + (now.year % 1000) // 100)
+		data.append(127 - 5 + (now.year % 100) // 10)
+		data.append(127 - 5 + (now.year % 10) // 1)
+		data.append(127 - 5 + now.month)
+		data.append(127 - 5 + now.day // 10)
+		data.append(127 - 5 + now.day % 10)
+		data.append(127 - 5 + now.hour // 10)
+		data.append(127 - 5 + now.hour % 10)
+		data.append(127 - 5 + now.minute // 10)
+		data.append(127 - 5 + now.minute % 10)
+		data.append(127 - 5 + now.second // 10)
+		data.append(127 - 5 + now.second % 10)
+		data.append(127 - 5 + (now.microsecond % 1000000) // 100000)
+		data.append(127 - 5 + (now.microsecond % 100000) // 10000)
+		data = data + [ 0x83, 0x84 ]
+		data = numpy.array(data)
+		return data.astype(int)
 
 demodulators = {}
 for f in freqs:
