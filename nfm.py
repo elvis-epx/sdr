@@ -9,34 +9,34 @@
 #             - Center frequency, bandwidth and channels must be all
 #               multiples of STEP.
 
-import struct, numpy, sys, math, wave, filters, time, datetime
+import struct, numpy, sys, math, cmath, wave, filters, time, datetime
 import queue, threading
 
 monitor_strength = "-e" in sys.argv
 use_autocorrelation = "-a" in sys.argv
+debug_autocorrelation = "--aa" in sys.argv
 am = "--am" in sys.argv
 
 CENTER=int(sys.argv[1])
 INPUT_RATE = int(sys.argv[2])
 STEP = int(sys.argv[3])
+IF_BANDWIDTH=int(sys.argv[4])
 freqs = []
-for i in range(4, len(sys.argv)):
+for i in range(5, len(sys.argv)):
 	if sys.argv[i] == ".":
 		break
 	freqs.append(int(sys.argv[i]))
 
 INGEST_SIZE = INPUT_RATE // 10
-MAX_DEVIATION = 5000 # Hz
 
-IF_BANDWIDTH = 10000
 IF_RATE = 25000
 AUDIO_BANDWIDTH = 3400
 AUDIO_RATE = 12500
 
 THRESHOLD_SNR = 9 # 9dB SNR = 1.5 bit
-THRESHOLD_AC = 0.2
+THRESHOLD_AC = 0.09
 HISTERESIS_UP = -3      # not recording -> recording
-HISTERESIS_DOWN = 1    # recording -> stop
+HISTERESIS_DOWN = 3    # recording -> stop
 
 assert (INPUT_RATE // IF_RATE) == (INPUT_RATE / IF_RATE)
 assert (IF_RATE // AUDIO_RATE) == (IF_RATE / AUDIO_RATE)
@@ -49,6 +49,7 @@ for f in freqs:
 	assert(if_freq / STEP == if_freq // STEP)
 	assert(if_freq < (0.4 * INPUT_RATE))
 
+MAX_DEVIATION = IF_BANDWIDTH / 2
 DEVIATION_X_SIGNAL = 0.99 / (math.pi * MAX_DEVIATION / (IF_RATE / 2))
 
 tau = 2 * math.pi
@@ -73,9 +74,9 @@ class Demodulator:
 		self.ac_avg = None
 
 		# IF
-		self.if_freq = CENTER - freq
+		self.if_freq = freq - CENTER
 		# works because both if_freq and INPUT_RATE are multiples of STEP
-		self.carrier_table = [ math.cos(t * tau * (self.if_freq / INPUT_RATE))
+		self.carrier_table = [ cmath.exp((0-1j) * tau * t * (self.if_freq / INPUT_RATE))
 				for t in range(0, INGEST_SIZE * 2) ]
 		self.carrier_table = numpy.array(self.carrier_table)
 		self.if_period = INPUT_RATE // STEP
@@ -84,7 +85,7 @@ class Demodulator:
 
 		# IF filtering
 		# complex samples, filter goes from -freq to +freq
-		self.if_filter = filters.low_pass(INPUT_RATE, IF_BANDWIDTH / 2, 24)
+		self.if_filter = filters.low_pass(INPUT_RATE, IF_BANDWIDTH / 2, 48)
 		self.if_decimator = filters.decimator(INPUT_RATE // IF_RATE)
 
 		# Audio filter
@@ -206,7 +207,7 @@ class Demodulator:
 		self.histeresis += vote
 		self.histeresis = min(HISTERESIS_DOWN, max(HISTERESIS_UP, self.histeresis))
 		if self.histeresis != self.old_histeresis and monitor_strength:
-			print("%d: hist %d energy %.1f" % (self.freq, self.histeresis, energy))
+			print("%d: hist %d" % (self.freq, self.histeresis))
 
 		# Decide start/stop recording
 		if not self.is_recording:
@@ -260,10 +261,13 @@ class Demodulator:
 		ac_r = numpy.abs(numpy.correlate(output_raw, output_raw, 'same'))
 		ac_metric = numpy.sum(ac_r) / numpy.max(ac_r) / len(output_raw)
 
+		if debug_autocorrelation:
+			print("%d: autocorrelation %f" % (self.freq, ac_metric))
+
 		if self.ac_avg is None:
 			self.ac_avg = ac_metric
 		else:
-			self.ac_avg = 0.1 * ac_metric + 0.9 * self.ac_avg
+			self.ac_avg = 0.2 * ac_metric + 0.8 * self.ac_avg
 
 		if monitor_strength and self.display_count == 0:
 			print("%d: signal avg %.1f autocorrelation %f hist %d" % \

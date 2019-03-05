@@ -1,8 +1,8 @@
 #!/bin/bash -x
 
-# Record narrow FM channels (most commonly VHF and UHF) as audio WAV files
-
-FREQS="119650000"
+# Airband channels: aprox. of SBFL and SBJV/SBNF
+FREQS="119650000 119500000"
+CHANNEL_BW=10000
 
 # Determine center automatically
 s=0
@@ -12,9 +12,11 @@ for f in $FREQS; do
 	n=$(($n + 1))
 done
 STEP=2500
-CENTR=$(($s / $n - 50000))
+CENTR=$(($s / $n))
 CENTR=$(($CENTR / $STEP))
 CENTR=$(($CENTR * $STEP))
+# CENTR=119400000
 
-BW=250000
-rtl_sdr -f $CENTR -g 43 -s $BW - | ./nfm.py $CENTR $BW $STEP $FREQS . --am $*
+BW=1000000
+# Note: AM does not work well with autocorrelation squelch
+rtl_sdr -f $CENTR -g 43 -s $BW - | ./nfm.py $CENTR $BW $STEP $CHANNEL_BW $FREQS . --am $*

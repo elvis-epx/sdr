@@ -1,12 +1,24 @@
-#!/bin/sh -x
+#!/bin/bash -x
 
 # Record Talkabout channels as sound WAV files.
 
-CENTER=462400000
-BW=1000000
+BW=250000
+CHANNEL_BW=12500
 FREQS="462562500 462587500 462612500 462637500 462662500 462687500 462712500 462550000 462575000 462600000 462625000 462650000 462675000 462700000 462725000"
 STEP=2500
-rtl_sdr -f $CENTER -g 30 -s $BW - | ./nfm.py $CENTER $BW $STEP $FREQS . $*
+
+# Determine center automatically
+s=0
+n=0
+for f in $FREQS; do
+	s=$(($s + $f))
+	n=$(($n + 1))
+done
+CENTR=$(($s / $n))
+CENTR=$(($CENTR / $STEP))
+CENTR=$(($CENTR * $STEP))
+
+rtl_sdr -f $CENTR -g 30 -s $BW - | ./nfm.py $CENTR $BW $STEP $CHANNEL_BW $FREQS . -a $*
 
 # See CFR §95.1763 GMRS channels.
 #  The GMRS is allotted 30 channels—16 main channels and 14 interstitial channels. GMRS stations may transmit on any of the channels as indicated below.
