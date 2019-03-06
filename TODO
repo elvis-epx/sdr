@@ -1,0 +1,4 @@
+NFM:
+	- AM x autocorrelation squelch (not working)
+	- CPU usage (particularly in multi-FM)
+	- Retroactive squelch (remove 3 blocks if 3 consec. strikes)
