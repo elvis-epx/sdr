@@ -30,7 +30,7 @@ for i in range(5, len(sys.argv)):
 INGEST_SIZE = INPUT_RATE // 10
 
 IF_RATE = 25000
-AUDIO_BANDWIDTH = 3400
+AUDIO_BANDWIDTH = 4000
 AUDIO_RATE = 12500
 
 THRESHOLD_SNR = 9 # 9dB SNR = 1.5 bit
@@ -50,7 +50,7 @@ for f in freqs:
 	assert(if_freq < (0.4 * INPUT_RATE))
 
 MAX_DEVIATION = IF_BANDWIDTH / 2
-DEVIATION_X_SIGNAL = 0.99 / (math.pi * MAX_DEVIATION / (IF_RATE / 2))
+DEVIATION_X_SIGNAL = 0.25 / (math.pi * MAX_DEVIATION / (IF_RATE / 2))
 
 tau = 2 * math.pi
 silence = numpy.zeros(IF_RATE // 10)
@@ -67,8 +67,8 @@ class Demodulator:
 		self.insert_timestamp = False
 
 		# Energy (signal strength) estimation
-		self.energy_avg = None
-		self.energy_off = 0
+		self.dbfs_avg = None
+		self.dbfs_off = 0
 		self.display_count = 0
 
 		# Autocorrelation average
@@ -90,8 +90,9 @@ class Demodulator:
 		self.if_decimator = filters.decimator(INPUT_RATE // IF_RATE)
 
 		# Audio filter
-		self.audio_filter = filters.band_pass(IF_RATE, 300, AUDIO_BANDWIDTH, 18)
+		self.audio_filter = filters.low_pass(IF_RATE, AUDIO_BANDWIDTH, 24)
 		self.audio_decimator = filters.decimator(IF_RATE // AUDIO_RATE)
+		self.dc_filter = filters.high_pass(AUDIO_RATE, 100, 6)
 
 		# Thread
 		def worker():
@@ -109,7 +110,7 @@ class Demodulator:
 	def create_wav(self):
 		self.wav = wave.open("%d.wav" % self.freq, "w")
 		self.wav.setnchannels(1)
-		self.wav.setsampwidth(1)
+		self.wav.setsampwidth(2)
 		self.wav.setframerate(AUDIO_RATE)
 
 	def close_queue(self):
@@ -145,22 +146,23 @@ class Demodulator:
 		# Save last sample to next batch for FM
 		self.last_if_sample = ifsamples[-1:]
 
-		# Signal strengh
-		energy = numpy.sum(numpy.absolute(ifsamples)) \
-			* math.sqrt(INPUT_RATE / IF_RATE) \
-			/ len(ifsamples)
-		energy = 20 * math.log10(energy)
+		# Signal strength
+		strength = numpy.sum(numpy.absolute(ifsamples)) / len(ifsamples)
+		dbfs = 20 * math.log10(strength)
 
-		if self.energy_avg is None:
-			self.energy_avg = energy
+		if self.dbfs_avg is None:
+			self.dbfs_avg = dbfs
 		else:
-			self.energy_avg = 0.03 * energy + 0.97 * self.energy_avg
+			self.dbfs_avg = 0.03 * dbfs + 0.97 * self.dbfs_avg
 		self.display_count = (self.display_count + 1) % 25
 
 		if am:
 			# AM
-			output_raw = numpy.absolute(ifsamples)[1:] / 1.4
-			# DC bias added by carrier will be removed by audio_filter
+			output_raw = numpy.absolute(ifsamples)[1:]
+			# Most of the signal strength comes from the
+			# (mute and constant) carrier, so we can use strength
+			# to amplify the audio a bit, instead of implementing AGC
+			output_raw *= 0.25 / strength
 		else:
 			# Narrow FM
 
@@ -178,24 +180,26 @@ class Demodulator:
 			# Convert rotations to baseband signal 
 			output_raw = numpy.multiply(rotations, DEVIATION_X_SIGNAL)
 	
-		squelch, output_raw = self.squelch(energy, output_raw)
+		squelch, output_raw = self.squelch(dbfs, output_raw)
 		if squelch:
 			return
 
 		# Filter to audio bandwidth and decimate
 		output_raw = self.audio_filter.feed(output_raw)
-		output_raw = self.audio_decimator.feed(output_raw)
-		output_raw = numpy.clip(output_raw, -0.999, +0.999)
+		output = self.audio_decimator.feed(output_raw)
+		output = self.dc_filter.feed(output)
+		output = numpy.clip(output, -0.999, +0.999)
 
-		# Scale to unsigned 8-bit int with offset (8-bit WAV)
-		output_raw = numpy.multiply(output_raw, 127) + 127
-		output_raw = output_raw.astype(int)
+		# Scale to WAV integers
+		# output = numpy.multiply(output, 127) + 127 # 8-bit WAV
+		output = numpy.multiply(output, 32767) # 16-bit WAV
+		output = output.astype(int)
 
 		if self.insert_timestamp:
-			output_raw = numpy.concatenate((self.gen_timestamp(output_raw), output_raw))
+			output = numpy.concatenate((self.gen_timestamp(output), output))
 			self.insert_timestamp = False
 	
-		bits = struct.pack('%dB' % len(output_raw), *output_raw)
+		bits = struct.pack('<%dh' % len(output), *output)
 		if not self.wav:
 			self.create_wav()
 		self.wav.writeframes(bits)
@@ -203,12 +207,12 @@ class Demodulator:
 
 	# Determine if audio should be squelched or recorded
 
-	def squelch(self, energy, output_raw):
+	def squelch(self, dbfs, output_raw):
 		self.old_histeresis = self.histeresis
 		if use_autocorrelation:
 			vote = self.vote_by_autocorrelation(output_raw)
 		else:
-			vote = self.vote_by_energy(energy)
+			vote = self.vote_by_dbfs(dbfs)
 		self.histeresis += vote
 		self.histeresis = min(HISTERESIS_DOWN, max(HISTERESIS_UP, self.histeresis))
 		if self.histeresis != self.old_histeresis and monitor_strength:
@@ -242,21 +246,21 @@ class Demodulator:
 
 	# Vote record/stop based on signal strengh
 
-	def vote_by_energy(self, energy):
+	def vote_by_dbfs(self, dbfs):
 		if monitor_strength and self.display_count == 0:
 			print("%d: signal avg %.1f offavg %.1f hist %d" % \
-				(self.freq, self.energy_avg, self.energy_off, self.histeresis))
+				(self.freq, self.dbfs_avg, self.dbfs_off, self.histeresis))
 
 		vote = -1
-		if energy > (self.energy_off + THRESHOLD_SNR):
+		if dbfs > (self.dbfs_off + THRESHOLD_SNR):
 			vote = +1
 
 		if not self.is_recording and vote < 0:
 			# Use sample to find background noise level
-			if energy < self.energy_off:
-				self.energy_off = 0.05 * energy + 0.95 * self.energy_off
+			if dbfs < self.dbfs_off:
+				self.dbfs_off = 0.05 * dbfs + 0.95 * self.dbfs_off
 			else:
-				self.energy_off = 0.005 * energy + 0.995 * self.energy_off
+				self.dbfs_off = 0.005 * dbfs + 0.995 * self.dbfs_off
 
 		return vote
 
@@ -277,15 +281,15 @@ class Demodulator:
 
 		if monitor_strength and self.display_count == 0:
 			print("%d: signal avg %.1f autocorrelation %f hist %d" % \
-				(self.freq, self.energy_avg, self.ac_avg, self.histeresis))
+				(self.freq, self.dbfs_avg, self.ac_avg, self.histeresis))
 
 		vote = -1
 		if ac_metric > THRESHOLD_AC:
 			vote = +1
 		return vote
 
-	def gen_timestamp(self, output_raw):
-		offset = datetime.timedelta(seconds=(len(output_raw) / AUDIO_RATE))
+	def gen_timestamp(self, output):
+		offset = datetime.timedelta(seconds=(len(output) / AUDIO_RATE))
 		now = datetime.datetime.utcnow() - offset
 		data = [ 0x81, 0x82 ]
 		data.append(127 - 5 + (now.year % 10000) // 1000)

@@ -1,0 +1,22 @@
+#!/bin/bash -x
+
+# Airband channel SBJV ATIS
+FREQS="127850000"
+CHANNEL_BW=10000
+
+# Determine center automatically
+s=0
+n=0
+for f in $FREQS; do
+	s=$(($s + $f))
+	n=$(($n + 1))
+done
+STEP=2500
+CENTR=$(($s / $n))
+CENTR=$(($CENTR / $STEP))
+CENTR=$(($CENTR * $STEP))
+CENTR=127850000
+
+BW=250000
+# Note: AM does not work well with autocorrelation squelch
+rtl_sdr -f $CENTR -g 35 -s $BW - | ./nfm.py $CENTR $BW $STEP $CHANNEL_BW $FREQS . --am $*
