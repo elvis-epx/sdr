@@ -17,16 +17,10 @@ class Edge:
 		self.cost = cost 
 		self.expiry = expiry
 
-class CachedEdge:
-	def __init__(self, via, cost):
-		self.via = via
-		self.cost = cost
-
 class Router:
 	def __init__(self, callsign):
 		self.callsign = callsign
 		self.graph = {}
-		self.cache = {}
 
 		async def run_expire():
 			while True:
@@ -37,7 +31,6 @@ class Router:
 		loop.create_task(run_expire())
 
 	def add_edge(self, to, fr0m, rssi, expiry):
-		self.cache = {}
 		if to not in self.graph:
 			self.graph[to] = {}
 
@@ -57,9 +50,6 @@ class Router:
 					if ROUTER_VERBOSITY > 90:
 						print("%s rt: expiring edge %s < %s (%d)" % \
 							(self.callsign, to, fr0m, item.expiry))
-
-		if expired:
-			self.cache = {}
 
 		for to, fr0m in expired:
 			del self.graph[to][fr0m]
@@ -87,13 +77,6 @@ class Router:
 		recursion = "=|" * (len(path) - 1)
 		if recursion:
 			recursion += " "
-
-		if to in self.cache:
-			cached = self.cache[to]
-			if ROUTER_VERBOSITY > 90:
-				print("%s%s rt: using cached %s < %s < %s" % \
-					(recursion, self.callsign, to, cached.via, self.callsign))
-			return cached.via, cached.cost
 
 		if to not in self.graph:
 			# Unknown destination
@@ -157,7 +140,6 @@ class Router:
 			print("%s \tadopted %s < %s < %s cost %d" % (recursion, to, via, self.callsign, best_cost))
 
 		if best_via:
-			self.cache[to] = CachedEdge(best_via, cost)
 			if ROUTER_VERBOSITY > 90:
 				print("%s%s rt: caching %s < %s < %s cost %d" % \
 					(recursion, self.callsign, to, best_via, self.callsign, cost))
