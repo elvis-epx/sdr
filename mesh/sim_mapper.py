@@ -9,24 +9,20 @@ from sim_packet import Packet
 
 MAPPER_VERBOSITY = 100
 
-SECONDS = 1.0
-MINUTES = 60 * SECONDS
+FIRST_QN_TIME = 10
+QN_TIME = 60
 
-FIRST_BEACON_TIME = 1 * SECONDS
-BEACON_TIME = 10 * MINUTES
-
-SEND_QM_TIME = 2 * SECONDS
-EDGE_SHARE_AGAIN_TIME = 2 * BEACON_TIME
-EDGE_EXPIRATION_TIME = 2 * EDGE_SHARE_AGAIN_TIME
+SEND_QM_TIME = 30
+EDGE_EXPIRATION_TIME = 120
 
 # FIXME
 
 # FIXME flexible TTL x detected network size
 
 class Edge:
-	def __init__(self, rssi, next_share, expiry):
+	def __init__(self, rssi, expiry):
 		self.rssi = rssi
-		self.next_share = next_share
+		self.shared = False
 		self.expiry = expiry
 
 class Mapper:
@@ -41,6 +37,7 @@ class Mapper:
 		loop.create_task(self.sch_send_qm())
 		loop.create_task(self.sch_send_beacon())
 		loop.create_task(self.expire())
+		loop.create_task(self.sch_debug())
 
 	async def sch_send_qm(self):
 		while True:
@@ -48,10 +45,18 @@ class Mapper:
 			self.send_qm()
 
 	async def sch_send_beacon(self):
-		await asyncio.sleep(FIRST_BEACON_TIME * (0.5 + random.random()))
+		await asyncio.sleep(FIRST_QN_TIME * (0.5 + random.random()))
 		while True:
 			self.send_beacon()
-			await asyncio.sleep(BEACON_TIME * (0.5 + random.random()))
+			await asyncio.sleep(QN_TIME * (0.5 + random.random()))
+
+	async def sch_debug(self):
+		while True:
+			await asyncio.sleep(30)
+			learnt_edges = sum(len(v.keys()) for k, v in self.graph.items())
+			total_edges = self.helper['total_edges']()
+			pp = 100 * learnt_edges / total_edges
+			print("%s rt knows %.1f%% of the graph" % (self.callsign, pp))
 
 	# Expire graph edges
 	async def expire(self):
@@ -73,10 +78,15 @@ class Mapper:
 		for to, fr0m in expired:
 			del self.graph[to][fr0m]
 
-	# Calculate next 'via' station.
-	def learn(self, to, fr0m, rssi):
+	# Learn graph edge
+	def learn(self, qn, to, fr0m, rssi):
 		if to == fr0m:
-			raise Exception("#### FATAL %s <- %s" % (to, fr0m))
+			print("#### FATAL learning %s <- %s" % (to, fr0m))
+			return
+
+		if not qn and to == self.callsign:
+			# If I am X, X<Y edges are learnt from QN packets only
+			return
 
 		now = time.time()
 		expiry = now + EDGE_EXPIRATION_TIME
@@ -86,30 +96,21 @@ class Mapper:
 
 		if fr0m not in self.graph[to]:
 			if MAPPER_VERBOSITY > 90:
-				print("%s map: learnt %s < %s rssi %d" \
+				print("%s map: new edge %s < %s rssi %d" \
 					% (self.callsign, to, fr0m, rssi))
-			e = self.graph[to][fr0m] = Edge(rssi, 0, expiry)
 		else:
 			e = self.graph[to][fr0m]
-			if abs(rssi - e.rssi) > 10:
+			if e.rssi == rssi:
 				if MAPPER_VERBOSITY > 90:
-					print("%s map: changed %s < %s rssi %d" \
+					print("%s map: already known %s < %s rssi %d" \
 						% (self.callsign, to, fr0m, rssi))
-				e.next_share = 0
-			else:
-				if MAPPER_VERBOSITY > 90:
-					print("%s map: refresh %s < %s rssi %d" \
-						% (self.callsign, to, fr0m, rssi))
-			e.rssi = rssi
-			e.expiry = now + EDGE_EXPIRATION_TIME
+				return
+			if MAPPER_VERBOSITY > 90:
+				print("%s map: refresh %s < %s rssi %d" \
+					% (self.callsign, to, fr0m, rssi))
 
-		self.helper['send_to_router'](to, fr0m, e.rssi, e.expiry)
-
-		if MAPPER_VERBOSITY >= 50:
-			learnt_edges = sum(len(v.keys()) for k, v in self.graph.items())
-			total_edges = self.helper['total_edges']()
-			pp = 100 * learnt_edges / total_edges
-			print("%s rt knows %.1f%% of the graph" % (self.callsign, pp))
+		self.graph[to][fr0m] = Edge(rssi, expiry)
+		self.helper['send_to_router'](to, fr0m, rssi, expiry)
 
 	def _parse_qm_item(self, msg):
 		info = msg.strip().split(":")
@@ -123,7 +124,7 @@ class Mapper:
 			return None, None, None
 
 		try:
-			rssi = float(rssi)
+			rssi = int(rssi)
 		except ValueError:
 			return None, None, None
 
@@ -144,53 +145,65 @@ class Mapper:
 		return edges
 
 	def handle_pkt(self, radio_rssi, pkt):
-		if pkt.to == "QB" and pkt.fr0m != "QB" and pkt.fr0m != self.callsign:
-			# Beacon packet from neighbor
-			print("%s map: got QB pkt %s" % (self.callsign, pkt))
-			kind = "QB"
-			edges = {"qb": {"to": self.callsign, "from": pkt.fr0m, "rssi": radio_rssi}}
-
-		elif pkt.to == "QM" and pkt.fr0m == "QM":
-			# QM packet, sent by another router
-			print("%s map: got QM pkt %s" % (self.callsign, pkt))
-			kind = "QM"
-			edges = self._parse_qm(pkt.msg)
-			if not edges:
-				if MAPPER_VERBOSITY > 40:
-					print("%s: Bad QM msg %s", (self.callsign, pkt.msg))
-				return False
-
-		else:
+		if pkt.to == "QN":
+			self.handle_pkt_qn(int(radio_rssi * 100), pkt)
 			return False
+		elif pkt.to == "QM":
+			self.handle_pkt_qm(int(radio_rssi * 100), pkt)
+			return True
+		return False
 
+	# Use beacon packet from neighbor
+	def handle_pkt_qn(self, rssi, pkt):
+		if pkt.fr0m == "QN" or pkt.fr0m == self.callsign:
+			return
+
+		# RSSI doubles as route version, so make it random
+		rssi += 50 - int(random.random() * 100)
+
+		print("%s map: got QN pkt %s" % (self.callsign, pkt))
+		self.learn(True, self.callsign, pkt.fr0m, rssi)
+
+	# QM packet
+	def handle_pkt_qm(self, rssi, pkt):
+		if pkt.fr0m != "QM":
+			return
+
+		print("%s map: got QM pkt %s" % (self.callsign, pkt))
+		edges = self._parse_qm(pkt.msg)
+		if not edges:
+			if MAPPER_VERBOSITY > 40:
+				print("%s: Bad QM msg %s", (self.callsign, pkt.msg))
+			return
 		for k, edge in edges.items():
-			self.learn(edge["to"], edge["from"], edge["rssi"])
+			self.learn(False, edge["to"], edge["from"], edge["rssi"])
 
-		return kind == "QM"
-
-	# Send QB packet automatically, which is important for the algorithm
+	# Send QN packet every n seconds
 	def send_beacon(self):
 		self.beacon_counter += 1
 		msg = '%d' % self.beacon_counter
-		pkt = Packet("QB", "", self.callsign, 1, msg)
+		pkt = Packet("QN", "", self.callsign, 1, msg)
 		self.helper['sendmsg'](pkt)
 
-	# Send QM packets to share learn graph edges
-	def send_qm(self):
-		now = time.time()
+	# Generate QM msg with fresh edges
+	def gen_qm_msg(self):
 		msg = ""
 		for to, v in self.graph.items():
 			for fr0m, e in v.items():
-				if e.next_share < now:
-					e.next_share = now + EDGE_SHARE_AGAIN_TIME
+				if not e.shared:
+					e.shared = True
 					if msg:
 						msg += " "
-					msg += "%s:%s:%.0f" % (to, fr0m, e.rssi)
-					if len(msg) > 50:
-						break
+					msg += "%s:%s:%d" % (to, fr0m, e.rssi)
+				if len(msg) > 50:
+					break
 			if len(msg) > 50:
 				break
+		return msg
 
+	# Send QM packets to share learn graph edges
+	def send_qm(self):
+		msg = self.gen_qm_msg()
 		if not msg:
 			return
 
@@ -201,4 +214,3 @@ class Mapper:
 				(self.callsign, msg))
 
 		self.helper['sendmsg'](pkt)
-

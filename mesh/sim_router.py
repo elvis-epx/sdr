@@ -7,7 +7,7 @@
 import random, asyncio, sys, time
 from sim_packet import Packet
 
-ROUTER_VERBOSITY = 100
+ROUTER_VERBOSITY = 60
 
 CAN_DIFFUSE_UNKNOWN = False
 CAN_DIFFUSE_NOROUTE = False
@@ -62,10 +62,14 @@ class Router:
 		repeater, cost = self._get_next_hop(to, (to, ))
 		if repeater == self.callsign:
 			repeater = "QB"
+		else:
+			if ROUTER_VERBOSITY > 60:
+				print("%s: route to %s via %s cost %d" % \
+					(self.callsign, to, repeater, cost))
 		return repeater
 
 	def _get_next_hop(self, to, path):
-		if to == "QF" or to == "QB" or to == "QM":
+		if to in ("QF", "QB", "QM", "QN"):
 			# these always go by diffusion
 			return "", 0
 		elif to and to[0] == "Q":
@@ -81,11 +85,11 @@ class Router:
 		if to not in self.graph:
 			# Unknown destination
 			if CAN_DIFFUSE_UNKNOWN:
-				if ROUTER_VERBOSITY > 90:
+				if ROUTER_VERBOSITY > 50:
 					print("%s%s rt: dest %s unknown, use diffusion" % \
 						(recursion, self.callsign, to))
 				return "", 999999999
-			if ROUTER_VERBOSITY > 90:
+			if ROUTER_VERBOSITY > 50:
 				print("%s%s rt: dest %s unknown, cannot route" % \
 					(recursion, self.callsign, to))
 			return None, 999999999
@@ -115,7 +119,8 @@ class Router:
 			cost += edge.cost
 
 			if not via:
-				print("%s \t\tno route" % recursion)
+				if ROUTER_VERBOSITY > 90:
+					print("%s \t\tno route" % recursion)
 				continue
 
 			if ROUTER_VERBOSITY > 90:
@@ -138,10 +143,5 @@ class Router:
 
 		if ROUTER_VERBOSITY > 90:
 			print("%s \tadopted %s < %s < %s cost %d" % (recursion, to, via, self.callsign, best_cost))
-
-		if best_via:
-			if ROUTER_VERBOSITY > 90:
-				print("%s%s rt: caching %s < %s < %s cost %d" % \
-					(recursion, self.callsign, to, best_via, self.callsign, cost))
 
 		return best_via, best_cost

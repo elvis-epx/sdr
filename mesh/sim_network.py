@@ -70,7 +70,7 @@ class Station:
 	def send(self, to, msg):
 		# Called when we originate a packet
 		ttl = MAX_TTL
-		if to == "QB":
+		if to in ("QB", "QN"):
 			ttl = 1
 		via = self.router.get_next_hop(to)
 		if via is None:
@@ -136,7 +136,7 @@ class Station:
 		self.already_received_pkts[pkt.meaning()] = (pkt, time.time())
 
 		# Are we the final destination?
-		if pkt.to in (self.callsign, "QB"):
+		if pkt.to in (self.callsign, "QB", "QN"):
 			self.recv(pkt)
 			return
 

@@ -13,12 +13,12 @@ class RagChewer:
 	def __init__(self, station):
 		async def talk():
 			while True:
-				await asyncio.sleep(20 + random.random() * 30)
+				await asyncio.sleep(10 + random.random() * 10)
 				to_options = Station.get_all_callsigns()
 				to_options.remove(station.callsign)
 				to = random.choice(to_options)
-				msg = ''.join(random.choice(string.ascii_lowercase + string.digits) \
-					for _ in range(5))
+				msg = ''.join(random.choice("     " + string.ascii_lowercase + string.digits) \
+					for _ in range(20))
 
-				station.send(to, "bla bla " + msg)
+				station.send(to, msg)
 		loop.create_task(talk())
