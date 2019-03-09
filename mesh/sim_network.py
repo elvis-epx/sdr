@@ -17,7 +17,8 @@ def ttl(t):
 
 class Station:
 	all_callsigns = []
-	dbg_pending_delivery_pkts = {}
+	dbg_pend_deliv = {}
+	dbg_pend_deliv_ant = {}
 
 	def get_all_callsigns():
 		return Station.all_callsigns[:]
@@ -81,7 +82,7 @@ class Station:
 		self.sendmsg(pkt)
 
 	def sendmsg(self, pkt):
-		Station.dbg_pending_delivery_pkts[pkt.tag] = pkt
+		Station.dbg_pend_deliv[pkt.tag] = pkt
 		print("%s => %s" % (self.callsign, pkt))
 		async def asend():
 			self._forward(None, pkt, True)
@@ -89,8 +90,8 @@ class Station:
 
 	def recv(self, pkt):
 		# Called when we are the recipient of a packet
-		if pkt.tag in Station.dbg_pending_delivery_pkts:
-			del Station.dbg_pending_delivery_pkts[pkt.tag]
+		if pkt.tag in Station.dbg_pend_deliv:
+			del Station.dbg_pend_deliv[pkt.tag]
 		print("%s <= %s" % (self.callsign, pkt))
 
 	def radio_recv(self, rssi, pkt):
@@ -123,8 +124,8 @@ class Station:
 
 		# Offer packet to mapper, drop if fully handled by mapper
 		if self.mapper.handle_pkt(radio_rssi, pkt):
-			if pkt.tag in Station.dbg_pending_delivery_pkts:
-				del Station.dbg_pending_delivery_pkts[pkt.tag]
+			if pkt.tag in Station.dbg_pend_deliv:
+				del Station.dbg_pend_deliv[pkt.tag]
 			self.already_received_pkts[pkt.meaning()] = (pkt, time.time())
 			return
 
@@ -200,8 +201,13 @@ def run():
 	async def list_pending_pkts():
 		while True:
 			await asyncio.sleep(30)
-			print("Packets pending delivery:", Station.dbg_pending_delivery_pkts)
-	loop.create_task(list_pending_pkts())
+			print("Packets pending delivery:", Station.dbg_pend_deliv)
+			for k in Station.dbg_pend_deliv_ant:
+				if k in Station.dbg_pend_deliv:
+					print("%d not delivered in 30s" % k)
+					sys.exit(1)
+			Station.dbg_pend_deliv_ant = Station.dbg_pend_deliv
 
+	loop.create_task(list_pending_pkts())
 	loop.run_forever()
 	loop.close()

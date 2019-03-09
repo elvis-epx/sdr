@@ -1,0 +1,2 @@
+- Edge invalidation msg
+- Do not refresh if RSSI didn't change much
