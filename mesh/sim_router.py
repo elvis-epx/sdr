@@ -47,9 +47,6 @@ class Router:
 		self.graph[to][fr0m] = Edge(cost, expiry)
 				
 	def expire(self):
-		if ROUTER_VERBOSITY > 90:
-			print("%s rt: expiration" % self.callsign)
-
 		now = time.time()
 		expired = []
 
@@ -57,9 +54,9 @@ class Router:
 			for fr0m, item in allfrom.items():
 				if item.expiry < now:
 					expired.append((to, fr0m))
-				if ROUTER_VERBOSITY > 90:
-					print("%s rt: expiring edge %s < %s cost %d" % \
-						(self.callsign, to, fr0m, item.cost))
+					if ROUTER_VERBOSITY > 90:
+						print("%s rt: expiring edge %s < %s (%d)" % \
+							(self.callsign, to, fr0m, item.expiry))
 
 		if expired:
 			self.cache = {}

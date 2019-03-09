@@ -8,8 +8,8 @@ import random, math, asyncio
 from sim_radio import Radio
 from sim_network import Station, ttl, run
 from sim_trafficgen import *
-from sim_router_a import Router
-from sim_router_edge import Mapper 
+from sim_router import Router
+from sim_mapper import Mapper 
 
 STATION_COUNT=5
 

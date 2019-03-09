@@ -13,8 +13,9 @@ SECONDS = 1.0
 MINUTES = 60 * SECONDS
 
 FIRST_BEACON_TIME = 1 * SECONDS
+BEACON_TIME = 10 * MINUTES
+
 SEND_QM_TIME = 2 * SECONDS
-BEACON_TIME = 1 * MINUTES
 EDGE_SHARE_AGAIN_TIME = 2 * BEACON_TIME
 EDGE_EXPIRATION_TIME = 2 * EDGE_SHARE_AGAIN_TIME
 
@@ -78,6 +79,7 @@ class Mapper:
 			raise Exception("#### FATAL %s <- %s" % (to, fr0m))
 
 		now = time.time()
+		expiry = now + EDGE_EXPIRATION_TIME
 
 		if to not in self.graph:
 			self.graph[to] = {}
@@ -86,7 +88,6 @@ class Mapper:
 			if MAPPER_VERBOSITY > 90:
 				print("%s map: learnt %s < %s rssi %d" \
 					% (self.callsign, to, fr0m, rssi))
-			expiry = now + EDGE_EXPIRATION_TIME
 			e = self.graph[to][fr0m] = Edge(rssi, 0, expiry)
 		else:
 			e = self.graph[to][fr0m]
