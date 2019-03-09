@@ -22,28 +22,36 @@ class Station:
 	def get_all_callsigns():
 		return Station.all_callsigns[:]
 
-	def __init__(self, callsign, radio, router_class):
+	def __init__(self, callsign, radio, router_class, mapper_class):
 		self.callsign = callsign.upper()
 		if self.callsign not in Station.all_callsigns:
 			Station.all_callsigns.append(self.callsign)
 		self.already_received_pkts = {}
 		self.traffic_gens = []
 		self.radio = radio
+		self.router = router_class(self.callsign)
 
 		# For debugging purposes
 		def total_edges():
 			return self.radio.active_edges()
-		# For router usage
+		# For route mapper usage
 		def sendmsg(pkt):
 			return self.sendmsg(pkt)
 		def max_ttl():
 			return MAX_TTL
-		helper = {"total_edges": total_edges, "sendmsg": sendmsg, "max_ttl": max_ttl}
+		def send_to_router(to, fr0m, rssi, expiry):
+			return self.router.add_edge(to, fr0m, rssi, expiry)
 
-		self.router = router_class(self.callsign, helper)
+		helper = {
+			"total_edges": total_edges,
+			"sendmsg": sendmsg,
+			"max_ttl": max_ttl,
+			"send_to_router": send_to_router
+		}
+
+		self.mapper = mapper_class(self.callsign, helper)
+
 		radio.attach(callsign, self)
-
-		self.add_traffic_gen(Beacon)
 
 		async def cleanup():
 			while True:
@@ -113,8 +121,8 @@ class Station:
 			self.radio.send(self.callsign, pkt)
 			return
 
-		# Offer packet to router, drop if fully handled by router
-		if self.router.handle_pkt(radio_rssi, pkt):
+		# Offer packet to mapper, drop if fully handled by mapper
+		if self.mapper.handle_pkt(radio_rssi, pkt):
 			if pkt.tag in Station.dbg_pending_delivery_pkts:
 				del Station.dbg_pending_delivery_pkts[pkt.tag]
 			self.already_received_pkts[pkt.meaning()] = (pkt, time.time())
@@ -187,18 +195,6 @@ class Station:
 
 
 loop = asyncio.get_event_loop()
-
-class Beacon:
-	def __init__(self, station):
-		async def beacon():
-			await asyncio.sleep(random.random() * 10)
-			while True:
-				msg = ''.join(random.choice(string.ascii_lowercase + string.digits) \
-					for _ in range(3))
-				station.send("QB", msg)
-				await asyncio.sleep(90 + random.random() * 45)
-		loop.create_task(beacon())
-
 
 def run():
 	async def list_pending_pkts():

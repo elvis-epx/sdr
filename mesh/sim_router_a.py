@@ -12,49 +12,61 @@ ROUTER_VERBOSITY = 100
 CAN_DIFFUSE_UNKNOWN = False
 CAN_DIFFUSE_NOROUTE = False
 
-# Base route class. Can route packets, but does not learn routes
+class Edge:
+	def __init__(self, cost, expiry):
+		self.cost = cost 
+		self.expiry = expiry
 
-class AbstractRouter:
-	def __init__(self, callsign, helper):
+class CachedEdge:
+	def __init__(self, via, cost):
+		self.via = via
+		self.cost = cost
+
+class Router:
+	def __init__(self, callsign):
 		self.callsign = callsign
-		self.edges = {}
-		self.sent_edges = {}
-		self.helper = helper
+		self.graph = {}
 		self.cache = {}
 
-		async def run_cache_expire():
+		async def run_expire():
 			while True:
-				await asyncio.sleep(120 + random.random() * 60)
-				self.cache_expire()
-
+				await asyncio.sleep(60)
+				self.expire()
 
 		loop = asyncio.get_event_loop()
-		loop.create_task(run_cache_expire())
+		loop.create_task(run_expire())
 
-	def cache_expire(self):
+	def add_edge(self, to, fr0m, rssi, expiry):
+		self.cache = {}
+		if to not in self.graph:
+			self.graph[to] = {}
+
+		# Cost formula #########
+		cost = -rssi
+
+		self.graph[to][fr0m] = Edge(cost, expiry)
+				
+	def expire(self):
 		if ROUTER_VERBOSITY > 90:
-			print("%s rt: cache expiration control" % self.callsign)
+			print("%s rt: expiration" % self.callsign)
 
 		now = time.time()
 		expired = []
 
-		for to, item in self.cache.items():
-			via, cost, timestamp = item
-			if (now - timestamp) > 120:
-				expired.append(to)
-			if ROUTER_VERBOSITY > 90:
-				print("%s rt: expiring cached %s < %s < %s" % \
-					(self.callsign, to, via, self.callsign))
-		for to in expired:
-			del self.cache[to]
+		for to, allfrom in self.graph.items():
+			for fr0m, item in allfrom.items():
+				if item.expiry < now:
+					expired.append((to, fr0m))
+				if ROUTER_VERBOSITY > 90:
+					print("%s rt: expiring edge %s < %s cost %d" % \
+						(self.callsign, to, fr0m, item.cost))
+
+		if expired:
+			self.cache = {}
+
+		for to, fr0m in expired:
+			del self.graph[to][fr0m]
 		
-	# Use some incoming packets to discover routing
-	# Returns True if the packet is exhausted (e.g. routing protocol packets)
-	# and does not need further handling
-
-	def handle_pkt(self, radio_rssi, pkt):
-		return False
-
 	# Calculate next 'via' station.
 	# Returns: "" to resort to diffusion routing
 	#          None if packet should not be repeated
@@ -80,13 +92,13 @@ class AbstractRouter:
 			recursion += " "
 
 		if to in self.cache:
-			via, cost, _ = self.cache[to]
+			cached = self.cache[to]
 			if ROUTER_VERBOSITY > 90:
 				print("%s%s rt: using cached %s < %s < %s" % \
-					(recursion, self.callsign, to, via, self.callsign))
-			return via, cost
+					(recursion, self.callsign, to, cached.via, self.callsign))
+			return cached.via, cached.cost
 
-		if to not in self.edges:
+		if to not in self.graph:
 			# Unknown destination
 			if CAN_DIFFUSE_UNKNOWN:
 				if ROUTER_VERBOSITY > 90:
@@ -98,9 +110,9 @@ class AbstractRouter:
 					(recursion, self.callsign, to))
 			return None, 999999999
 
-		if self.callsign in self.edges[to]:
+		if self.callsign in self.graph[to]:
 			# last hop, no actual routing
-			return to, self.edges[to][self.callsign]
+			return to, self.graph[to][self.callsign].cost
 
 		if ROUTER_VERBOSITY > 90:
 			print("%s%s rt: looking for route %s < %s" % \
@@ -109,7 +121,7 @@ class AbstractRouter:
 		# Try to find cheapest route, walking backwards from 'to'
 		best_cost = 999999999
 		best_via = None
-		for penultimate, pcost in self.edges[to].items():
+		for penultimate, edge in self.graph[to].items():
 			if ROUTER_VERBOSITY > 90:
 				print("%s \tlooking for route to %s" % (recursion, penultimate))
 
@@ -120,7 +132,7 @@ class AbstractRouter:
 				continue
 
 			via, cost = self._get_next_hop(penultimate, (penultimate,) + path)
-			cost += pcost
+			cost += edge.cost
 
 			if not via:
 				print("%s \t\tno route" % recursion)
@@ -148,7 +160,7 @@ class AbstractRouter:
 			print("%s \tadopted %s < %s < %s cost %d" % (recursion, to, via, self.callsign, best_cost))
 
 		if best_via:
-			self.cache[to] = (best_via, cost, time.time())
+			self.cache[to] = CachedEdge(best_via, cost)
 			if ROUTER_VERBOSITY > 90:
 				print("%s%s rt: caching %s < %s < %s cost %d" % \
 					(recursion, self.callsign, to, best_via, self.callsign, cost))
