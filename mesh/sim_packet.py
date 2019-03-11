@@ -5,51 +5,53 @@
 # Copyright (c) 2019 PU5EPX
 
 class Packet:
-	last_ident = 1000
-	last_tag = 1
+	last_id = 1000
+	last_tag = 2000
 
-	def __init__(self, to, via, fr0m, ttl, msg, base_pkt=None):
+	def __init__(self, to, fr0m, params, msg, base_pkt=None, ):
 		self.frozen = False
-
+		self.id = Packet.last_id = Packet.last_id + 1
 		self.to = to.upper()
-		self.via = via.upper()
 		self.fr0m = fr0m.upper()
-		self.ttl = ttl
+		self.params = params
+		self.encoded_params = Packet.encode_params(self.id, self.params)
 		self.msg = msg
 
 		if not base_pkt:
-			# New packet
-			# ident: ID for human logging
-			Packet.last_ident += 1
-			self.ident = "%d" % Packet.last_ident
-			# tag: ID for delivery debugging
+			# tag: ID for human logging
 			Packet.last_tag += 1
-			self.tag = Packet.last_tag
+			self.tag = "%d" % Packet.last_ident
 		else:
 			# Derived packet
-			self.ident = base_pkt.ident + "'"
-			self.tag = base_pkt.tag
+			self.tag = base_pkt.tag + "+"
+
+		self.encoded = self.to + "<" + self.fr0m + ":" + self.encoded_params + \
+			" " + self.msg
 
 		self.frozen = True
 
-	def encode(self):
-		return self.to + "<" + self.via + "<" + self.fr0m + " " + \
-			("%d" % self.ttl) + " " + self.msg
+	@staticmethod
+	def encode_params(pid, params):
+		s = "%d" % pid
+		for k, v in params.items():
+			if v is None:
+				s += ",%s" % k.upper()
+			else:
+				s += ",%s" % (k.upper(), str(v))
+		return s
 
+	@staticmethod
 	def decode(s):
-		raise Exception("TODO")
+		return Packet(to, fr0m, params, msg)
+
+	def encode(self):
+		return self.encoded
 
 	def __len__(self):
 		return len(self.encode())
 
-	def decrement_ttl(self):
-		return Packet(self.to, self.via, self.fr0m, self.ttl - 1, self.msg, self)
-
-	def update_via(self, via):
-		return Packet(self.to, via, self.fr0m, self.ttl, self.msg, self)
-
 	def replace_msg(self, msg):
-		return Packet(self.to, self.via, self.fr0m, self.ttl, msg, self)
+		return Packet(self.to, self.fr0m, self.sparams, self.eparams, msg, self)
 
 	def __eq__(self, other):
 		raise Exception("Packets cannot be compared")
@@ -57,19 +59,16 @@ class Packet:
 	def __ne__(self, other):
 		raise Exception("Packets cannot be compared")
 
-	# Pseudo encoding for packet equality test
-	def meaning(self):
-		return self.to + "<" + self.fr0m + " " + self.msg
-
 	# "Equal" in terms of content
 	def equal(self, other):
-		return self.meaning() == other.meaning()
+		return self.encoded == other.encoded
 
 	def myrepr(self):
-		if self.via:
-			return "pkt %s < %s < %s ttl %d id %s msg %s" % \
-				(self.to, self.via, self.fr0m, self.ttl, self.ident, self.msg)
-		return "pkt %s << %s ttl %d id %s msg %s" % \
+		if self.sparams or self.eparams:
+			return "pkt %s < %s id %s params %s msg %s" % \
+				(self.to, self.fr0m, self.ttl, self.ident, \
+				self.encoded_params, self.msg)
+		return "pkt %s < %s id %s msg %s" % \
 			(self.to, self.fr0m, self.ttl, self.ident, self.msg)
 
 	def __repr__(self):

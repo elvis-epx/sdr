@@ -9,7 +9,7 @@ from sim_packet import Packet
 
 ROUTER_VERBOSITY = 60
 
-CAN_DIFFUSE_UNKNOWN = False
+CAN_DIFFUSE_UNKNOWN = Fals
 CAN_DIFFUSE_NOROUTE = False
 
 class Edge:
