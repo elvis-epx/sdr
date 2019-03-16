@@ -6,8 +6,9 @@
 
 import random, asyncio, sys, time, string
 from sim_packet import Packet
+from sim_handler import final_handlers, interm_handlers
 
-VERBOSITY=80
+VERBOSITY=50
 
 class Beacon:
 	def __init__(self, station):
@@ -74,6 +75,11 @@ class Station:
 		if pkt.signature() in Station.dbg_pend_deliv:
 			del Station.dbg_pend_deliv[pkt.signature()]
 		print("%s <= %s" % (self.callsign, pkt))
+		# Automatic handlers
+		for handler in final_handlers:
+			if handler.match(pkt):
+				handler(self, pkt)
+				return
 
 	# Generic packet receivign procedure
 	def radio_recv(self, rssi, string_pkt):
@@ -120,6 +126,16 @@ class Station:
 			return
 		self.known_pkts[pkt.signature()] = pkt
 
+		# Intermediate handlers / packet modifiers
+		# They can add params and/or change msg
+		for handler in interm_handlers:
+			if handler.match(pkt):
+				more_params, msg = handler.handle(self, pkt)
+				pkt = pkt.change_msg(msg)
+				for k, v in more_params:
+					pkt = pkt.append_param(k, v)
+				break
+
 		if pkt.to == self.callsign:
 			# We are the final destination
 			self.recv(pkt)
@@ -150,7 +166,7 @@ def run():
 				if k in Station.dbg_pend_deliv:
 					print("%s not delivered in 30s" % k)
 					sys.exit(1)
-			Station.dbg_pend_deliv_ant = Station.dbg_pend_deliv
+			Station.dbg_pend_deliv_ant = Station.dbg_pend_deliv.copy()
 
 	loop.create_task(list_pending_pkts())
 	loop.run_forever()

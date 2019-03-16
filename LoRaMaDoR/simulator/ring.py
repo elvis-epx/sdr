@@ -26,7 +26,8 @@ r.edge("EEEE", "DDDD", -65)
 r.edge("AAAA", "EEEE", -65)
 
 for callsign, station in stations.items():
-	station.add_traffic_gen(RagChewer)
+	for c in traffic_gens:
+		station.add_traffic_gen(c)
 	pass
 
 run()

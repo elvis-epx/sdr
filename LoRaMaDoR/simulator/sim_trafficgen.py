@@ -23,3 +23,31 @@ class RagChewer:
 
 				station.send(to, {}, msg)
 		loop.create_task(talk())
+
+class Pinger:
+	def __init__(self, station):
+		async def talk():
+			while True:
+				await asyncio.sleep(60 * random.random())
+				to_options = Station.get_all_callsigns()
+				to = random.choice(to_options)
+				msg = ''.join(random.choice("     " + string.ascii_lowercase + string.digits) \
+					for _ in range(3))
+
+				station.send(to, {"PING": None}, msg)
+		loop.create_task(talk())
+
+class TraceRouter:
+	def __init__(self, station):
+		async def talk():
+			while True:
+				await asyncio.sleep(60 * random.random())
+				to_options = Station.get_all_callsigns()
+				to = random.choice(to_options)
+				msg = ''.join(random.choice("     " + string.ascii_lowercase + string.digits) \
+					for _ in range(3))
+
+				station.send(to, {"RREQ": None}, msg)
+		loop.create_task(talk())
+
+traffic_gens = [ RagChewer, Pinger, TraceRouter ]

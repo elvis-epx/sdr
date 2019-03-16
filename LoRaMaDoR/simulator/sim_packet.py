@@ -12,7 +12,7 @@ class Packet:
 		self.fr0m = Packet.check_callsign(fr0m)
 		if not self.to or not self.fr0m:
 			raise Exception("Invalid callsign")
-		self.params = params
+		self.params = params.copy()
 		self.encoded_params = Packet.encode_params(ident, self.params)
 		self.msg = msg
 
@@ -166,6 +166,9 @@ class Packet:
 		to, fr0m, ident, params = preamble
 		
 		return Packet(to, fr0m, ident, params, msg)
+
+	def change_msg(self, msg):
+		return Packet(self.to, self.fr0m, self.ident, self.params, msg)
 
 	def append_param(self, k, v):
 		params = self.params.copy()
