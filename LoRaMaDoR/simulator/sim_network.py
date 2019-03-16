@@ -8,7 +8,7 @@ import random, asyncio, sys, time, string
 from sim_packet import Packet
 from sim_handler import final_handlers, interm_handlers
 
-VERBOSITY=50
+VERBOSITY=51
 
 class Beacon:
 	def __init__(self, station):
@@ -148,6 +148,7 @@ class Station:
 		# Diffusion routing
 		if VERBOSITY > 50:
 			print("%s: relaying %s" % (self.callsign, pkt))
+		# FIXME random delay
 		self.radio.send(self.callsign, pkt.encode())
 
 	def add_traffic_gen(self, klass):
