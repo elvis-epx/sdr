@@ -9,186 +9,128 @@ from sim_packet import Packet
 
 VERBOSITY=80
 
-MAX_TTL=0
-
-def ttl(t):
-	global MAX_TTL
-	MAX_TTL = t
+class Beacon:
+	def __init__(self, station):
+		async def beacon():
+			await asyncio.sleep(10 * (0.5 + random.random()))
+			while True:
+				msg = ''.join(random.choice(string.ascii_lowercase + string.digits) \
+					for _ in range(3))
+				station.send("QB", {}, msg)
+				await asyncio.sleep(600 * (0.5 + random.random()))
+		loop.create_task(beacon())
 
 class Station:
-	all_callsigns = []
+	dbg_all_callsigns = []
 	dbg_pend_deliv = {}
 	dbg_pend_deliv_ant = {}
 
 	def get_all_callsigns():
-		return Station.all_callsigns[:]
+		return Station.dbg_all_callsigns[:]
 
-	def __init__(self, callsign, radio, router_class, mapper_class):
+	def __init__(self, callsign, radio):
 		self.callsign = callsign.upper()
-		if self.callsign not in Station.all_callsigns:
-			Station.all_callsigns.append(self.callsign)
-		self.already_received_pkts = {}
-		self.traffic_gens = []
+		if self.callsign not in Station.dbg_all_callsigns:
+			Station.dbg_all_callsigns.append(self.callsign)
+		self.known_pkts = {}
+		self.last_pkt_id = 0
+		self.traffic_gens = [ Beacon(self) ]
 		self.radio = radio
-		self.router = router_class(self.callsign)
-
-		# For debugging purposes
-		def total_edges():
-			return self.radio.active_edges()
-		# For route mapper usage
-		def sendmsg(pkt):
-			return self.sendmsg(pkt)
-		def max_ttl():
-			return MAX_TTL
-		def send_to_router(to, fr0m, rssi, expiry):
-			return self.router.add_edge(to, fr0m, rssi, expiry)
-
-		helper = {
-			"total_edges": total_edges,
-			"sendmsg": sendmsg,
-			"max_ttl": max_ttl,
-			"send_to_router": send_to_router
-		}
-
-		self.mapper = mapper_class(self.callsign, helper)
-
 		radio.attach(callsign, self)
 
-		async def cleanup():
+		async def known_pkts_clean():
 			while True:
-				await asyncio.sleep(60)
-				now = time.time()
-				old = []
-				for k, v in self.already_received_pkts.items():
-					if (now - v[1]) > 120:
-						old.append(k)
-				for k in old:
-					del self.already_received_pkts[k]
-				if VERBOSITY > 0:
-					print("%s: expired memory of %d pkts" % (self.callsign, len(old)))
-		loop.create_task(cleanup())
+				await asyncio.sleep(600)
+				self.known_pkts = {}
 
-	def send(self, to, msg):
-		# Called when we originate a packet
-		ttl = MAX_TTL
-		if to in ("QB", "QN"):
-			ttl = 1
-		via = self.router.get_next_hop(to)
-		if via is None:
-			if VERBOSITY > 40:
-				print("%s: send: no route to %s" % (self.callsign, to))
-			return
-		pkt = Packet(to, via, self.callsign, ttl, msg)
+		async def pkt_id_reset():
+			while True:
+				await asyncio.sleep(1200)
+				self.last_pkt_id = 0
+
+		loop.create_task(known_pkts_clean())
+		loop.create_task(pkt_id_reset())
+
+	def get_pkt_id(self):
+		self.last_pkt_id += 1
+		return self.last_pkt_id
+
+	# Called when we originate a packet
+	def send(self, to, params, msg):
+		pkt = Packet(to, self.callsign, self.get_pkt_id(), params, msg)
 		self.sendmsg(pkt)
 
+	# Generic packet sending procedure
 	def sendmsg(self, pkt):
-		Station.dbg_pend_deliv[pkt.tag] = pkt
+		Station.dbg_pend_deliv[pkt.signature()] = pkt
 		print("%s => %s" % (self.callsign, pkt))
 		async def asend():
 			self._forward(None, pkt, True)
 		loop.create_task(asend())
 
+	# Called when we are the final recipient of a packet
 	def recv(self, pkt):
-		# Called when we are the recipient of a packet
-		if pkt.tag in Station.dbg_pend_deliv:
-			del Station.dbg_pend_deliv[pkt.tag]
+		if pkt.signature() in Station.dbg_pend_deliv:
+			del Station.dbg_pend_deliv[pkt.signature()]
 		print("%s <= %s" % (self.callsign, pkt))
 
-	def radio_recv(self, rssi, pkt):
-		# Got a packet from radio
+	# Generic packet receivign procedure
+	def radio_recv(self, rssi, string_pkt):
+		pkt = Packet.decode(string_pkt)
+		if not pkt:
+			if VERBOSITY > 10:
+				print("Invalid packet received: %s" % string_pkt)
+			return
 		if VERBOSITY > 80:
 			print("%s <= rssi %d pkt %s" % (self.callsign, rssi, pkt))
-
-		# Level 3 handling
 		self._forward(rssi, pkt, False)
 
-	def _forward(self, radio_rssi, pkt, from_us):
-		# Handle the packet in L3
+	# Handle the packet
+	def _forward(self, radio_rssi, pkt, we_are_origin):
 
 		# Sanity check
 		if not pkt.to or not pkt.fr0m:
 			print("%s: bad pkt %s" % (self.callsign, pkt))
 			return
 
-		# Are we the origin?
-		if from_us:
-			# Destination is loopback?
-			if pkt.to in ("QL", "Q", self.callsign):
+		if we_are_origin:
+			if pkt.to in ("QL", self.callsign):
+				# Destination is loopback
 				self.recv(pkt)
 				return
-			# Annotate to detect duplicates
-			self.already_received_pkts[pkt.meaning()] = (pkt, time.time())
-			# Transmit
-			self.radio.send(self.callsign, pkt)
-			return
 
-		# Offer packet to mapper, drop if fully handled by mapper
-		if self.mapper.handle_pkt(radio_rssi, pkt):
-			if pkt.tag in Station.dbg_pend_deliv:
-				del Station.dbg_pend_deliv[pkt.tag]
-			self.already_received_pkts[pkt.meaning()] = (pkt, time.time())
+			# Annotate to detect duplicates
+			self.known_pkts[pkt.signature()] = pkt
+
+			# Transmit
+			self.radio.send(self.callsign, pkt.encode())
+			return
+	
+		# Packet originated from us but received via radio = loop
+		if pkt.fr0m == self.callsign:
+			if VERBOSITY > 60:
+				print("%s *loop* %s" % (self.callsign, pkt))
 			return
 
 		# Discard received duplicates
-		if pkt.meaning() in self.already_received_pkts:
-			if VERBOSITY > 80:
-				print("%s DUP recv %s" % (self.callsign, pkt))
+		if pkt.signature() in self.known_pkts:
+			if VERBOSITY > 60:
+				print("%s *dup* %s" % (self.callsign, pkt))
 			return
-		self.already_received_pkts[pkt.meaning()] = (pkt, time.time())
+		self.known_pkts[pkt.signature()] = pkt
 
-		# Are we the final destination?
-		if pkt.to in (self.callsign, "QB", "QN"):
+		if pkt.to == self.callsign:
+			# We are the final destination
 			self.recv(pkt)
 			return
-
-		# Are we one of the recipients?
-		if pkt.to in ("QF"):
+		elif pkt.to in ("QB", "QC"):
+			# We are just one of the destinations
 			self.recv(pkt)
 
-		self._repeat(pkt)
-		return
-
-	def _repeat(self, pkt):
-		######## Repeater logic
-
-		# Hop count control
-		pkt = pkt.decrement_ttl()
-		if pkt.ttl <= 0:
-			if VERBOSITY > 90:
-				print("%s: dropped %s" % (self.callsign, pkt))
-			return
-
-		if not pkt.via:
-			# Diffusion routing
-			if VERBOSITY > 50:
-				print("%s: d-relaying %s" % (self.callsign, pkt))
-			self.radio.send(self.callsign, pkt)
-			return
-
-		# Explicit routing
-
-		if pkt.via != self.callsign:
-			# Not our responsability to repeat
-			if VERBOSITY > 80:
-				print("%s: not repeating %s" % (self.callsign, pkt))
-			return
-
-		# Find next hop
-		next_hop = self.router.get_next_hop(pkt.to)
-		# next hop can be "", None, or station
-		# the router decides whether deny route or resort to diffusion
-		if next_hop is None:
-			if VERBOSITY > 50:
-				print("%s: no route for %s" % (self.callsign, pkt))
-			return
-
-		pkt = pkt.update_via(next_hop)
-
+		# Diffusion routing
 		if VERBOSITY > 50:
 			print("%s: relaying %s" % (self.callsign, pkt))
-
-		# Send away
-		self.radio.send(self.callsign, pkt)
+		self.radio.send(self.callsign, pkt.encode())
 
 	def add_traffic_gen(self, klass):
 		self.traffic_gens.append(klass(self))

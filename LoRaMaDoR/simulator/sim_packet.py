@@ -36,8 +36,12 @@ class Packet:
 		s = s.upper()
 		if len(s) < 2:
 			return None
-		if len(s) == 2 and s[0] != "Q":
-			return None
+		if len(s) == 2:
+			if s[0] != "Q":
+				return None
+			elif not s[1].isalpha():
+				return None
+			return s
 		if len(s) > 2 and s[0] == "Q":
 			return None
 		if not s[0].isalpha():
@@ -175,9 +179,11 @@ class Packet:
 	def __ne__(self, other):
 		raise Exception("Packets cannot be compared")
 
+	def signature(self):
+		return self.to + "<" + self.fr0m + ":" + "%d" % self.ident
+
 	def duplicate(self, other):
-		return self.to == other.to and self.fr0m == other.fr0m \
-			and self.ident == other.ident
+		return self.signature() == other.signature()
 
 	def myrepr(self):
 		return "pkt %s < %s : %s msg %s" % \
@@ -213,6 +219,10 @@ if __name__ == "__main__":
 	assert (q.params["X"] is None)
 
 	assert (Packet.check_callsign("Q") is None)
+	assert (Packet.check_callsign("QB") is not None)
+	assert (Packet.check_callsign("QC") is not None)
+	assert (Packet.check_callsign("Q1") is None)
+	assert (Packet.check_callsign("Q-") is None)
 	assert (Packet.check_callsign("qcc") is None)
 	assert (Packet.check_callsign("xc") is None)
 	assert (Packet.check_callsign("1cccc") is None)
