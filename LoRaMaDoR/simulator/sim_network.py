@@ -6,7 +6,8 @@
 
 import random, asyncio, sys, time, string
 from sim_packet import Packet
-from sim_handler import final_handlers, interm_handlers
+from sim_handler import app_handlers
+from sim_modifier import fwd_modifiers
 
 VERBOSITY=51
 
@@ -75,11 +76,15 @@ class Station:
 		if pkt.signature() in Station.dbg_pend_deliv:
 			del Station.dbg_pend_deliv[pkt.signature()]
 		print("%s <= %s" % (self.callsign, pkt))
-		# Automatic handlers
-		for handler in final_handlers:
+
+		# Automatic application protocol handlers
+		for handler in app_handlers:
 			if handler.match(pkt):
 				handler(self, pkt)
+				print("\t handled by machine")
 				return
+
+		print("\t for human consumption")
 
 	# Generic packet receivign procedure
 	def radio_recv(self, rssi, string_pkt):
@@ -126,16 +131,6 @@ class Station:
 			return
 		self.known_pkts[pkt.signature()] = pkt
 
-		# Intermediate handlers / packet modifiers
-		# They can add params and/or change msg
-		for handler in interm_handlers:
-			if handler.match(pkt):
-				more_params, msg = handler.handle(self, pkt)
-				pkt = pkt.change_msg(msg)
-				for k, v in more_params:
-					pkt = pkt.append_param(k, v)
-				break
-
 		if pkt.to == self.callsign:
 			# We are the final destination
 			self.recv(pkt)
@@ -143,7 +138,17 @@ class Station:
 		elif pkt.to in ("QB", "QC"):
 			# We are just one of the destinations
 			self.recv(pkt)
-			pkt = pkt.append_param("R", None)
+
+		# Forward packet modifiers
+		# They can add params and/or change msg
+		for mod in fwd_modifiers:
+			if mod.match(pkt):
+				more_params, msg = mod.handle(self, pkt)
+				if msg is not None:
+					pkt = pkt.change_msg(msg)
+				if more_params:
+					for k, v in more_params.items():
+						pkt = pkt.append_param(k, v)
 
 		# Diffusion routing
 		if VERBOSITY > 50:

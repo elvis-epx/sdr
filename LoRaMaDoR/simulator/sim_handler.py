@@ -4,6 +4,8 @@
 # Mesh network simulator / routing algorithms testbed
 # Copyright (c) 2019 PU5EPX
 
+# Automatic handlers for certain application protocols
+
 import random, asyncio, sys, string
 
 loop = asyncio.get_event_loop()
@@ -28,19 +30,4 @@ class Rreq:
 		msg = pkt.msg + "\n"
 		station.send(who, {"RRSP": None}, msg)
 
-final_handlers = [ Ping, Rreq ]
-
-class Rreqi:
-	@staticmethod
-	def match(pkt):
-		return ("RREQ" in pkt.params or "RRSP" in pkt.params) and len(pkt.to) > 2
-
-	@staticmethod
-	def handle(station, pkt):
-		who = pkt.fr0m
-		msg = pkt.msg
-		msg += "\n"
-		msg += station.callsign
-		return {}, msg
-
-interm_handlers = [ Rreqi ]
+app_handlers = [ Ping, Rreq ]
