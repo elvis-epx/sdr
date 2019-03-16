@@ -24,6 +24,7 @@ class Station:
 	dbg_all_callsigns = []
 	dbg_pend_deliv = {}
 	dbg_pend_deliv_ant = {}
+	last_pkt_id = 0 # in class to make simulator easier
 
 	def get_all_callsigns():
 		return Station.dbg_all_callsigns[:]
@@ -33,7 +34,6 @@ class Station:
 		if self.callsign not in Station.dbg_all_callsigns:
 			Station.dbg_all_callsigns.append(self.callsign)
 		self.known_pkts = {}
-		self.last_pkt_id = 0
 		self.traffic_gens = [ Beacon(self) ]
 		self.radio = radio
 		radio.attach(callsign, self)
@@ -46,14 +46,14 @@ class Station:
 		async def pkt_id_reset():
 			while True:
 				await asyncio.sleep(1200)
-				self.last_pkt_id = 0
+				# self.last_pkt_id = 0
 
 		loop.create_task(known_pkts_clean())
 		loop.create_task(pkt_id_reset())
 
 	def get_pkt_id(self):
-		self.last_pkt_id += 1
-		return self.last_pkt_id
+		Station.last_pkt_id += 1
+		return Station.last_pkt_id
 
 	# Called when we originate a packet
 	def send(self, to, params, msg):
@@ -62,7 +62,8 @@ class Station:
 
 	# Generic packet sending procedure
 	def sendmsg(self, pkt):
-		Station.dbg_pend_deliv[pkt.signature()] = pkt
+		if pkt.to != "UNKNOWN":
+			Station.dbg_pend_deliv[pkt.signature()] = pkt
 		print("%s => %s" % (self.callsign, pkt))
 		async def asend():
 			self._forward(None, pkt, True)
@@ -85,7 +86,7 @@ class Station:
 			print("%s <= rssi %d pkt %s" % (self.callsign, rssi, pkt))
 		self._forward(rssi, pkt, False)
 
-	# Handle the packet
+	# Handle packet forwarding
 	def _forward(self, radio_rssi, pkt, we_are_origin):
 
 		# Sanity check
@@ -108,13 +109,13 @@ class Station:
 	
 		# Packet originated from us but received via radio = loop
 		if pkt.fr0m == self.callsign:
-			if VERBOSITY > 60:
+			if VERBOSITY > 80:
 				print("%s *loop* %s" % (self.callsign, pkt))
 			return
 
 		# Discard received duplicates
 		if pkt.signature() in self.known_pkts:
-			if VERBOSITY > 60:
+			if VERBOSITY > 80:
 				print("%s *dup* %s" % (self.callsign, pkt))
 			return
 		self.known_pkts[pkt.signature()] = pkt
@@ -126,6 +127,7 @@ class Station:
 		elif pkt.to in ("QB", "QC"):
 			# We are just one of the destinations
 			self.recv(pkt)
+			pkt = pkt.append_param("R", None)
 
 		# Diffusion routing
 		if VERBOSITY > 50:
@@ -146,7 +148,7 @@ def run():
 			print("Packets pending delivery:", Station.dbg_pend_deliv)
 			for k in Station.dbg_pend_deliv_ant:
 				if k in Station.dbg_pend_deliv:
-					print("%d not delivered in 30s" % k)
+					print("%s not delivered in 30s" % k)
 					sys.exit(1)
 			Station.dbg_pend_deliv_ant = Station.dbg_pend_deliv
 

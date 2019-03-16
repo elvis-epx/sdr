@@ -6,9 +6,7 @@
 
 import random, math, asyncio
 from sim_radio import Radio
-from sim_network import Station, ttl, run
-from sim_router import Router
-from sim_mapper import Mapper
+from sim_network import Station, run
 from sim_trafficgen import *
 
 STATION_COUNT=10
@@ -19,7 +17,7 @@ r = Radio()
 # create stations
 for i in range(0, STATION_COUNT):
 	callsign = chr(ord('A') + i) * 5
-	stations[callsign] = Station(callsign, r, Router, Mapper)
+	stations[callsign] = Station(callsign, r)
 
 # create model mesh
 r.edge("AAAAA", "BBBBB", -50)  # "AAAAA" <- "BBBBB", rssi -50
@@ -71,5 +69,4 @@ for callsign, station in stations.items():
 	station.add_traffic_gen(RagChewer)
 	pass
 
-ttl(5)
 run()

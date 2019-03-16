@@ -6,9 +6,7 @@
 
 import random, math, asyncio
 from sim_radio import Radio
-from sim_network import Station, ttl, run
-from sim_router import Router
-from sim_mapper import Mapper
+from sim_network import Station, run
 from sim_trafficgen import *
 
 STATION_COUNT = 5
@@ -18,18 +16,17 @@ r = Radio()
 
 # create stations
 for i in range(0, STATION_COUNT):
-	callsign = chr(ord('A') + i)
-	stations[callsign] = Station(callsign, r, Router, Mapper)
+	callsign = chr(ord('A') + i) * 4
+	stations[callsign] = Station(callsign, r)
 
-r.biedge("B", "A", -40, -45) 
-r.biedge("C", "B", -70, -60) 
-r.biedge("D", "C", -70, -60) 
-r.biedge("E", "D", -70, -60) 
-r.biedge("A", "E", -70, -60) 
+r.biedge("BBBB", "AAAA", -40, -45) 
+r.biedge("CCCC", "BBBB", -70, -60) 
+r.biedge("DDDD", "CCCC", -70, -60) 
+r.biedge("EEEE", "DDDD", -70, -60) 
+r.biedge("AAAA", "EEEE", -70, -60) 
 
 for callsign, station in stations.items():
 	station.add_traffic_gen(RagChewer)
 	pass
 
-ttl(2)
 run()

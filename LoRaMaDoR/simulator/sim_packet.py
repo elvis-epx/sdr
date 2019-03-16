@@ -167,6 +167,11 @@ class Packet:
 		
 		return Packet(to, fr0m, ident, params, msg)
 
+	def append_param(self, k, v):
+		params = self.params.copy()
+		params[k] = v
+		return Packet(self.to, self.fr0m, self.ident, params, self.msg)
+
 	def encode(self):
 		return self.encoded
 
@@ -180,7 +185,7 @@ class Packet:
 		raise Exception("Packets cannot be compared")
 
 	def signature(self):
-		return self.to + "<" + self.fr0m + ":" + "%d" % self.ident
+		return self.fr0m + ":" + "%d" % self.ident
 
 	def duplicate(self, other):
 		return self.signature() == other.signature()
