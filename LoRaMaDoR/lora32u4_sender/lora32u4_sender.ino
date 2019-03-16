@@ -7,26 +7,20 @@ const int csPin = 8;          // LoRa radio chip select
 const int resetPin = 4;       // LoRa radio reset
 const int irqPin = 7;         // change for your board; must be a hardware interrupt pin
 
-byte msgCount = 0;            // count of outgoing messages
+long int msgCount = 0;            // count of outgoing messages
 long lastSendTime = millis();        // last send time
 int interval = 3000;      
 
-int led = LOW;
-
-#define POWER   0 // dBm
+#define POWER   20 // dBm
 #define PABOOST 1
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, led);
-  
-  Serial.begin(9600);                   // initialize serial
-  // while (!Serial);
-
-  Serial.println("LoRa Duplex");
-
-  // override the default CS, reset, and IRQ pins (optional
-  LoRa.setPins(csPin, resetPin, irqPin);// set CS, reset, IRQ pin
+  digitalWrite(LED_BUILTIN, LOW);
+ 
+  Serial.begin(9600);
+  Serial.println("LoRa");
+  LoRa.setPins(csPin, resetPin, irqPin);
 
   if (!LoRa.begin(916750000)) { 
     Serial.println("LoRa init failed. Check your connections.");
@@ -44,6 +38,7 @@ void setup() {
 
 void loop() {
   if (millis() - lastSendTime > interval) {
+    digitalWrite(LED_BUILTIN, HIGH);
     Serial.println("Preparing");
     sendMessage();
     lastSendTime = millis();
@@ -58,10 +53,9 @@ unsigned char message[MSGSIZE];
 unsigned char encoded[MSGSIZE + REDUNDANCY];
 
 void sendMessage() {
-  led = !led;
-  digitalWrite(LED_BUILTIN, led);
+  digitalWrite(LED_BUILTIN, LOW);
 
-  String msg = "PU5EPX-3 LoRaMaDoR id " + String(msgCount);
+  String msg = "QB<PU5EPX:" + String(++msgCount) + " LoRaMaDoR 73!";
 
   memset(message, 0, sizeof(message));
   for(unsigned int i = 0; i < msg.length(); i++) {
@@ -72,17 +66,11 @@ void sendMessage() {
   rs.Encode(message, encoded);
   Serial.println("Sending...");
  
-  LoRa.beginPacket();
-  for (int i = 0; i < msg.length(); ++i) {           
-     LoRa.write(encoded[i]);
-  }
-  for (int i = 0; i < REDUNDANCY; ++i) {           
-     LoRa.write(encoded[MSGSIZE + i]);
-  }
-  long t0 = millis();
+  LoRa.beginPacket();        
+  LoRa.write(encoded, msg.length());      
+  LoRa.write(encoded + MSGSIZE, REDUNDANCY);
+
+  digitalWrite(LED_BUILTIN, HIGH);
   LoRa.endPacket(); 
-  long t1 = millis();
-  Serial.print("Time to send packet: ");
-  Serial.println(t1 - t0);
-  msgCount++;                           // increment message ID
+  digitalWrite(LED_BUILTIN, LOW);
 }
