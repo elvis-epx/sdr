@@ -14,12 +14,11 @@ VERBOSITY=51
 class Beacon:
 	def __init__(self, station):
 		async def beacon():
-			await asyncio.sleep(10 * (0.5 + random.random()))
 			while True:
+				await asyncio.sleep(600 * (0.5 + random.random()))
 				msg = ''.join(random.choice(string.ascii_lowercase + string.digits) \
 					for _ in range(3))
 				station.send("QB", {}, msg)
-				await asyncio.sleep(600 * (0.5 + random.random()))
 		loop.create_task(beacon())
 
 class Station:
@@ -36,22 +35,46 @@ class Station:
 		if self.callsign not in Station.dbg_all_callsigns:
 			Station.dbg_all_callsigns.append(self.callsign)
 		self.known_pkts = {}
+		self.adjacent_stations = {}
 		self.traffic_gens = [ Beacon(self) ]
 		self.radio = radio
 		radio.attach(callsign, self)
 
-		async def known_pkts_clean():
-			while True:
-				await asyncio.sleep(600)
-				self.known_pkts = {}
+		loop.create_task(self.known_pkts_clean())
+		loop.create_task(self.pkt_id_reset())
+		loop.create_task(self.adjacent_stations_clean())
 
-		async def pkt_id_reset():
-			while True:
-				await asyncio.sleep(1200)
-				# self.last_pkt_id = 0
+	async def known_pkts_clean(self):
+		while True:
+			await asyncio.sleep(60)
+			remove_list = []
+			cutoff = time.time() - 600
+			for k, v in self.known_pkts.items():
+				if v < cutoff:
+					remove_list.append(k)
+			for k in remove_list:
+				if VERBOSITY > 10:
+					print("Forgotten packet %s" % k)
+				del self.known_pkts[k]
 
-		loop.create_task(known_pkts_clean())
-		loop.create_task(pkt_id_reset())
+	async def adjacent_stations_clean(self):
+		while True:
+			await asyncio.sleep(600)
+			remove_list = []
+			cutoff = time.time() - 3600
+			for k, v in self.adjacent_stations.items():
+				if v["last_q"] < cutoff:
+					remove_list.append(k)
+			for k in remove_list:
+				if VERBOSITY > 10:
+					print("Removed adjacent station %s" % k)
+				del self.adjacent_stations[k]
+
+	async def pkt_id_reset(self):
+		while True:
+			await asyncio.sleep(1200)
+			self.last_pkt_id = 0
+			Station.last_pkt_id = 0
 
 	def get_pkt_id(self):
 		Station.last_pkt_id += 1
@@ -66,7 +89,7 @@ class Station:
 	def sendmsg(self, pkt):
 		if pkt.to != "UNKNOWN":
 			Station.dbg_pend_deliv[pkt.signature()] = pkt
-		print("%s => %s" % (self.callsign, pkt))
+		print("\n%s => %s\n" % (self.callsign, pkt))
 		async def asend():
 			self._forward(None, pkt, True)
 		loop.create_task(asend())
@@ -75,16 +98,13 @@ class Station:
 	def recv(self, pkt):
 		if pkt.signature() in Station.dbg_pend_deliv:
 			del Station.dbg_pend_deliv[pkt.signature()]
-		print("%s <= %s" % (self.callsign, pkt))
+		print("\n%s <= %s\n" % (self.callsign, pkt))
 
 		# Automatic application protocol handlers
 		for handler in app_handlers:
 			if handler.match(pkt):
 				handler(self, pkt)
-				print("\t handled by machine")
 				return
-
-		print("\t for human consumption")
 
 	# Generic packet receivign procedure
 	def radio_recv(self, rssi, string_pkt):
@@ -112,7 +132,7 @@ class Station:
 				return
 
 			# Annotate to detect duplicates
-			self.known_pkts[pkt.signature()] = pkt
+			self.known_pkts[pkt.signature()] = time.time()
 
 			# Transmit
 			self.radio.send(self.callsign, pkt.encode())
@@ -129,7 +149,7 @@ class Station:
 			if VERBOSITY > 80:
 				print("%s *dup* %s" % (self.callsign, pkt))
 			return
-		self.known_pkts[pkt.signature()] = pkt
+		self.known_pkts[pkt.signature()] = time.time()
 
 		if pkt.to == self.callsign:
 			# We are the final destination
@@ -137,6 +157,11 @@ class Station:
 			return
 		elif pkt.to in ("QB", "QC"):
 			# We are just one of the destinations
+			if "R" not in pkt.params:
+				if pkt.fr0m not in self.adjacent_stations and VERBOSITY > 50:
+					print("%s: discovered neighbour %s" % (self.callsign, pkt.fr0m))
+				self.adjacent_stations[pkt.fr0m] = \
+					{"last_q": time.time(), "rssi": radio_rssi}
 			self.recv(pkt)
 
 		# Forward packet modifiers
@@ -151,10 +176,14 @@ class Station:
 						pkt = pkt.append_param(k, v)
 
 		# Diffusion routing
+		delay = random.random() * len(pkt.encode()) * 8 * 2 * (1 + len(self.adjacent_stations)) / 1400
 		if VERBOSITY > 50:
-			print("%s: relaying %s" % (self.callsign, pkt))
-		# FIXME random delay
-		self.radio.send(self.callsign, pkt.encode())
+			print("%s: relaying with delay %d: %s" % (self.callsign, delay * 1000, pkt))
+
+		async def asend():
+			await asyncio.sleep(delay)
+			self.radio.send(self.callsign, pkt.encode())
+		loop.create_task(asend())
 
 	def add_traffic_gen(self, klass):
 		self.traffic_gens.append(klass(self))
