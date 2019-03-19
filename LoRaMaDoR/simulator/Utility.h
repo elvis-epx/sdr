@@ -7,22 +7,29 @@
 
 struct StringPair {
 	StringPair(const String& pa, const String& pb): a(pa), b(pb) {}
-	String a() const;
-	String b() const;
-	String _a;
-	String _b;
+	const String a;
+	const String b;
+
+	StringPair(const StringPair &) = delete;
+	StringPair() = delete;
+	StringPair& operator=(const StringPair &) = delete;
+	bool operator==(const StringPair &) = delete;
 };
 
 struct Dict {
 	Dict();
-	bool has(const char *key) const;
+	Dict(const Dict &) = delete;
+	Dict& operator=(const Dict &) = delete;
+	bool operator==(const Dict &) = delete;
+
 	bool has(const String& key) const;
-	String get(const char *key) const;
-	String get(const String& key) const;
+	const String* get(const String& key) const;
 	bool put(const String& key, const String& value);
 	int length() const;
+	void foreach(bool (*f)(const String&, const String&)) const;
+	int indexOf(const String &key) const;
 
-	StringPair *contents;
+	StringPair **contents;
 	int len;
 };
 
