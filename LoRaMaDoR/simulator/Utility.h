@@ -10,15 +10,15 @@ struct StringPair {
 	const String a;
 	const String b;
 
-	StringPair(const StringPair &) = delete;
-	StringPair() = delete;
+	StringPair(const StringPair &) = default;
+	StringPair() = default;
 	StringPair& operator=(const StringPair &) = delete;
 	bool operator==(const StringPair &) = delete;
 };
 
 struct Dict {
 	Dict();
-	Dict(const Dict &) = delete;
+	Dict(const Dict &);
 	Dict& operator=(const Dict &) = delete;
 	bool operator==(const Dict &) = delete;
 
@@ -26,7 +26,7 @@ struct Dict {
 	const String* get(const String& key) const;
 	bool put(const String& key, const String& value);
 	int length() const;
-	void foreach(bool (*f)(const String&, const String&)) const;
+	void foreach(void* cargo, bool (*f)(const String&, const String*, void *)) const;
 	int indexOf(const String &key) const;
 
 	StringPair **contents;
@@ -34,7 +34,9 @@ struct Dict {
 };
 
 struct Buffer {
+	Buffer(int len);
 	Buffer(const char *mbuf, int len);
 	char *buf;
 	int len;
+	String Str() const;
 };
