@@ -10,7 +10,7 @@ struct Packet {
 	Packet(const String &to, const String &from, unsigned long int ident, 
 		const Dict& params, const Buffer& msg);
 
-	static Packet* decode(const String& data);
+	static Packet* decode(const char* data, unsigned int len);
 
 	Packet(const Packet &) = default;
 	Packet() = delete;

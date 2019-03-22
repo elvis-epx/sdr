@@ -109,3 +109,19 @@ String Buffer::Str() const
 {
 	return String(this->buf);
 }
+
+const char* Buffer::rbuf() const
+{
+	return buf;
+}
+
+char* Buffer::wbuf()
+{
+	return buf;
+}
+
+unsigned int Buffer::length() const
+{
+	return len;
+}
+

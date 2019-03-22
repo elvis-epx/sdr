@@ -26,7 +26,12 @@ struct Dict {
 struct Buffer {
 	Buffer(int len);
 	Buffer(const char *mbuf, int len);
-	char *buf;
-	int len;
 	String Str() const;
+	unsigned int length() const;
+	const char* rbuf() const;
+	char* wbuf();
+
+private:
+	char *buf;
+	unsigned int len;
 };
