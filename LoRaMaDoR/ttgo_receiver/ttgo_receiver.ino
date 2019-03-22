@@ -34,8 +34,8 @@
 #define DI00    26   // GPIO26 -- SX127x's IRQ(Interrupt Request)
 
 #define BAND    916750000  //you can set band here directly,e.g. 868E6,915E6
-#define POWER 0
-#define PABOOST 0
+#define POWER 2
+#define PABOOST 1
 
 SSD1306 display(0x3c, 4, 15);
 String rssi = "RSSI --";
@@ -120,9 +120,9 @@ void setup() {
     display.display();
     while (1);
   }
-  LoRa.setSpreadingFactor(9);
+  LoRa.setSpreadingFactor(8);
   LoRa.setTxPower(POWER, PABOOST);
-  LoRa.setSignalBandwidth(125000);
+  LoRa.setSignalBandwidth(31250);
   LoRa.setCodingRate4(5);
   LoRa.disableCrc();
   

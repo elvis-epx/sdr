@@ -9,9 +9,9 @@ const int irqPin = 7;         // change for your board; must be a hardware inter
 
 long int msgCount = 0;            // count of outgoing messages
 long lastSendTime = millis();        // last send time
-int interval = 3000;      
+int interval = 5000;      
 
-#define POWER   20 // dBm
+#define POWER   2 // dBm
 #define PABOOST 1
 
 void setup() {
@@ -28,8 +28,8 @@ void setup() {
   }
   
   LoRa.setTxPower(POWER, PABOOST);
-  LoRa.setSpreadingFactor(9);
-  LoRa.setSignalBandwidth(125000);
+  LoRa.setSpreadingFactor(8);
+  LoRa.setSignalBandwidth(31250);
   LoRa.setCodingRate4(5);
   LoRa.disableCrc();
 
@@ -55,14 +55,13 @@ unsigned char encoded[MSGSIZE + REDUNDANCY];
 void sendMessage() {
   digitalWrite(LED_BUILTIN, LOW);
 
-  String msg = "QB<PU5EPX:" + String(++msgCount) + " LoRaMaDoR 73!";
+  String msg = "QB<PU5EPX:" + String(++msgCount) + " LoRaMaDoR 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 ";
 
   memset(message, 0, sizeof(message));
-  for(unsigned int i = 0; i < msg.length(); i++) {
+  for(unsigned int i = 0; i < msg.length() && i < MSGSIZE; i++) {
      message[i] = msg[i];
   } 
 
-  Serial.println("Encoding...");
   rs.Encode(message, encoded);
   Serial.println("Sending...");
  
@@ -71,6 +70,9 @@ void sendMessage() {
   LoRa.write(encoded + MSGSIZE, REDUNDANCY);
 
   digitalWrite(LED_BUILTIN, HIGH);
-  LoRa.endPacket(); 
+  long int t0 = millis();
+  LoRa.endPacket();
+  long int t1 = millis();
   digitalWrite(LED_BUILTIN, LOW);
+  Serial.println("Sent " + String(msg.length() + REDUNDANCY) + " bytes in " + String(t1 - t0) + "ms");
 }

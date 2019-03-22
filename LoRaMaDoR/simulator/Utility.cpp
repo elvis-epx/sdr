@@ -8,23 +8,29 @@
 
 Dict::Dict()
 {
-	contents = (StringPair**) malloc(0);
+	keys = (String**) malloc(0);
+	values = (String**) malloc(0);
 	len = 0;
 }
 
 Dict::Dict(const Dict &model)
 {
-	contents = (StringPair**) malloc(model.len * sizeof(StringPair*));
+	keys = (String**) calloc(model.len, sizeof(String*));
+	values = (String**) calloc(model.len, sizeof(String*));
 	len = model.len;
+
 	for (int i = 0; i < len; ++i) {
-		contents[i] = new StringPair(*model.contents[i]);
+		keys[i] = new String(*model.keys[i]);
+		if (model.values[i]) {
+			values[i] = new String(*model.values[i]);
+		}
 	}
 }
 
 int Dict::indexOf(const String &key) const
 {
 	for (int i = 0; i < len; ++i) {
-		if (key == contents[i]->a) {
+		if (key == *keys[i]) {
 			return i;
 		}
 	}
@@ -43,31 +49,38 @@ const String *Dict::get(const String& key) const
 	if (pos <= -1) {
 		return 0;
 	}
-	return &contents[pos]->b;
+	return values[pos];
 }
 
-bool Dict::put(const String& key, const String& value)
+bool Dict::put(const String& key, const String* value)
 {	
 	int pos = indexOf(key);
 	bool ret = false;
 
 	if (pos <= -1) {
 		len += 1;
-		contents = (StringPair**) realloc(contents, len * sizeof(StringPair*));
+		keys = (String**) realloc(keys, len * sizeof(String*));
+		values = (String**) realloc(values, len * sizeof(String*));
 		pos = len - 1;
 		ret = true;
 	} else {
-		delete contents[pos];
+		delete keys[pos];
+		delete values[pos];
 	}
-	contents[pos] = new StringPair(key, value);
+
+	keys[pos] = new String(key);
+	if (value) {
+		values[pos] = new String(*value);
+	} else {
+		values[pos] = 0;
+	}
 
 	return ret;
 }
-
-void Dict::foreach(void* cargo, bool (*f)(const String&, const String&, void*)) const
+void Dict::foreach(void* cargo, bool (*f)(const String&, const String*, void*)) const
 {
 	for (int i = 0; i < len; ++i) {
-		if (! f(contents[i]->a, contents[i]->b, cargo)) {
+		if (! f(*keys[i], values[i], cargo)) {
 			break;
 		}
 	}

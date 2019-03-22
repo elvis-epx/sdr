@@ -18,7 +18,7 @@ struct Packet {
 	bool operator==(const Packet &) = delete;
 
 	Packet change_msg(const Buffer& msg) const;
-	Packet append_param(const String& key, const String& value) const;
+	Packet append_param(const String& key, const String* value) const;
 	Buffer encode() const;
 	String encode_params() const;
 	bool is_dup(const Packet& other) const;

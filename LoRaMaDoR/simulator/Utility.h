@@ -5,17 +5,6 @@
 
 #include "WString.h"
 
-struct StringPair {
-	StringPair(const String& pa, const String& pb): a(pa), b(pb) {}
-	const String a;
-	const String b;
-
-	StringPair(const StringPair &) = default;
-	StringPair() = default;
-	StringPair& operator=(const StringPair &) = delete;
-	bool operator==(const StringPair &) = delete;
-};
-
 struct Dict {
 	Dict();
 	Dict(const Dict &);
@@ -24,12 +13,13 @@ struct Dict {
 
 	bool has(const String& key) const;
 	const String* get(const String& key) const;
-	bool put(const String& key, const String& value);
+	bool put(const String& key, const String* value);
 	int length() const;
 	void foreach(void* cargo, bool (*f)(const String&, const String*, void *)) const;
 	int indexOf(const String &key) const;
 
-	StringPair **contents;
+	String **keys;
+	String **values;
 	int len;
 };
 

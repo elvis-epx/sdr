@@ -61,20 +61,24 @@ Packet Packet::change_msg(const Buffer& msg) const
 	return Packet(this->to, this->from, this->ident, this->params, msg);
 }
 
-Packet Packet::append_param(const String& key, const String& value) const
+Packet Packet::append_param(const String& key, const String* value) const
 {
 	Dict p = this->params;
 	p.put(key, value);
 	return Packet(this->to, this->from, this->ident, p, this->msg);
 }
 
-void encode_param(const String &k, const String *v, String* s)
+bool encode_param(const String &k, const String *v, void* vs)
 {
+	String *s = (String*) vs;
+	String kc = k;
+	kc.toUpperCase();
 	if (v) {
-		*s += "," + k.toUpperCase() + "=" + *v;
+		*s += "," + kc + "=" + *v;
 	} else {
-		*s += "," + k.toUpperCase()
+		*s += "," + kc;
 	}
+	return true; // do not stop foreach
 }
 
 String Packet::encode_params() const
