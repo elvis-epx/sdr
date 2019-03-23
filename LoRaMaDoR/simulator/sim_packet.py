@@ -71,10 +71,8 @@ class Packet:
 	def parse_symbol_param(s):
 		eq = s.find("=")
 		if eq > -1:
-			# Type is key=value
+			# Type is key=value, value may be empty
 			key, value = s[:eq], s[eq+1:]
-			if not value:
-				return None
 		else:
 			# Type is naked key
 			key, value = s, None
