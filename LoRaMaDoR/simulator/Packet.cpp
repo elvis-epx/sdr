@@ -41,7 +41,7 @@ bool Packet::check_callsign(const String& s)
 				return false;
 			}
 			bool sig = false;
-			for (int i = 1; i < ssid.length(); ++i) {
+			for (unsigned int i = 1; i < ssid.length(); ++i) {
 				char c = ssid[i];
 				if (c < '0' || c > '9') {
 					printf("SSID with non-digit\n");
@@ -64,7 +64,7 @@ bool Packet::check_callsign(const String& s)
 			printf("bad prefix size\n");
 			return false;
 		}
-		for (int i = 1; i < prefix.length(); ++i) {
+		for (unsigned int i = 1; i < prefix.length(); ++i) {
 			char c = prefix[i];
 			if (c >= '0' && c <= '9') {
 			} else if (c >= 'A' && c <= 'Z') {
@@ -102,7 +102,7 @@ static bool parse_symbol_param(const char *data, unsigned int len, String &key, 
 	}
 
 	// check key name characters
-	for (int i = 0; i < skey_len; ++i) {
+	for (unsigned int i = 0; i < skey_len; ++i) {
 		char c = data[i];
 		if (c >= 'a' && c <= 'z') {
 		} else if (c >= 'A' && c <= 'Z') {
@@ -115,7 +115,7 @@ static bool parse_symbol_param(const char *data, unsigned int len, String &key, 
 	
 	// check value characters, if there is a value
 	if (equal) {
-		for (int i = 0; i < svalue_len; ++i) {
+		for (unsigned int i = 0; i < svalue_len; ++i) {
 			char c = equal[1 + i];
 			if (strchr("= ,:<", c)) {
 				printf("param name has invalid char\n");
@@ -230,7 +230,7 @@ bool Packet::parse_params(const char *data, unsigned int len,
 		String* value = 0;
 
 		if (! parse_param(data, param_len, tident, key, value)) {
-			free(value);
+			delete value;
 			printf("could not parse param in '%s'\n", data);
 			return false;
 		}
@@ -241,7 +241,7 @@ bool Packet::parse_params(const char *data, unsigned int len,
 			// parameter is key=value or naked key
 			key.toUpperCase();
 			params.put(key, value);
-			free(value);
+			delete value;
 		}
 
 		data += advance_len;
@@ -387,15 +387,15 @@ Buffer Packet::encode() const
 	Buffer b(len);
 	char *w = b.wbuf();
 
-	for (int i = 0; i < to.length(); ++i) {
+	for (unsigned int i = 0; i < to.length(); ++i) {
 		*w++ = to[i];
 	}
 	*w++ = '<';
-	for (int i = 0; i < from.length(); ++i) {
+	for (unsigned int i = 0; i < from.length(); ++i) {
 		*w++ = from[i];
 	}
 	*w++ = ':';
-	for (int i = 0; i < params.length(); ++i) {
+	for (unsigned int i = 0; i < params.length(); ++i) {
 		*w++ = params[i];
 	}
 	*w++ = ' ';

@@ -157,7 +157,9 @@ Buffer::Buffer(const Buffer& model)
 {
 	this->len = model.len;
 	this->buf = (char*) malloc(this->len + 1);
-	memcpy(this->buf, model.buf, this->len);
+	if (model.buf) {
+		memcpy(this->buf, model.buf, this->len);
+	}
 	this->buf[len] = 0;
 }
 
@@ -168,7 +170,9 @@ Buffer& Buffer::operator=(const Buffer& model)
 
 	this->len = model.len;
 	this->buf = (char*) malloc(this->len + 1);
-	memcpy(this->buf, model.buf, this->len);
+	if (model.buf) {
+		memcpy(this->buf, model.buf, this->len);
+	}
 	this->buf[len] = 0;
 
 	return *this;
@@ -184,7 +188,9 @@ Buffer::Buffer(const char *buf, int len)
 {
 	this->len = len;
 	this->buf = (char*) malloc(len + 1);
-	memcpy(this->buf, buf, len);
+	if (buf) {
+		memcpy(this->buf, buf, len);
+	}
 	this->buf[len] = 0;
 }
 
@@ -214,4 +220,3 @@ unsigned int Buffer::length() const
 {
 	return len;
 }
-

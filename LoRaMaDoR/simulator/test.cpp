@@ -8,18 +8,19 @@ void test2()
 	Packet *p = Packet::decode("AAAA<BBBB:133");
 	assert (p);
 	assert (p->msg.length() == 0);
-	free(p);
+	delete p;
 
 	p = Packet::decode("AAAA-12<BBBB:133 ee");
 	assert (p);
 	assert (p->msg.Str() == "ee");
 	assert (p->to == "AAAA-12");
-	free(p);
+	delete p;
 	
 	assert (!Packet::decode("AAAA:BBBB<133"));
 	p = Packet::decode("AAAA<BBBB:133,aaa,bbb=ccc,ddd=eee,fff bla");
 	assert (p);
-	free(p);
+	delete p;
+
 	assert (!Packet::decode("AAAA<BBBB:133,aaa,,ddd=eee,fff bla"));
 	assert (!Packet::decode("AAAA<BBBB:01 bla"));
 	assert (!Packet::decode("AAAA<BBBB:aa bla"));
@@ -111,6 +112,7 @@ int main()
 	assert (! q->params.has("Z"));
 	assert (*q->params.get("Y") == "456");
 	assert (q->params.get("X") == 0);
+	delete q;
 
 	test2();
 
