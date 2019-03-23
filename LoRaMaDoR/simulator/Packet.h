@@ -11,6 +11,7 @@ struct Packet {
 		const Dict& params, const Buffer& msg);
 
 	static Packet* decode(const char* data, unsigned int len);
+	static Packet* decode(const String &data);
 
 	Packet(const Packet &) = default;
 	Packet() = delete;
@@ -25,8 +26,14 @@ struct Packet {
 	String repr() const;
 	String signature() const;
 
-	const String to;
-	const String from;
+	static bool check_callsign(const String& s);
+	static bool parse_params(const char *data, unsigned int len,
+		unsigned long int &ident, Dict &params);
+	static bool parse_params(const String &data,
+		unsigned long int &ident, Dict &params);
+
+	String to;
+	String from;
 	const unsigned long int ident;
 	const Dict params;
 	const Buffer msg;
