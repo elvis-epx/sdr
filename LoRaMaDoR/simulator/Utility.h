@@ -6,7 +6,9 @@
 struct Dict {
 	Dict();
 	Dict(const Dict &);
+	Dict(Dict &&);
 	Dict& operator=(const Dict&);
+	Dict& operator=(Dict&&);
 	~Dict();
 
 	bool has(const char* key) const;
@@ -27,7 +29,9 @@ struct Buffer {
 	Buffer(const char *, int len);
 	Buffer(const char *);
 	Buffer(const Buffer&);
+	Buffer(Buffer&&);
 	Buffer& operator=(const Buffer&);
+	Buffer& operator=(Buffer&&);
 	~Buffer();
 
 	unsigned int length() const;

@@ -14,6 +14,17 @@ Dict::Dict()
 	len = 0;
 }
 
+Dict& Dict::operator=(Dict&& moved)
+{
+	this->keys = moved.keys;
+	this->values = moved.values;
+	this->len = moved.len;
+	moved.keys = 0;
+	moved.values = 0;
+	moved.len = 0;
+	return *this;
+}
+
 Dict& Dict::operator=(const Dict& model)
 {
 	
@@ -54,6 +65,16 @@ Dict::~Dict()
 	keys = 0;
 	values = 0;
 	len = 0;
+}
+
+Dict::Dict(Dict &&moved)
+{
+	this->keys = moved.keys;
+	this->values = moved.values;
+	this->len = moved.len;
+	moved.keys = 0;
+	moved.values = 0;
+	moved.len = 0;
 }
 
 Dict::Dict(const Dict &model)
@@ -154,6 +175,14 @@ Buffer::Buffer(int len)
 	this->buf = (char*) calloc(len + 1, sizeof(char));
 }
 
+Buffer::Buffer(Buffer&& moved)
+{
+	this->len = moved.len;
+	this->buf = moved.buf;
+	moved.len = 0;
+	moved.buf = 0;
+}
+
 Buffer::Buffer(const Buffer& model)
 {
 	this->len = model.len;
@@ -162,6 +191,15 @@ Buffer::Buffer(const Buffer& model)
 		memcpy(this->buf, model.buf, this->len);
 	}
 	this->buf[len] = 0;
+}
+
+Buffer& Buffer::operator=(Buffer&& moved)
+{
+	this->len = moved.len;
+	this->buf = moved.buf;
+	moved.len = 0;
+	moved.buf = 0;
+	return *this;
 }
 
 Buffer& Buffer::operator=(const Buffer& model)
