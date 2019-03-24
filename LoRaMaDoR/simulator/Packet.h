@@ -8,11 +8,13 @@
 struct Packet {
 	Packet(const char *to, const char *from, unsigned long int ident, 
 		const Dict& params, const Buffer& msg);
+	~Packet();
 
 	static Packet* decode(const char* data, unsigned int len);
 	static Packet* decode(const char *data);
 
-	Packet(const Packet &) = default;
+	Packet(const Packet &) = delete;
+	Packet(Packet &&);
 	Packet() = delete;
 	Packet& operator=(const Packet &) = delete;
 	bool operator==(const Packet &) = delete;

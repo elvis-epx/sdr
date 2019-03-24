@@ -233,6 +233,8 @@ bool Packet::parse_params(const char *data, unsigned int len,
 		} else {
 			// parameter is key=value or naked key
 			params.put(key, value); // uppers key case for us
+			free(key);
+			free(value);
 		}
 
 		data += advance_len;
@@ -301,6 +303,27 @@ Packet::Packet(const char* to, const char* from, unsigned long int ident,
 	_signature = strdup(scratchpad);
 }
 
+Packet::Packet(Packet &&model): _ident(model._ident), _params(model._params), _msg(model._msg)
+{
+	_to = model._to;
+	_from = model._from;
+	_sparams = model._sparams;
+	_signature = model._signature;
+
+	model._to = 0;
+	model._from = 0;
+	model._sparams = 0;
+	model._signature = 0;
+}
+
+Packet::~Packet()
+{
+	free(_to);
+	free(_from);
+	free(_sparams);
+	free(_signature);
+}
+
 Packet* Packet::decode(const char* data)
 {
 	return decode(data, strlen(data));
@@ -326,12 +349,14 @@ Packet* Packet::decode(const char* data, unsigned int len)
 		preamble_len = len;
 	}
 
-	char *to;
-	char *from;
+	char *to = 0;
+	char *from = 0;
 	Dict params;
 	unsigned long int ident = 0;
 
 	if (! decode_preamble(preamble, preamble_len, to, from, ident, params)) {
+		free(to);
+		free(from);
 		return 0;
 	}
 
@@ -378,9 +403,9 @@ char* Packet::encode_params(unsigned long int ident, const Dict &params)
 
 Buffer Packet::encode() const
 {
-	int to_length = strlen(_to);
-	int from_length = strlen(_from);
-	int params_length = strlen(_sparams);
+	unsigned int to_length = strlen(_to);
+	unsigned int from_length = strlen(_from);
+	unsigned int params_length = strlen(_sparams);
 
 	unsigned int len = to_length + 1 + from_length + 1 + params_length + 1 + _msg.length();
 	Buffer b(len);

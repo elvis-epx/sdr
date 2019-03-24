@@ -18,8 +18,8 @@ Dict& Dict::operator=(const Dict& model)
 {
 	
 	for (int i = 0; i < len; ++i) {
-		delete keys[i];
-		delete values[i];
+		free(keys[i]);
+		free(values[i]);
 	}
 
 	free(keys);
@@ -45,8 +45,8 @@ Dict& Dict::operator=(const Dict& model)
 Dict::~Dict()
 {
 	for (int i = 0; i < len; ++i) {
-		delete keys[i];
-		delete values[i];
+		free(keys[i]);
+		free(values[i]);
 	}
 
 	free(keys);
