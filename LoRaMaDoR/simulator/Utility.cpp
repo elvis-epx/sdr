@@ -4,12 +4,13 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 #include "Utility.h"
 
 Dict::Dict()
 {
-	keys = (String**) malloc(0);
-	values = (String**) malloc(0);
+	keys = (char**) malloc(0);
+	values = (char**) malloc(0);
 	len = 0;
 }
 
@@ -27,14 +28,14 @@ Dict& Dict::operator=(const Dict& model)
 	values = 0;
 	len = 0;
 
-	keys = (String**) calloc(model.len, sizeof(String*));
-	values = (String**) calloc(model.len, sizeof(String*));
+	keys = (char**) calloc(model.len, sizeof(char*));
+	values = (char**) calloc(model.len, sizeof(char*));
 	len = model.len;
 
 	for (int i = 0; i < len; ++i) {
-		keys[i] = new String(*model.keys[i]);
+		keys[i] = strdup(model.keys[i]);
 		if (model.values[i]) {
-			values[i] = new String(*model.values[i]);
+			values[i] = strdup(model.values[i]);
 		}
 	}
 
@@ -57,22 +58,22 @@ Dict::~Dict()
 
 Dict::Dict(const Dict &model)
 {
-	keys = (String**) calloc(model.len, sizeof(String*));
-	values = (String**) calloc(model.len, sizeof(String*));
+	keys = (char**) calloc(model.len, sizeof(char*));
+	values = (char**) calloc(model.len, sizeof(char*));
 	len = model.len;
 
 	for (int i = 0; i < len; ++i) {
-		keys[i] = new String(*model.keys[i]);
+		keys[i] = strdup(model.keys[i]);
 		if (model.values[i]) {
-			values[i] = new String(*model.values[i]);
+			values[i] = strdup(model.values[i]);
 		}
 	}
 }
 
-int Dict::indexOf(const String &key) const
+int Dict::indexOf(const char* key) const
 {
 	for (int i = 0; i < len; ++i) {
-		if (key == *keys[i]) {
+		if (0 == strcmp(key, keys[i])) {
 			return i;
 		}
 	}
@@ -80,12 +81,12 @@ int Dict::indexOf(const String &key) const
 	return -1;
 }
 
-bool Dict::has(const String& key) const
+bool Dict::has(const char* key) const
 {
 	return indexOf(key) != -1;
 }
 
-const String *Dict::get(const String& key) const
+const char *Dict::get(const char *key) const
 {
 	int pos = indexOf(key);
 	if (pos <= -1) {
@@ -94,38 +95,38 @@ const String *Dict::get(const String& key) const
 	return values[pos];
 }
 
-bool Dict::put(const String& key, const String& value)
+bool Dict::put(const char *akey)
 {
-	return put(key, &value);
+	return this->put(akey, 0);
 }
 
-bool Dict::put(const String& key)
+bool Dict::put(const char *akey, const char *value)
 {
-	return put(key, 0);
-}
-
-bool Dict::put(const String& akey, const String* value)
-{
-	String key = akey;
-	key.toUpperCase();
+	char *key = strdup(akey);
+	int n = strlen(key);
+	for (int i = 0; i < n; ++i) {
+		if (key[i] >= 'a' && key[i] <= 'z') {
+			key[i] += 'A' - 'a';
+		}
+	}
 
 	int pos = indexOf(key);
 	bool ret = false;
 
 	if (pos <= -1) {
 		len += 1;
-		keys = (String**) realloc(keys, len * sizeof(String*));
-		values = (String**) realloc(values, len * sizeof(String*));
+		keys = (char**) realloc(keys, len * sizeof(char*));
+		values = (char**) realloc(values, len * sizeof(char*));
 		pos = len - 1;
 		ret = true;
 	} else {
-		delete keys[pos];
-		delete values[pos];
+		free(keys[pos]);
+		free(values[pos]);
 	}
 
-	keys[pos] = new String(key);
+	keys[pos] = key;
 	if (value) {
-		values[pos] = new String(*value);
+		values[pos] = strdup(value);
 	} else {
 		values[pos] = 0;
 	}
@@ -133,10 +134,10 @@ bool Dict::put(const String& akey, const String* value)
 	return ret;
 }
 
-void Dict::foreach(void* cargo, bool (*f)(const String&, const String*, void*)) const
+void Dict::foreach(void* cargo, bool (*f)(const char*, const char*, void*)) const
 {
 	for (int i = 0; i < len; ++i) {
-		if (! f(*keys[i], values[i], cargo)) {
+		if (! f(keys[i], values[i], cargo)) {
 			break;
 		}
 	}
@@ -194,16 +195,10 @@ Buffer::Buffer(const char *buf, int len)
 	this->buf[len] = 0;
 }
 
-Buffer::Buffer(const String &s)
+Buffer::Buffer(const char *s)
 {
-	this->len = s.length();
-	this->buf = (char*) malloc(s.length() + 1);
-	s.toCharArray(this->buf, s.length() + 1);
-}
-
-String Buffer::Str() const
-{
-	return String(this->buf);
+	this->len = strlen(s);
+	this->buf = strdup(s);
 }
 
 const char* Buffer::rbuf() const
@@ -219,4 +214,14 @@ char* Buffer::wbuf()
 unsigned int Buffer::length() const
 {
 	return len;
+}
+
+void uppercase(char *s)
+{
+	while (*s) {
+		if (*s >= 'a' && *s <= 'z') {
+			*s += 'A' - 'a';
+		}
+		++s;
+	}
 }

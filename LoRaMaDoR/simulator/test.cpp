@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 #include "Packet.h"
 
 void test2()
@@ -7,13 +8,13 @@ void test2()
 	printf("---\n");
 	Packet *p = Packet::decode("AAAA<BBBB:133");
 	assert (p);
-	assert (p->msg.length() == 0);
+	assert (p->msg().length() == 0);
 	delete p;
 
 	p = Packet::decode("AAAA-12<BBBB:133 ee");
 	assert (p);
-	assert (p->msg.Str() == "ee");
-	assert (p->to == "AAAA-12");
+	assert (strcmp("ee", p->msg().rbuf()) == 0);
+	assert (strcmp(p->to(), "AAAA-12") == 0);
 	delete p;
 	
 	assert (!Packet::decode("AAAA:BBBB<133"));
@@ -42,14 +43,14 @@ void test3()
 	assert (ident == 1236);
 	assert(params.has("ABC"));
 	assert(params.has("DEF"));
-	assert(*params.get("DEF") == String("ghi"));
+	assert(strcmp(params.get("DEF"), "ghi") == 0);
 	assert(params.count() == 2);
 
 	assert(Packet::parse_params("def=ghi,1239", ident, params));
 	assert (ident == 1239);
 	assert (params.count() == 1);
 	assert (params.has("DEF"));
-	assert (*params.get("DEF") == "ghi");
+	assert (strcmp(params.get("DEF"), "ghi") == 0);
 
 	assert (!Packet::parse_params("123a", ident, params));
 	assert (!Packet::parse_params("0123", ident, params));
@@ -89,8 +90,7 @@ int main()
 
 	Buffer bb("abcde");
 	assert (bb.length() == 5);
-	assert (bb.Str() == "abcde");
-	assert (String(bb.rbuf()) == "abcde");
+	assert (strcmp(bb.rbuf(), "abcde") == 0);
 
 	Dict d;
 	d.put("x");
@@ -98,20 +98,21 @@ int main()
 	Packet p = Packet("aaAA", "BBbB", 123, d, Buffer("bla ble"));
 	Buffer sp = p.encode();
 
-	printf("%s\n", sp.rbuf());
-	assert (sp.Str() == "AAAA<BBBB:123,X,Y=456 bla ble");
+	printf("'%s'\n", sp.rbuf());
+	assert (strcmp(sp.rbuf(), "AAAA<BBBB:123,X,Y=456 bla ble") == 0);
 	printf("---\n");
 	Packet* q = Packet::decode(sp.rbuf(), sp.length());
 	assert (q);
-	assert (p.is_dup(*q) && q->is_dup(p));
-	assert (q->to == "AAAA");
-	assert (q->from == "BBBB");
-	assert (q->ident == 123);
-	assert (q->params.has("X"));
-	assert (q->params.has("Y"));
-	assert (! q->params.has("Z"));
-	assert (*q->params.get("Y") == "456");
-	assert (q->params.get("X") == 0);
+	assert (p.is_dup(*q));
+	assert (q->is_dup(p));
+	assert (strcmp(q->to(), "AAAA") == 0);
+	assert (strcmp(q->from(), "BBBB") == 0);
+	assert (q->ident() == 123);
+	assert (q->params().has("X"));
+	assert (q->params().has("Y"));
+	assert (! q->params().has("Z"));
+	assert (strcmp(q->params().get("Y"), "456") == 0);
+	assert (! q->params().get("X"));
 	delete q;
 
 	test2();

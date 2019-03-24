@@ -3,15 +3,14 @@
  * Copyright (c) 2019 PU5EPX
  */
 
-#include "WString.h"
 #include "Utility.h"
 
 struct Packet {
-	Packet(const String &to, const String &from, unsigned long int ident, 
+	Packet(const char *to, const char *from, unsigned long int ident, 
 		const Dict& params, const Buffer& msg);
 
 	static Packet* decode(const char* data, unsigned int len);
-	static Packet* decode(const String &data);
+	static Packet* decode(const char *data);
 
 	Packet(const Packet &) = default;
 	Packet() = delete;
@@ -19,22 +18,30 @@ struct Packet {
 	bool operator==(const Packet &) = delete;
 
 	Packet change_msg(const Buffer& msg) const;
-	Packet append_param(const String& key, const String* value) const;
+	Packet append_param(const char *key, const char *value) const;
 	Buffer encode() const;
-	String encode_params() const;
 	bool is_dup(const Packet& other) const;
-	String repr() const;
-	String signature() const;
+	char *repr() const;
+	const char *signature() const;
+	const char *to() const;
+	const char *from() const;
+	unsigned long int ident() const;
+	const Dict& params() const;
+	const Buffer& msg() const;
 
-	static bool check_callsign(const String& s);
+	static bool check_callsign(const char *s);
 	static bool parse_params(const char *data, unsigned int len,
 		unsigned long int &ident, Dict &params);
-	static bool parse_params(const String &data,
+	static bool parse_params(const char *data,
 		unsigned long int &ident, Dict &params);
+	static char *encode_params(unsigned long int ident, const Dict&);
 
-	String to;
-	String from;
-	const unsigned long int ident;
-	const Dict params;
-	const Buffer msg;
+private:
+	char *_to;
+	char *_from;
+	const unsigned long int _ident;
+	const Dict _params;
+	char *_sparams;
+	char *_signature;
+	const Buffer _msg;
 };
