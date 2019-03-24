@@ -8,9 +8,10 @@
 #include <string.h>
 #include "Packet.h"
 
-bool Packet::check_callsign(const char* s)
+bool Packet::check_callsign(const Buffer &sbuf)
 {
-	unsigned int length = strlen(s);
+	unsigned int length = sbuf.length();
+	const char *s = sbuf.rbuf();
 
 	if (length < 2) {
 		printf("callsign length < 2\n");
@@ -82,7 +83,7 @@ bool Packet::check_callsign(const char* s)
 	return true;
 }
 
-static bool parse_symbol_param(const char *data, unsigned int len, char*& key, char*& value)
+static bool parse_symbol_param(const char *data, unsigned int len, Buffer& key, Buffer*& value)
 {
 	if (! len) {
 		printf("null symbol param length\n");
@@ -128,10 +129,10 @@ static bool parse_symbol_param(const char *data, unsigned int len, char*& key, c
 		}
 	}
 
-	key = strndup(data, skey_len);
+	key = Buffer(data, skey_len);
 
 	if (equal) {
-		value = strndup(equal + 1, svalue_len);
+		value = new Buffer(equal + 1, svalue_len);
 	} else {
 		value = 0;
 	}
@@ -163,7 +164,7 @@ static bool parse_ident_param(const char* s, unsigned int len, unsigned long int
 }
 
 static bool parse_param(const char* data, unsigned int len,
-		unsigned long int &ident, char *&key, char *&value)
+		unsigned long int &ident, Buffer &key, Buffer *&value)
 {
 	if (! len) {
 		printf("param with length 0 \n");
@@ -219,8 +220,8 @@ bool Packet::parse_params(const char *data, unsigned int len,
 		}
 
 		unsigned long int tident = 0;
-		char *key;
-		char *value = 0;
+		Buffer key;
+		Buffer *value = 0;
 
 		if (! parse_param(data, param_len, tident, key, value)) {
 			delete value;
@@ -233,8 +234,6 @@ bool Packet::parse_params(const char *data, unsigned int len,
 		} else {
 			// parameter is key=value or naked key
 			params.put(key, value); // uppers key case for us
-			free(key);
-			free(value);
 		}
 
 		data += advance_len;
@@ -246,7 +245,7 @@ bool Packet::parse_params(const char *data, unsigned int len,
 }
 
 static bool decode_preamble(const char* data, unsigned int len,
-		char *&to, char *&from, unsigned long int& ident, Dict& params)
+		Buffer &to, Buffer &from, unsigned long int& ident, Dict& params)
 {
 	const char *d1 = (const char*) memchr(data, '<', len);
 	const char *d2 = (const char*) memchr(data, ':', len);
@@ -265,13 +264,13 @@ static bool decode_preamble(const char* data, unsigned int len,
 		return false;
 	}
 
-	to = strndup(data, d1 - data);
-	printf("parsed to: %s\n", to);
-	from = strndup(d1 + 1, d2 - d1 - 1);
-	printf("parsed from: %s\n", from);
+	to = Buffer(data, d1 - data);
+	printf("parsed to: %s\n", to.rbuf());
+	from = Buffer(d1 + 1, d2 - d1 - 1);
+	printf("parsed from: %s\n", from.rbuf());
 
-	uppercase(to);
-	uppercase(from);
+	to.uppercase();
+	from.uppercase();
 
 	if (!Packet::check_callsign(to) || !Packet::check_callsign(from)) {
 		printf("bad callsign in packet\n");
@@ -290,38 +289,27 @@ static bool decode_preamble(const char* data, unsigned int len,
 
 Packet::Packet(const char* to, const char* from, unsigned long int ident, 
 			const Dict& params, const Buffer& msg): 
-			_ident(ident), _params(params), _msg(msg)
+			_to(to), _from(from), _ident(ident), _params(params), _msg(msg)
 {
-	_to = strdup(to);
-	_from = strdup(from);
 	_sparams = encode_params(_ident, _params);
-	uppercase(_to);
-	uppercase(_from);
+	_to.uppercase();
+	_from.uppercase();
 
 	char scratchpad[32];
-	snprintf(scratchpad, 31, "%s:%ld", _from, _ident);
-	_signature = strdup(scratchpad);
+	snprintf(scratchpad, 31, "%s:%ld", _from.rbuf(), _ident);
+	_signature = Buffer(scratchpad);
 }
 
-Packet::Packet(Packet &&model): _ident(model._ident), _params(model._params), _msg(model._msg)
+Packet::Packet(Packet &&model): _to(model._to), _from(model._from),
+		_ident(model._ident),
+		_params(model._params),
+		_sparams(model._sparams),
+		_msg(model._msg)
 {
-	_to = model._to;
-	_from = model._from;
-	_sparams = model._sparams;
-	_signature = model._signature;
-
-	model._to = 0;
-	model._from = 0;
-	model._sparams = 0;
-	model._signature = 0;
 }
 
 Packet::~Packet()
 {
-	free(_to);
-	free(_from);
-	free(_sparams);
-	free(_signature);
 }
 
 Packet* Packet::decode(const char* data)
@@ -349,21 +337,16 @@ Packet* Packet::decode(const char* data, unsigned int len)
 		preamble_len = len;
 	}
 
-	char *to = 0;
-	char *from = 0;
+	Buffer to;
+	Buffer from;
 	Dict params;
 	unsigned long int ident = 0;
 
 	if (! decode_preamble(preamble, preamble_len, to, from, ident, params)) {
-		free(to);
-		free(from);
 		return 0;
 	}
 
-	Packet *p = new Packet(to, from, ident, params, Buffer(msg, msg_len));
-	free(to);
-	free(from);
-	return p;
+	return new Packet(to.rbuf(), from.rbuf(), ident, params, Buffer(msg, msg_len));
 }
 
 Packet Packet::change_msg(const Buffer& msg) const
@@ -378,49 +361,44 @@ Packet Packet::append_param(const char* key, const char* value) const
 	return Packet(this->to(), this->from(), this->ident(), p, this->msg());
 }
 
-bool encode_param(const char* k, const char *v, void* vs)
+bool encode_param(const Buffer& k, const Buffer *v, void* vs)
 {
 	char scratchpad[251];
-	char **s = (char**) vs;
+	Buffer *b = (Buffer*) vs;
 	if (v) {
-		snprintf(scratchpad, sizeof(scratchpad) - 1, "%s,%s=%s", *s, k, v);
+		snprintf(scratchpad, sizeof(scratchpad) - 1, ",%s=%s", k.rbuf(), v->rbuf());
 	} else {
-		snprintf(scratchpad, sizeof(scratchpad) - 1, "%s,%s", *s, k);
+		snprintf(scratchpad, sizeof(scratchpad) - 1, ",%s", k.rbuf());
 	}
-	free(*s);
-	*s = strdup(scratchpad);
+	b->append(scratchpad);
 	return true; // do not stop foreach
 }
 
-char* Packet::encode_params(unsigned long int ident, const Dict &params)
+Buffer Packet::encode_params(unsigned long int ident, const Dict &params)
 {
 	char sident[20];
 	sprintf(sident, "%ld", ident);
-	char *p = strdup(sident);
+	Buffer p(sident);
 	params.foreach(&p, &encode_param);
 	return p;
 }
 
 Buffer Packet::encode() const
 {
-	unsigned int to_length = strlen(_to);
-	unsigned int from_length = strlen(_from);
-	unsigned int params_length = strlen(_sparams);
-
-	unsigned int len = to_length + 1 + from_length + 1 + params_length + 1 + _msg.length();
+	unsigned int len = _to.length() + 1 + _from.length() + 1 + _sparams.length() + 1 + _msg.length();
 	Buffer b(len);
 	char *w = b.wbuf();
 
-	for (unsigned int i = 0; i < to_length; ++i) {
-		*w++ = _to[i];
+	for (unsigned int i = 0; i < _to.length(); ++i) {
+		*w++ = _to.rbuf()[i];
 	}
 	*w++ = '<';
-	for (unsigned int i = 0; i < from_length; ++i) {
-		*w++ = _from[i];
+	for (unsigned int i = 0; i < _from.length(); ++i) {
+		*w++ = _from.rbuf()[i];
 	}
 	*w++ = ':';
-	for (unsigned int i = 0; i < params_length; ++i) {
-		*w++ = _sparams[i];
+	for (unsigned int i = 0; i < _sparams.length(); ++i) {
+		*w++ = _sparams.rbuf()[i];
 	}
 	*w++ = ' ';
 	memcpy(w, _msg.rbuf(), _msg.length());
@@ -430,7 +408,7 @@ Buffer Packet::encode() const
 
 const char* Packet::signature() const
 {
-	return _signature;
+	return _signature.rbuf();
 }
 
 bool Packet::is_dup(const Packet& other) const
@@ -438,21 +416,21 @@ bool Packet::is_dup(const Packet& other) const
 	return strcmp(this->signature(), other.signature()) == 0;
 }
 
-char* Packet::repr() const
+Buffer Packet::repr() const
 {
 	char scratchpad[255];
 	snprintf(scratchpad, 254, "pkt %s < %s : %s msg %s",
-		_to, _from, _sparams, _msg.rbuf());
-	return strdup(scratchpad);
+		_to.rbuf(), _from.rbuf(), _sparams.rbuf(), _msg.rbuf());
+	return Buffer(scratchpad);
 }
 const char* Packet::to() const
 {
-	return _to;
+	return _to.rbuf();
 }
 
 const char* Packet::from() const
 {
-	return _from;
+	return _from.rbuf();
 }
 
 unsigned long int Packet::ident() const

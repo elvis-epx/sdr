@@ -23,7 +23,7 @@ struct Packet {
 	Packet append_param(const char *key, const char *value) const;
 	Buffer encode() const;
 	bool is_dup(const Packet& other) const;
-	char *repr() const;
+	Buffer repr() const;
 	const char *signature() const;
 	const char *to() const;
 	const char *from() const;
@@ -31,19 +31,19 @@ struct Packet {
 	const Dict& params() const;
 	const Buffer& msg() const;
 
-	static bool check_callsign(const char *s);
+	static bool check_callsign(const Buffer&);
 	static bool parse_params(const char *data, unsigned int len,
 		unsigned long int &ident, Dict &params);
 	static bool parse_params(const char *data,
 		unsigned long int &ident, Dict &params);
-	static char *encode_params(unsigned long int ident, const Dict&);
+	static Buffer encode_params(unsigned long int ident, const Dict&);
 
 private:
-	char *_to;
-	char *_from;
+	Buffer _to;
+	Buffer _from;
 	const unsigned long int _ident;
 	const Dict _params;
-	char *_sparams;
-	char *_signature;
+	Buffer _sparams;
+	Buffer _signature;
 	const Buffer _msg;
 };

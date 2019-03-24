@@ -9,8 +9,8 @@
 
 Dict::Dict()
 {
-	keys = (char**) malloc(0);
-	values = (char**) malloc(0);
+	keys = 0;
+	values = 0;
 	len = 0;
 }
 
@@ -29,24 +29,26 @@ Dict& Dict::operator=(const Dict& model)
 {
 	
 	for (int i = 0; i < len; ++i) {
-		free(keys[i]);
-		free(values[i]);
+		delete keys[i];
+		delete values[i];
 	}
 
-	free(keys);
-	free(values);
+	delete [] keys;
+	delete [] values;
 	keys = 0;
 	values = 0;
 	len = 0;
 
-	keys = (char**) calloc(model.len, sizeof(char*));
-	values = (char**) calloc(model.len, sizeof(char*));
+	keys = new Buffer*[model.len];
+	values = new Buffer*[model.len];
 	len = model.len;
 
 	for (int i = 0; i < len; ++i) {
-		keys[i] = strdup(model.keys[i]);
+		keys[i] = new Buffer(*model.keys[i]);
 		if (model.values[i]) {
-			values[i] = strdup(model.values[i]);
+			values[i] = new Buffer(*model.values[i]);
+		} else {
+			values[i] = 0;
 		}
 	}
 
@@ -56,12 +58,11 @@ Dict& Dict::operator=(const Dict& model)
 Dict::~Dict()
 {
 	for (int i = 0; i < len; ++i) {
-		free(keys[i]);
-		free(values[i]);
+		delete keys[i];
+		delete values[i];
 	}
-
-	free(keys);
-	free(values);
+	delete keys;
+	delete values;
 	keys = 0;
 	values = 0;
 	len = 0;
@@ -79,14 +80,16 @@ Dict::Dict(Dict &&moved)
 
 Dict::Dict(const Dict &model)
 {
-	keys = (char**) calloc(model.len, sizeof(char*));
-	values = (char**) calloc(model.len, sizeof(char*));
+	keys = new Buffer*[model.len];
+	values = new Buffer*[model.len];
 	len = model.len;
 
 	for (int i = 0; i < len; ++i) {
-		keys[i] = strdup(model.keys[i]);
+		keys[i] = new Buffer(*model.keys[i]);
 		if (model.values[i]) {
-			values[i] = strdup(model.values[i]);
+			values[i] = new Buffer(*model.values[i]);
+		} else {
+			values[i] = 0;
 		}
 	}
 }
@@ -94,7 +97,7 @@ Dict::Dict(const Dict &model)
 int Dict::indexOf(const char* key) const
 {
 	for (int i = 0; i < len; ++i) {
-		if (0 == strcmp(key, keys[i])) {
+		if (0 == strcmp(key, keys[i]->rbuf())) {
 			return i;
 		}
 	}
@@ -113,41 +116,61 @@ const char *Dict::get(const char *key) const
 	if (pos <= -1) {
 		return 0;
 	}
-	return values[pos];
+	if (!values[pos]) {
+		return 0;
+	}
+	return values[pos]->rbuf();
 }
 
 bool Dict::put(const char *akey)
+{
+	return this->put(Buffer(akey), 0);
+}
+
+bool Dict::put(const Buffer &akey)
 {
 	return this->put(akey, 0);
 }
 
 bool Dict::put(const char *akey, const char *value)
 {
-	char *key = strdup(akey);
-	int n = strlen(key);
-	for (int i = 0; i < n; ++i) {
-		if (key[i] >= 'a' && key[i] <= 'z') {
-			key[i] += 'A' - 'a';
-		}
+	if (value) {
+		return this->put(Buffer(akey), new Buffer(value));
+	} else {
+		return this->put(Buffer(akey), 0);
 	}
+}
 
-	int pos = indexOf(key);
+bool Dict::put(const Buffer& akey, const Buffer* value)
+{
+	Buffer key = Buffer(akey);
+	key.uppercase();
+
+	int pos = indexOf(key.rbuf());
 	bool ret = false;
 
 	if (pos <= -1) {
 		len += 1;
-		keys = (char**) realloc(keys, len * sizeof(char*));
-		values = (char**) realloc(values, len * sizeof(char*));
+		Buffer **old_keys = keys;
+		Buffer **old_values = values;
+		keys = new Buffer*[len];
+		values = new Buffer*[len];
+		for (unsigned int i = 0; i < len - 1; ++i) {
+			keys[i] = old_keys[i];
+			values[i] = old_values[i];
+		}
+		delete old_keys;
+		delete old_values;
 		pos = len - 1;
 		ret = true;
 	} else {
-		free(keys[pos]);
-		free(values[pos]);
+		delete keys[pos];
+		delete values[pos];
 	}
 
-	keys[pos] = key;
+	keys[pos] = new Buffer(key);
 	if (value) {
-		values[pos] = strdup(value);
+		values[pos] = new Buffer(*value);
 	} else {
 		values[pos] = 0;
 	}
@@ -155,10 +178,10 @@ bool Dict::put(const char *akey, const char *value)
 	return ret;
 }
 
-void Dict::foreach(void* cargo, bool (*f)(const char*, const char*, void*)) const
+void Dict::foreach(void* cargo, bool (*f)(const Buffer&, const Buffer*, void*)) const
 {
 	for (int i = 0; i < len; ++i) {
-		if (! f(keys[i], values[i], cargo)) {
+		if (! f(*keys[i], values[i], cargo)) {
 			break;
 		}
 	}
@@ -167,6 +190,12 @@ void Dict::foreach(void* cargo, bool (*f)(const char*, const char*, void*)) cons
 int Dict::count() const
 {
 	return len;
+}
+
+Buffer::Buffer()
+{
+	this->len = 0;
+	this->buf = 0;
 }
 
 Buffer::Buffer(int len)
@@ -217,6 +246,20 @@ Buffer& Buffer::operator=(const Buffer& model)
 	return *this;
 }
 
+void Buffer::append(const char *s)
+{
+	if (!s) {
+		return;
+	}
+
+	unsigned int slen = strlen(s);
+	this->buf = (char*) realloc(this->buf, this->len + slen);
+	memcpy(this->buf + this->len, s, slen);
+
+	this->len += slen;
+	this->buf[this->len] = 0;
+}
+
 Buffer::~Buffer()
 {
 	free(this->buf);
@@ -254,12 +297,11 @@ unsigned int Buffer::length() const
 	return len;
 }
 
-void uppercase(char *s)
+void Buffer::uppercase()
 {
-	while (*s) {
-		if (*s >= 'a' && *s <= 'z') {
-			*s += 'A' - 'a';
+	for (unsigned int i = 0; i < len; ++i) {
+		if (buf[i] >= 'a' && buf[i] <= 'z') {
+			buf[i] += 'A' - 'a';
 		}
-		++s;
 	}
 }
