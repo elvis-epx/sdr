@@ -16,10 +16,9 @@ public:
 
 	bool has(const char* key) const;
 	const char* get(const char* key) const;
-	bool put(const char* key);
 	bool put(const Buffer &key);
-	bool put(const char* key, const char* value);
-	bool put(const Buffer& key, const Buffer* value);
+	bool put(const Buffer& key, const Buffer& value);
+	bool put(const Buffer& key, Buffer* value); /* takes ownership of value */
 	int count() const;
 	void foreach(void* cargo, bool (*f)(const Buffer&, const Buffer*, void *)) const;
 	int indexOf(const char *key) const;
@@ -27,7 +26,7 @@ public:
 private:
 	Buffer **keys;
 	Buffer **values;
-	int len;
+	unsigned int len;
 };
 
 class Buffer {

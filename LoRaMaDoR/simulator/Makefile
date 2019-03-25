@@ -16,4 +16,3 @@ Packet.o: Packet.cpp *.h
 
 test: test.cpp *.h Packet.o Utility.o WString.o
 	gcc $(CFLAGS) -o test test.cpp WString.o Utility.o Packet.o -lstdc++
-	./test

@@ -371,6 +371,7 @@ bool encode_param(const Buffer& k, const Buffer *v, void* vs)
 		snprintf(scratchpad, sizeof(scratchpad) - 1, ",%s", k.rbuf());
 	}
 	b->append(scratchpad);
+	printf("encode_param %s %s\n", scratchpad, b->rbuf());
 	return true; // do not stop foreach
 }
 
