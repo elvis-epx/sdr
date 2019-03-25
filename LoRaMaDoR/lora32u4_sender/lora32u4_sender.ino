@@ -11,7 +11,7 @@ long int msgCount = 0;            // count of outgoing messages
 long lastSendTime = millis();        // last send time
 int interval = 5000;      
 
-#define POWER   2 // dBm
+#define POWER   20 // dBm
 #define PABOOST 1
 
 void setup() {

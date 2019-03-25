@@ -239,19 +239,20 @@ Buffer& Buffer::operator=(const Buffer& model)
 	return *this;
 }
 
-void Buffer::append(const char *s)
+void Buffer::append(const char *s, unsigned int add_length)
 {
 	if (!s) {
 		return;
 	}
 
-	unsigned int slen = strlen(s);
 	char *oldbuf = this->buf;
-	this->buf = new char[this->len + slen + 1];
+	this->buf = new char[this->len + add_length + 1];
 	memcpy(this->buf, oldbuf, this->len);
-	memcpy(this->buf + this->len, s, slen + 1);
 	delete [] oldbuf;
-	this->len += slen;
+
+	memcpy(this->buf + this->len, s, add_length);
+	this->buf[this->len + add_length] = 0;
+	this->len += add_length;
 }
 
 Buffer::~Buffer()

@@ -6,25 +6,25 @@
 void test2()
 {
 	printf("---\n");
-	Packet *p = Packet::decode("AAAA<BBBB:133");
+	Packet *p = Packet::decode_l3("AAAA<BBBB:133");
 	assert (p);
 	assert (p->msg().length() == 0);
 	delete p;
 
-	p = Packet::decode("AAAA-12<BBBB:133 ee");
+	p = Packet::decode_l3("AAAA-12<BBBB:133 ee");
 	assert (p);
 	assert (strcmp("ee", p->msg().rbuf()) == 0);
 	assert (strcmp(p->to(), "AAAA-12") == 0);
 	delete p;
 	
-	assert (!Packet::decode("AAAA:BBBB<133"));
-	p = Packet::decode("AAAA<BBBB:133,aaa,bbb=ccc,ddd=eee,fff bla");
+	assert (!Packet::decode_l3("AAAA:BBBB<133"));
+	p = Packet::decode_l3("AAAA<BBBB:133,aaa,bbb=ccc,ddd=eee,fff bla");
 	assert (p);
 	delete p;
 
-	assert (!Packet::decode("AAAA<BBBB:133,aaa,,ddd=eee,fff bla"));
-	assert (!Packet::decode("AAAA<BBBB:01 bla"));
-	assert (!Packet::decode("AAAA<BBBB:aa bla"));
+	assert (!Packet::decode_l3("AAAA<BBBB:133,aaa,,ddd=eee,fff bla"));
+	assert (!Packet::decode_l3("AAAA<BBBB:01 bla"));
+	assert (!Packet::decode_l3("AAAA<BBBB:aa bla"));
 }
 
 void test3()
@@ -96,13 +96,39 @@ int main()
 	d.put("x");
 	d.put("y", "456");
 	Packet p = Packet("aaAA", "BBbB", 123, d, Buffer("bla ble"));
-	Buffer sp = p.encode();
+	Buffer spl3 = p.encode_l3();
+	Buffer spl2 = p.encode_l2();
 
-	printf("'%s'\n", sp.rbuf());
-	assert (strcmp(sp.rbuf(), "AAAA<BBBB:123,X,Y=456 bla ble") == 0);
+	printf("'%s'\n", spl3.rbuf());
+	assert (strcmp(spl3.rbuf(), "AAAA<BBBB:123,X,Y=456 bla ble") == 0);
 	printf("---\n");
-	Packet* q = Packet::decode(sp.rbuf(), sp.length());
+	Packet* q = Packet::decode_l2(spl2.rbuf(), spl2.length());
 	assert (q);
+	delete q;
+
+	/* Corrupt some chars */
+	spl2.wbuf()[1] = 66;
+	spl2.wbuf()[3] = 66;
+	spl2.wbuf()[7] = 66;
+	spl2.wbuf()[9] = 66;
+	spl2.wbuf()[12] = 66;
+	spl2.wbuf()[15] = 66;
+	spl2.wbuf()[33] = 66;
+	spl2.wbuf()[40] = 66;
+	q = Packet::decode_l2(spl2.rbuf(), spl2.length());
+	assert (q);
+
+	/* Corrupt too many chars */
+	spl2.wbuf()[2] = 66;
+	spl2.wbuf()[5] = 66;
+	spl2.wbuf()[6] = 66;
+	spl2.wbuf()[8] = 66;
+	spl2.wbuf()[10] = 66;
+	spl2.wbuf()[11] = 66;
+	spl2.wbuf()[13] = 66;
+	spl2.wbuf()[39] = 66;
+	assert(! Packet::decode_l2(spl2.rbuf(), spl2.length()));
+
 	assert (p.is_dup(*q));
 	assert (q->is_dup(p));
 	assert (strcmp(q->to(), "AAAA") == 0);

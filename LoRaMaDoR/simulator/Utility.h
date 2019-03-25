@@ -45,7 +45,7 @@ public:
 	const char* rbuf() const;
 	char* wbuf();
 	void uppercase();
-	void append(const char *s);
+	void append(const char *s, unsigned int length);
 
 private:
 	char *buf;

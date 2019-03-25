@@ -7,6 +7,21 @@
 #include <stdio.h>
 #include <string.h>
 #include "Packet.h"
+#include "RS-FEC.h"
+
+static const int MSGSIZE_SHORT = 80;
+static const int MSGSIZE_LONG = 180;
+static const int REDUNDANCY = 20;
+
+RS::ReedSolomon<MSGSIZE_SHORT, REDUNDANCY> rs_short;
+#ifndef __AVR__
+char rs_encoded[MSGSIZE_LONG + REDUNDANCY];
+char rs_decoded[MSGSIZE_LONG];
+RS::ReedSolomon<MSGSIZE_LONG, REDUNDANCY> rs_long;
+#else
+char rs_encoded[MSGSIZE_SHORT + REDUNDANCY];
+char rs_decoded[MSGSIZE_SHORT];
+#endif
 
 bool Packet::check_callsign(const Buffer &sbuf)
 {
@@ -312,12 +327,43 @@ Packet::~Packet()
 {
 }
 
-Packet* Packet::decode(const char* data)
+Packet* Packet::decode_l2(const char *data, unsigned int len)
 {
-	return decode(data, strlen(data));
+	if (len <= REDUNDANCY || len > (MSGSIZE_LONG + REDUNDANCY)) {
+		return 0;
+	}
+
+	memset(rs_encoded, 0, sizeof(rs_encoded));
+	if (len <= (MSGSIZE_SHORT + REDUNDANCY)) {
+		memcpy(rs_encoded, data, len - REDUNDANCY);
+		memcpy(rs_encoded + MSGSIZE_SHORT, data + len - REDUNDANCY, REDUNDANCY);
+		if (rs_short.Decode(rs_encoded, rs_decoded)) {
+			printf("RS FEC failed to correct all errors\n");
+			return 0;
+		}
+		return decode_l3(rs_decoded, len - 20);
+	} else {
+#ifdef __AVR__
+		return 0;
+#else
+		memcpy(rs_encoded, data, len - REDUNDANCY);
+		memcpy(rs_encoded + MSGSIZE_LONG, data + len - REDUNDANCY, REDUNDANCY);
+		if (rs_long.Decode(rs_encoded, rs_decoded)) {
+			printf("RS FEC failed to correct all errors\n");
+			return 0;
+		}
+		return decode_l3(rs_decoded, len - 20);
+#endif
+	}
 }
 
-Packet* Packet::decode(const char* data, unsigned int len)
+// just for testing
+Packet* Packet::decode_l3(const char* data)
+{
+	return decode_l3(data, strlen(data));
+}
+
+Packet* Packet::decode_l3(const char* data, unsigned int len)
 {
 	const char *preamble = 0;
 	const char *msg = 0;
@@ -370,7 +416,7 @@ bool encode_param(const Buffer& k, const Buffer *v, void* vs)
 	} else {
 		snprintf(scratchpad, sizeof(scratchpad) - 1, ",%s", k.rbuf());
 	}
-	b->append(scratchpad);
+	b->append(scratchpad, strlen(scratchpad));
 	printf("encode_param %s %s\n", scratchpad, b->rbuf());
 	return true; // do not stop foreach
 }
@@ -384,7 +430,7 @@ Buffer Packet::encode_params(unsigned long int ident, const Dict &params)
 	return p;
 }
 
-Buffer Packet::encode() const
+Buffer Packet::encode_l3() const
 {
 	unsigned int len = _to.length() + 1 + _from.length() + 1 + _sparams.length() + 1 + _msg.length();
 	Buffer b(len);
@@ -403,6 +449,29 @@ Buffer Packet::encode() const
 	}
 	*w++ = ' ';
 	memcpy(w, _msg.rbuf(), _msg.length());
+
+	return b;
+}
+
+Buffer Packet::encode_l2() const
+{
+	Buffer b = encode_l3();
+
+	memset(rs_decoded, 0, sizeof(rs_decoded));
+	memcpy(rs_decoded, b.rbuf(), b.length());
+	if (b.length() <= MSGSIZE_SHORT) {
+		rs_short.Encode(rs_decoded, rs_encoded);
+		b.append(rs_encoded + MSGSIZE_SHORT, REDUNDANCY);
+	} else {
+#ifdef __AVR__
+		// truncate packet
+		rs_short.Encode(rs_decoded, rs_encoded);
+		b.append(rs_encoded + MSGSIZE_SHORT, REDUNDANCY);
+#else
+		rs_long.Encode(rs_decoded, rs_encoded);
+		b.append(rs_encoded + MSGSIZE_LONG, REDUNDANCY);
+#endif
+	}
 
 	return b;
 }
