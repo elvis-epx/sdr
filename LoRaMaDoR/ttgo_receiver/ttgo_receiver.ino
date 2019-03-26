@@ -34,7 +34,7 @@
 #define DI00    26   // GPIO26 -- SX127x's IRQ(Interrupt Request)
 
 #define BAND    916750000  //you can set band here directly,e.g. 868E6,915E6
-#define POWER 2
+#define POWER 20
 #define PABOOST 1
 
 SSD1306 display(0x3c, 4, 15);
@@ -48,59 +48,11 @@ void logo(){
   display.display();
 }
 
-static const int MSGSIZE = 80;
-static const int REDUNDANCY = 20;
-RS::ReedSolomon<MSGSIZE, REDUNDANCY> rs;
-char message_frame[MSGSIZE + 1];
-char punctured_message[128];
-char encoded_message_u[MSGSIZE + REDUNDANCY];
-String msg;
-
-void loraData(){
-  display.clear();
-  display.setTextAlignment(TEXT_ALIGN_LEFT);
-  display.setFont(ArialMT_Plain_10);
-  display.drawString(0 , 15 , "Recv octets "+ grossSize + " " + netSize);
-  display.drawStringMaxWidth(0 , 26 , 128, msg);
-  display.drawString(0, 0, rssi);  
-  display.display();
-}
-
-void cbk(int plen) {
-  rssi = "RSSI " + String(LoRa.packetRssi(), DEC);
-  grossSize = String(plen, DEC);
-  // message length = packet length - redundancy size
-  int llen = plen - REDUNDANCY;
-  netSize = String(llen, DEC);
-
-  if (plen > (MSGSIZE + REDUNDANCY)) {
-    rssi += " too big";
-    loraData();
-    return;
-  }
-
-  memset(punctured_message, 0, sizeof(punctured_message));
-
-  for (int i = 0; i < plen && i < sizeof(punctured_message); i++) {
-      punctured_message[i] = LoRa.read();
-  }
-
-  // unpuncture
-  memset(encoded_message_u, 0, sizeof(encoded_message_u));
-  memcpy(encoded_message_u, punctured_message, llen);
-  memcpy(encoded_message_u + MSGSIZE, punctured_message + llen, REDUNDANCY);
-
-  if (rs.Decode(encoded_message_u, message_frame)) {
-      rssi += " corrupted";
-      msg = "";
-  } else {
-      msg = String(message_frame);
-  }
-   
-  loraData();
-}
-
 void setup() {
+  Serial.begin(9600);
+  // while (!Serial);
+  // Serial.println("Starting...");
+  
   pinMode(16,OUTPUT);
   digitalWrite(16, LOW);    // set GPIO16 low to reset OLED
   delay(50); 
@@ -109,7 +61,7 @@ void setup() {
   display.flipScreenVertically();  
   display.setFont(ArialMT_Plain_10);
   logo();
-  delay(1500);
+  delay(1000);
   display.clear();
   
   SPI.begin(SCK,MISO,MOSI,SS);
@@ -120,23 +72,93 @@ void setup() {
     display.display();
     while (1);
   }
-  LoRa.setSpreadingFactor(8);
   LoRa.setTxPower(POWER, PABOOST);
-  LoRa.setSignalBandwidth(31250);
+  LoRa.setSpreadingFactor(9);
+  LoRa.setSignalBandwidth(62500);
   LoRa.setCodingRate4(5);
   LoRa.disableCrc();
   
-  display.drawString(0, 0, "LoRa Initial success!");
-  display.drawString(0, 10, "Wait for incomm data...");
+  display.drawString(0, 0, "LoRa ok");
   display.display();
-  delay(10000);
-  //LoRa.onReceive(cbk);
+  
+  LoRa.onReceive(onReceive);
   LoRa.receive();
+  // Serial.println("Waiting for packets");
 }
 
+int pcount = 0;
+int dcount = 0;
 
 void loop() {
-  int packetSize = LoRa.parsePacket();
-  if (packetSize) { cbk(packetSize);  }
-  delay(10);
+  if (pcount > dcount) {
+    loraData();
+    dcount = pcount;
+  }
 }
+
+static const int MSGSIZE = 80;
+static const int REDUNDANCY = 20;
+RS::ReedSolomon<MSGSIZE, REDUNDANCY> rs;
+char decoded[MSGSIZE];
+char encoded[MSGSIZE + REDUNDANCY];
+char punctured[MSGSIZE + REDUNDANCY];
+String msg;
+
+void loraData()
+{
+  display.clear();
+  display.setTextAlignment(TEXT_ALIGN_LEFT);
+  display.setFont(ArialMT_Plain_10);
+  display.drawString(0 , 15, "Recv #" + String(pcount) + " = " + grossSize);
+  display.drawStringMaxWidth(0 , 30, 128, msg);
+  display.drawString(0, 0, rssi);  
+  display.display();
+}
+
+void onReceive(int plen) {
+  // Serial.println("onReceive");
+  ++pcount;
+  rssi = "RSSI " + String(LoRa.packetRssi(), DEC);
+  // Serial.println(rssi);
+  grossSize = String(plen, DEC);
+  // Serial.println(grossSize);
+  int llen = plen - REDUNDANCY;
+  netSize = String(llen, DEC);
+  // Serial.println(netSize);
+
+  if (plen > (MSGSIZE + REDUNDANCY)) {
+    rssi += " too big";
+    loraData();
+    return;
+  }
+  if (plen <= REDUNDANCY) {
+    rssi += " too small";
+    loraData();
+    return;
+  }
+
+  // Serial.println("Clearing");
+  memset(punctured, 0, sizeof(punctured));
+  memset(encoded, 0, sizeof(encoded));
+  memset(decoded, 0, sizeof(decoded));
+
+  // Serial.println("Recv octets");
+  for (int i = 0; i < plen && i < sizeof(punctured); i++) {
+      punctured[i] = LoRa.read();
+  }
+
+  // Serial.println("Unpuncturing");
+  memcpy(encoded, punctured, llen);
+  memcpy(encoded + MSGSIZE, punctured + llen, REDUNDANCY);
+
+  // Serial.println("Decoding");
+  if (rs.Decode(encoded, decoded)) {
+      rssi += " corrupted";
+      msg = "corrupted";
+  } else {
+      msg = decoded;
+  }
+
+  // Serial.println(msg);
+}
+

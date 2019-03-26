@@ -28,8 +28,8 @@ void setup() {
   }
   
   LoRa.setTxPower(POWER, PABOOST);
-  LoRa.setSpreadingFactor(8);
-  LoRa.setSignalBandwidth(31250);
+  LoRa.setSpreadingFactor(9);
+  LoRa.setSignalBandwidth(62500);
   LoRa.setCodingRate4(5);
   LoRa.disableCrc();
 
@@ -56,7 +56,7 @@ void sendMessage() {
   digitalWrite(LED_BUILTIN, LOW);
 
   String msg = "QB<PU5EPX:" + String(++msgCount) + " LoRaMaDoR 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 ";
-
+  
   memset(message, 0, sizeof(message));
   for(unsigned int i = 0; i < msg.length() && i < MSGSIZE; i++) {
      message[i] = msg[i];
@@ -74,5 +74,7 @@ void sendMessage() {
   LoRa.endPacket();
   long int t1 = millis();
   digitalWrite(LED_BUILTIN, LOW);
-  Serial.println("Sent " + String(msg.length() + REDUNDANCY) + " bytes in " + String(t1 - t0) + "ms");
+  long int tm = t1 - t0;
+  long int bps = (msg.length() + REDUNDANCY) * 8L * 1000L / tm;
+  Serial.println("Sent " + String(msg.length() + REDUNDANCY) + " bytes in " + String(t1 - t0) + "ms = " + String(bps) + "bps");
 }
