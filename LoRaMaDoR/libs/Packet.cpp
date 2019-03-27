@@ -23,29 +23,27 @@ char rs_encoded[MSGSIZE_SHORT + REDUNDANCY];
 char rs_decoded[MSGSIZE_SHORT];
 #endif
 
+static int decode_error;
+
 bool Packet::check_callsign(const Buffer &sbuf)
 {
 	unsigned int length = sbuf.length();
 	const char *s = sbuf.rbuf();
 
 	if (length < 2) {
-		printf("callsign length < 2\n");
 		return false;
 	} else if (length == 2) {
 		char c0 = s[0];
 		char c1 = s[1];
 		if (c0 != 'Q') {
-			printf("callsign length = 2 and not Q\n");
 			return false;
 		}
 		if (c1 < 'A' || c1 > 'Z') {
-			printf("callsign c1 not alpha\n");
 			return false;
 		}
 	} else {
 		char c0 = s[0];
 		if (c0 == 'Q'|| c0 < 'A' || c0 > 'Z') {
-			printf("callsign begins with Q or non-alpha\n");
 			return false;
 		}
 
@@ -57,14 +55,12 @@ bool Packet::check_callsign(const Buffer &sbuf)
 			prefix_length = ssid_delim - s;
 			int ssid_length = length - 1 - prefix_length;
 			if (ssid_length <= 0 || ssid_length > 2) {
-				printf("SSID too big %d\n", ssid_length);
 				return false;
 			}
 			bool sig = false;
 			for (int i = 0; i < ssid_length; ++i) {
 				char c = ssid[i];
 				if (c < '0' || c > '9') {
-					printf("SSID with non-digit\n");
 					return false;
 				}
 				if (c != '0') {
@@ -72,7 +68,6 @@ bool Packet::check_callsign(const Buffer &sbuf)
 					sig = true;
 				} else if (! sig) {
 					// non-significant 0
-					printf("SSID with non-significant 0\n");
 					return false;
 				}
 			}
@@ -81,7 +76,6 @@ bool Packet::check_callsign(const Buffer &sbuf)
 		}
 
 		if (prefix_length > 7 || prefix_length < 4) {
-			printf("bad prefix size\n");
 			return false;
 		}
 		for (unsigned int i = 1; i < prefix_length; ++i) {
@@ -89,7 +83,6 @@ bool Packet::check_callsign(const Buffer &sbuf)
 			if (c >= '0' && c <= '9') {
 			} else if (c >= 'A' && c <= 'Z') {
 			} else {
-				printf("bad prefix char\n");
 				return false;
 			}
 		}
@@ -101,7 +94,7 @@ bool Packet::check_callsign(const Buffer &sbuf)
 static bool parse_symbol_param(const char *data, unsigned int len, Buffer& key, Buffer*& value)
 {
 	if (! len) {
-		printf("null symbol param length\n");
+		decode_error = 1;
 		return false;
 	}
 
@@ -128,7 +121,7 @@ static bool parse_symbol_param(const char *data, unsigned int len, Buffer& key, 
 		} else if (c >= 'A' && c <= 'Z') {
 		} else if (c >= '0' && c <= '9') {
 		} else {
-			printf("bad param key name char %c\n", c);
+			decode_error = 2;
 			return false;
 		}
 	}
@@ -138,7 +131,7 @@ static bool parse_symbol_param(const char *data, unsigned int len, Buffer& key, 
 		for (unsigned int i = 0; i < svalue_len; ++i) {
 			char c = equal[1 + i];
 			if (strchr("= ,:<", c) || c == 0) {
-				printf("param name has invalid char\n");
+				decode_error = 3;
 				return false;
 			}
 		}
@@ -160,18 +153,18 @@ static bool parse_ident_param(const char* s, unsigned int len, unsigned long int
 	char *stop;
 	ident = strtol(s, &stop, 10);
 	if (ident <= 0) {
-		printf("bad ident value\n");
+		decode_error = 4;
 		return false;
 	}
 	if (len != (stop - s)) {
-		printf("bad ident value len=%u used=%ld\n", len, (stop - s));
+		decode_error = 5;
 		return false;
 	}
 
 	char n[20];
 	sprintf(n, "%ld", ident);
 	if (strlen(n) != len) {
-		printf("bad ident value olen=%u nlen=%ld\n", len, strlen(n));
+		decode_error = 6;
 		return false;
 	}
 
@@ -182,7 +175,7 @@ static bool parse_param(const char* data, unsigned int len,
 		unsigned long int &ident, Buffer &key, Buffer *&value)
 {
 	if (! len) {
-		printf("param with length 0 \n");
+		decode_error = 50;
 		return false;
 	}
 
@@ -198,7 +191,7 @@ static bool parse_param(const char* data, unsigned int len,
 		return parse_symbol_param(data, len, key, value);
 	}
 
-	printf("param with bad first character '%s'\n", data);
+	decode_error = 7;
 	return false;
 }
 
@@ -215,7 +208,6 @@ bool Packet::parse_params(const char *data, unsigned int len,
 	params = Dict();
 
 	while (len > 0) {
-		printf("parsing parameter, remaining len=%u data='%s'\n", len, data);
 		unsigned int param_len;
 		unsigned int advance_len;
 
@@ -230,7 +222,7 @@ bool Packet::parse_params(const char *data, unsigned int len,
 		}
 
 		if (! param_len) {
-			printf("param data with no len\n");
+			decode_error = 8;
 			return false;
 		}
 
@@ -240,7 +232,6 @@ bool Packet::parse_params(const char *data, unsigned int len,
 
 		if (! parse_param(data, param_len, tident, key, value)) {
 			delete value;
-			printf("could not parse param in '%s'\n", data);
 			return false;
 		}
 		if (tident) {
@@ -266,36 +257,33 @@ static bool decode_preamble(const char* data, unsigned int len,
 	const char *d2 = (const char*) memchr(data, ':', len);
 
 	if (d1 == 0 || d2 == 0) {
-		printf("delimiters not found in preamble %s\n", data);
+		decode_error = 100;
 		return false;
 	} else if (d1 >= d2)  {
-		printf("delimiters swapped or null second section %s\n", data);
+	  decode_error = 101;
 		return false;
 	} else if ((d2 - data) >= len) {
-		printf("empty third section in %s\n", data);
+    decode_error = 102;
 		return false;
 	} else if (d1 == data) {
-		printf("empty first section in %s\n", data);
+    decode_error = 103;
 		return false;
 	}
 
 	to = Buffer(data, d1 - data);
-	printf("parsed to: %s\n", to.rbuf());
 	from = Buffer(d1 + 1, d2 - d1 - 1);
-	printf("parsed from: %s\n", from.rbuf());
 
 	to.uppercase();
 	from.uppercase();
 
 	if (!Packet::check_callsign(to) || !Packet::check_callsign(from)) {
-		printf("bad callsign in packet\n");
+    decode_error = 104;
 		return false;
 	}
 
 	const char *sparams = d2 + 1;
 	unsigned int sparams_len = len - (d2 - data) - 1;
 	if (! Packet::parse_params(sparams, sparams_len, ident, params)) {
-		printf("bad param/params in packet\n");
 		return false;
 	}
 
@@ -329,7 +317,9 @@ Packet::~Packet()
 
 Packet* Packet::decode_l2(const char *data, unsigned int len)
 {
+  decode_error = 0;
 	if (len <= REDUNDANCY || len > (MSGSIZE_LONG + REDUNDANCY)) {
+    decode_error = 999;
 		return 0;
 	}
 
@@ -338,10 +328,10 @@ Packet* Packet::decode_l2(const char *data, unsigned int len)
 		memcpy(rs_encoded, data, len - REDUNDANCY);
 		memcpy(rs_encoded + MSGSIZE_SHORT, data + len - REDUNDANCY, REDUNDANCY);
 		if (rs_short.Decode(rs_encoded, rs_decoded)) {
-			printf("RS FEC failed to correct all errors\n");
+			decode_error = 998;
 			return 0;
 		}
-		return decode_l3(rs_decoded, len - 20);
+		return decode_l3(rs_decoded, len - REDUNDANCY);
 	} else {
 #ifdef __AVR__
 		return 0;
@@ -349,10 +339,10 @@ Packet* Packet::decode_l2(const char *data, unsigned int len)
 		memcpy(rs_encoded, data, len - REDUNDANCY);
 		memcpy(rs_encoded + MSGSIZE_LONG, data + len - REDUNDANCY, REDUNDANCY);
 		if (rs_long.Decode(rs_encoded, rs_decoded)) {
-			printf("RS FEC failed to correct all errors\n");
+			decode_error = 997;
 			return 0;
 		}
-		return decode_l3(rs_decoded, len - 20);
+		return decode_l3(rs_decoded, len - REDUNDANCY);
 #endif
 	}
 }
@@ -417,7 +407,6 @@ bool encode_param(const Buffer& k, const Buffer *v, void* vs)
 		snprintf(scratchpad, sizeof(scratchpad) - 1, ",%s", k.rbuf());
 	}
 	b->append(scratchpad, strlen(scratchpad));
-	printf("encode_param %s %s\n", scratchpad, b->rbuf());
 	return true; // do not stop foreach
 }
 
@@ -503,6 +492,11 @@ const char* Packet::from() const
 	return _from.rbuf();
 }
 
+const char* Packet::sparams() const
+{
+  return _sparams.rbuf();
+}
+
 unsigned long int Packet::ident() const
 {
 	return _ident;
@@ -517,3 +511,9 @@ const Buffer& Packet::msg() const
 {
 	return _msg;
 }
+
+int Packet::get_decode_error()
+{
+  return decode_error;
+}
+

@@ -11,6 +11,7 @@ struct Packet {
 	~Packet();
 
 	static Packet* decode_l2(const char* data, unsigned int len);
+  static int get_decode_error();
 
 	/* public for unit testing */
 	static Packet* decode_l3(const char* data, unsigned int len);
@@ -36,6 +37,7 @@ struct Packet {
 	const char *from() const;
 	unsigned long int ident() const;
 	const Dict& params() const;
+  const char *sparams() const;
 	const Buffer& msg() const;
 
 	/* public for unit testing */
