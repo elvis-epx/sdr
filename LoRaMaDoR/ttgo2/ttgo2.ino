@@ -18,8 +18,10 @@
 #define PABOOST 1
 
 // use button to toogle this.
-const bool SEND_BEACON = false;
+const bool SEND_BEACON = true;
 const long int AVG_BEACON_TIME = 10000;
+
+const char *my_prefix = "PU5EPX-1";
 
 long int ident = 0; 
 long nextSendTime = millis() + 1000;
@@ -90,7 +92,7 @@ void sendMessage()
   ident %= 999;
   ++ident;
 	Buffer msg = "LoRaMaDoR 73.";
-	Packet p = Packet("QB", "PU5EPX", ident, Dict(), msg);
+	Packet p = Packet("QB", my_prefix, ident, Dict(), msg);
 	Buffer encoded = p.encode_l2();
 
 	LoRa.beginPacket();        
@@ -98,6 +100,7 @@ void sendMessage()
 	long int t0 = millis();
 	LoRa.endPacket();
 	long int t1 = millis();
+  LoRa.receive();
 
 	// Serial.println("Send in " + String(t1 - t0) + "ms");
 
