@@ -61,14 +61,14 @@ void loop()
 
 void sendMessage()
 {
-  ident %= 999;
-  ++ident;
+	ident %= 999;
+	++ident;
 	Buffer msg = "LoRaMaDoR 73.";
 	Packet p = Packet("QB", my_prefix, ident, Dict(), msg);
 	Buffer encoded = p.encode_l2();
 
-  long int tx_time = lora_tx(encoded);
-  lora_rx(onReceive);
+	long int tx_time = lora_tx(encoded);
+	lora_rx(onReceive);
 
 	// Serial.println("Send in " + String(t1 - t0) + "ms");
 
@@ -90,36 +90,36 @@ String recv_msg;
 
 void onReceive(const char *recv_area, unsigned int plen, int recv_rssi)  
 {
-  // Serial.println("onReceive");
-  ++recv_pcount;
-  Packet *p = Packet::decode_l2(recv_area, plen);
-  if (!p) {
-    recv_from = "";
-    recv_to = "";
-    recv_ident = 0;
-    recv_params = "";
-    recv_msg = ">>> Corrupted " + String(Packet::get_decode_error());
-    return;
-  }
-  
-  recv_from = p->from();
-  recv_to = p->to();
-  recv_ident = p->ident();
-  recv_params = p->sparams();
-  recv_msg = p->msg().rbuf();
-  delete p;
+	// Serial.println("onReceive");
+	++recv_pcount;
+	Packet *p = Packet::decode_l2(recv_area, plen);
+	if (!p) {
+		recv_from = "";
+		recv_to = "";
+		recv_ident = 0;
+		recv_params = "";
+		recv_msg = ">>> Corrupted " + String(Packet::get_decode_error());
+		return;
+	}
+
+	recv_from = p->from();
+	recv_to = p->to();
+	recv_ident = p->ident();
+	recv_params = p->sparams();
+	recv_msg = p->msg().rbuf();
+	delete p;
 }
 
 void recv_show()
 {
-  display.clear();
-  display.setTextAlignment(TEXT_ALIGN_LEFT);
-  display.setFont(ArialMT_Plain_10);
-  display.drawString(0, 0, "Recv #" + String(recv_pcount) + " RSSI " + String(recv_rssi)); 
-  display.drawString(0, 12, recv_to + " < " + recv_from);
-  display.drawString(0, 24, "Ident " + String(recv_ident));
-  display.drawString(0, 36, "Params " + recv_params);
-  display.drawStringMaxWidth(0 , 48, 80, recv_msg); 
-  display.display();
+	 display.clear();
+	display.setTextAlignment(TEXT_ALIGN_LEFT);
+	display.setFont(ArialMT_Plain_10);
+	display.drawString(0, 0, "Recv #" + String(recv_pcount) + " RSSI " + String(recv_rssi)); 
+	display.drawString(0, 12, recv_to + " < " + recv_from);
+	display.drawString(0, 24, "Ident " + String(recv_ident));
+	display.drawString(0, 36, "Params " + recv_params);
+	display.drawStringMaxWidth(0 , 48, 80, recv_msg); 
+	display.display();
 }
 
