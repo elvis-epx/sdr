@@ -1,21 +1,6 @@
-#include <SPI.h>
-#include <LoRa.h>
-#include <Wire.h>
 #include "SSD1306.h"
 #include "Packet.h"
-
-// Pin definetion of WIFI LoRa 32
-// HelTec AutoMation 2017 support@heltec.cn 
-#define SCK     5    // GPIO5  -- SX127x's SCK
-#define MISO    19   // GPIO19 -- SX127x's MISO
-#define MOSI    27   // GPIO27 -- SX127x's MOSI
-#define SS      18   // GPIO18 -- SX127x's CS
-#define RST     14   // GPIO14 -- SX127x's RESET
-#define DI00    26   // GPIO26 -- SX127x's IRQ(Interrupt Request)
-
-#define BAND    916750000  //you can set band here directly,e.g. 868E6,915E6
-#define POWER   20 // dBm
-#define PABOOST 1
+#include "Radio.h"
 
 // use button to toogle this.
 const bool SEND_BEACON = true;
@@ -43,31 +28,18 @@ void setup()
 	digitalWrite(16, LOW);    // set GPIO16 low to reset OLED
 	delay(50); 
 	digitalWrite(16, HIGH); // while OLED is running, must set GPIO16 in high
-		
-	SPI.begin(SCK,MISO,MOSI,SS);
-	LoRa.setPins(SS,RST,DI00);
 
 	display.init();
-  display.flipScreenVertically();
+	display.flipScreenVertically();
 	display.setFont(ArialMT_Plain_10);
 
-	if (!LoRa.begin(BAND)) {
+	if (! setup_lora_ttgo()) {
 		display.drawString(0, 0, "Starting LoRa failed!");
 		display.display();
 		while (1);
 	}
 	
-	LoRa.setTxPower(POWER, PABOOST);
-	LoRa.setSpreadingFactor(9);
-	LoRa.setSignalBandwidth(62500);
-	LoRa.setCodingRate4(5);
-	LoRa.disableCrc();
-
-	display.drawString(0, 0, "LoRa ok");
-	display.display();
-  
-  LoRa.onReceive(onReceive);
-  LoRa.receive();
+	lora_rx(onReceive);
 }
 
 void loop()
@@ -78,13 +50,13 @@ void loop()
 			long int next = random(AVG_BEACON_TIME / 2,
 						AVG_BEACON_TIME * 3 / 2);
 			nextSendTime = millis() + next;
-      return;
+			return;
 		}
 	}
-  if (recv_pcount > recv_dcount) {
-    recv_dcount = recv_pcount;
-    recv_show();
-  }
+	if (recv_pcount > recv_dcount) {
+		recv_dcount = recv_pcount;
+		recv_show();
+	}
 }
 
 void sendMessage()
@@ -95,12 +67,8 @@ void sendMessage()
 	Packet p = Packet("QB", my_prefix, ident, Dict(), msg);
 	Buffer encoded = p.encode_l2();
 
-	LoRa.beginPacket();        
-	LoRa.write((uint8_t*) encoded.rbuf(), encoded.length());      
-	long int t0 = millis();
-	LoRa.endPacket();
-	long int t1 = millis();
-  LoRa.receive();
+  long int tx_time = lora_tx(encoded);
+  lora_rx(onReceive);
 
 	// Serial.println("Send in " + String(t1 - t0) + "ms");
 
@@ -109,7 +77,7 @@ void sendMessage()
 	display.setFont(ArialMT_Plain_10);
 	display.drawString(0, 0, "Sending #" + String(ident));
 	display.setFont(ArialMT_Plain_10);
-	display.drawString(0, 10, "Sent " + String(encoded.length()) + " bytes in " + String(t1 - t0) + "ms");
+	display.drawString(0, 10, "Sent " + String(encoded.length()) + " bytes in " + String(tx_time) + "ms");
 	display.display();
 }
 
@@ -120,16 +88,10 @@ unsigned long int recv_ident;
 String recv_params;
 String recv_msg;
 
-char recv_area[255];
-
-void onReceive(int plen)
+void onReceive(const char *recv_area, unsigned int plen, int recv_rssi)  
 {
   // Serial.println("onReceive");
   ++recv_pcount;
-  recv_rssi = LoRa.packetRssi();
-  for (int i = 0; i < plen && i < sizeof(recv_area); i++) {
-    recv_area[i] = LoRa.read();
-  }
   Packet *p = Packet::decode_l2(recv_area, plen);
   if (!p) {
     recv_from = "";

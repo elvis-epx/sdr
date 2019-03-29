@@ -29,6 +29,8 @@
 
 #endif
 
+bool setup_lora_common();
+
 bool setup_lora_ttgo()
 {
 	SPI.begin(SCK, MISO, MOSI, SS);
