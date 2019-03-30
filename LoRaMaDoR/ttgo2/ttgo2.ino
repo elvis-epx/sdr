@@ -1,9 +1,14 @@
+#ifdef __AVR__
+#else
 #include "SSD1306.h"
+#endif
+
 #include "Packet.h"
 #include "Radio.h"
 
 // use button to toogle this.
 const bool SEND_BEACON = true;
+const bool RECEIVER = true;
 const long int AVG_BEACON_TIME = 10000;
 
 const char *my_prefix = "PU5EPX-1";
@@ -14,31 +19,55 @@ long nextSendTime = millis() + 1000;
 int recv_pcount = 0;
 int recv_dcount = 0;
 
+#ifndef __AVR__
 SSD1306 display(0x3c, 4, 15);
-String rssi = "RSSI --";
-String packSize = "--";
-String packet ;
 
-void setup()
+void display_init()
 {
-	Serial.begin(9600);
 	pinMode(16,OUTPUT);
 	pinMode(25,OUTPUT);
 	
-	digitalWrite(16, LOW);    // set GPIO16 low to reset OLED
+	digitalWrite(16, LOW); // reset
 	delay(50); 
-	digitalWrite(16, HIGH); // while OLED is running, must set GPIO16 in high
+	digitalWrite(16, HIGH); // keep high while operating display
 
 	display.init();
 	display.flipScreenVertically();
 	display.setFont(ArialMT_Plain_10);
+	display.setTextAlignment(TEXT_ALIGN_LEFT);
+}
+#endif
+
+void show_diag(const char *error)
+{
+#ifndef __AVR__
+	display.clear();
+	display.drawString(0, 0, error);
+	display.display();
+#endif
+	Serial.println(error);
+}
+
+void setup()
+{
+	Serial.begin(9600);
+#ifndef __AVR__
+	display_init();
+#endif
 
 	if (! setup_lora_ttgo()) {
-		display.drawString(0, 0, "Starting LoRa failed!");
-		display.display();
+		show_diag("Starting LoRa failed!");
 		while (1);
 	}
-	
+	show_diag("LoRa ok");
+
+	if (RECEIVER) {
+		activate_rx();
+	}
+}
+
+void activate_rx()
+{
 	lora_rx(onReceive);
 }
 
@@ -46,7 +75,7 @@ void loop()
 {
 	if (SEND_BEACON) {
 		if (millis() > nextSendTime) {
-			sendMessage();
+			send_message();
 			long int next = random(AVG_BEACON_TIME / 2,
 						AVG_BEACON_TIME * 3 / 2);
 			nextSendTime = millis() + next;
@@ -59,7 +88,22 @@ void loop()
 	}
 }
 
-void sendMessage()
+void show_sent(unsigned long int ident, unsigned int length, long int tx_time)
+{
+	char msg[50];
+	snprintf(msg, sizeof(msg), "%s sent #%ld, %u octets in %ldms", my_prefix, ident, length, tx_time);
+	Serial.println();
+	Serial.println(msg);
+	
+#ifndef __AVR__
+	display.clear();
+	display.drawString(0, 0, String(my_prefix) + " sent #" + String(ident));
+	display.drawString(0, 10, String(length) + " bytes in " + String(tx_time) + "ms");
+	display.display();
+#endif
+}
+
+void send_message()
 {
 	ident %= 999;
 	++ident;
@@ -68,17 +112,11 @@ void sendMessage()
 	Buffer encoded = p.encode_l2();
 
 	long int tx_time = lora_tx(encoded);
-	lora_rx(onReceive);
+	if (RECEIVER) {
+		activate_rx();
+	}
 
-	// Serial.println("Send in " + String(t1 - t0) + "ms");
-
-	display.clear();
-	display.setTextAlignment(TEXT_ALIGN_LEFT);
-	display.setFont(ArialMT_Plain_10);
-	display.drawString(0, 0, "Sending #" + String(ident));
-	display.setFont(ArialMT_Plain_10);
-	display.drawString(0, 10, "Sent " + String(encoded.length()) + " bytes in " + String(tx_time) + "ms");
-	display.display();
+	show_sent(ident, encoded.length(), tx_time);
 }
 
 int recv_rssi;
@@ -88,9 +126,9 @@ unsigned long int recv_ident;
 String recv_params;
 String recv_msg;
 
+// interrupt context, don't do too much here
 void onReceive(const char *recv_area, unsigned int plen, int recv_rssi)  
 {
-	// Serial.println("onReceive");
 	++recv_pcount;
 	Packet *p = Packet::decode_l2(recv_area, plen);
 	if (!p) {
@@ -112,14 +150,25 @@ void onReceive(const char *recv_area, unsigned int plen, int recv_rssi)
 
 void recv_show()
 {
-	 display.clear();
-	display.setTextAlignment(TEXT_ALIGN_LEFT);
-	display.setFont(ArialMT_Plain_10);
+	char msg[50];
+	Serial.println();
+	snprintf(msg, sizeof(msg), "Recv #%ld RSSI %d", recv_pcount, recv_rssi);
+	Serial.println(msg);
+	snprintf(msg, sizeof(msg), "%s < %s", recv_to.c_str(), recv_from.c_str());
+	Serial.println(msg);
+	snprintf(msg, sizeof(msg), "Ident %ld", recv_ident);
+	Serial.println(msg);
+	snprintf(msg, sizeof(msg), "Params %s", recv_params.c_str());
+	Serial.println(msg);
+	Serial.println(recv_msg);
+
+#ifndef __AVR__
+	display.clear();
 	display.drawString(0, 0, "Recv #" + String(recv_pcount) + " RSSI " + String(recv_rssi)); 
 	display.drawString(0, 12, recv_to + " < " + recv_from);
 	display.drawString(0, 24, "Ident " + String(recv_ident));
 	display.drawString(0, 36, "Params " + recv_params);
 	display.drawStringMaxWidth(0 , 48, 80, recv_msg); 
 	display.display();
+#endif
 }
-
