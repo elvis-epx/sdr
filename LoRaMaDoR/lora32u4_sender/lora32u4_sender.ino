@@ -9,7 +9,7 @@ const int irqPin = 7;         // change for your board; must be a hardware inter
 
 long int msgCount = 0;            // count of outgoing messages
 long lastSendTime = millis();        // last send time
-int interval = 5000;      
+int interval = 10000;      
 
 #define POWER   20 // dBm
 #define PABOOST 1
@@ -42,7 +42,7 @@ void loop() {
     Serial.println("Preparing");
     sendMessage();
     lastSendTime = millis();
-    interval = 2000;
+    interval = 10000;
   }
 }
 
@@ -55,7 +55,7 @@ unsigned char encoded[MSGSIZE + REDUNDANCY];
 void sendMessage() {
   digitalWrite(LED_BUILTIN, LOW);
 
-  String msg = "QB<PU5EPX:" + String(++msgCount) + " LoRaMaDoR 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 ";
+  String msg = "QB<PU5EPX-3:" + String(++msgCount) + " LoRaMaDoR 73";
   
   memset(message, 0, sizeof(message));
   for(unsigned int i = 0; i < msg.length() && i < MSGSIZE; i++) {

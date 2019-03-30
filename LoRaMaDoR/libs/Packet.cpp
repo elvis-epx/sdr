@@ -13,15 +13,11 @@ static const int MSGSIZE_SHORT = 80;
 static const int MSGSIZE_LONG = 180;
 static const int REDUNDANCY = 20;
 
-RS::ReedSolomon<MSGSIZE_SHORT, REDUNDANCY> rs_short;
-#ifndef __AVR__
 char rs_encoded[MSGSIZE_LONG + REDUNDANCY];
 char rs_decoded[MSGSIZE_LONG];
+
 RS::ReedSolomon<MSGSIZE_LONG, REDUNDANCY> rs_long;
-#else
-char rs_encoded[MSGSIZE_SHORT + REDUNDANCY];
-char rs_decoded[MSGSIZE_SHORT];
-#endif
+RS::ReedSolomon<MSGSIZE_SHORT, REDUNDANCY> rs_short;
 
 static int decode_error;
 
@@ -333,9 +329,6 @@ Packet* Packet::decode_l2(const char *data, unsigned int len)
 		}
 		return decode_l3(rs_decoded, len - REDUNDANCY);
 	} else {
-#ifdef __AVR__
-		return 0;
-#else
 		memcpy(rs_encoded, data, len - REDUNDANCY);
 		memcpy(rs_encoded + MSGSIZE_LONG, data + len - REDUNDANCY, REDUNDANCY);
 		if (rs_long.Decode(rs_encoded, rs_decoded)) {
@@ -343,7 +336,6 @@ Packet* Packet::decode_l2(const char *data, unsigned int len)
 			return 0;
 		}
 		return decode_l3(rs_decoded, len - REDUNDANCY);
-#endif
 	}
 }
 
@@ -452,14 +444,8 @@ Buffer Packet::encode_l2() const
 		rs_short.Encode(rs_decoded, rs_encoded);
 		b.append(rs_encoded + MSGSIZE_SHORT, REDUNDANCY);
 	} else {
-#ifdef __AVR__
-		// truncate packet
-		rs_short.Encode(rs_decoded, rs_encoded);
-		b.append(rs_encoded + MSGSIZE_SHORT, REDUNDANCY);
-#else
 		rs_long.Encode(rs_decoded, rs_encoded);
 		b.append(rs_encoded + MSGSIZE_LONG, REDUNDANCY);
-#endif
 	}
 
 	return b;

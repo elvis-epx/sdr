@@ -1,8 +1,4 @@
-#ifdef __AVR__
-#else
 #include "SSD1306.h"
-#endif
-
 #include "Packet.h"
 #include "Radio.h"
 
@@ -11,7 +7,7 @@ const bool SEND_BEACON = true;
 const bool RECEIVER = true;
 const long int AVG_BEACON_TIME = 10000;
 
-const char *my_prefix = "PU5EPX-3";
+const char *my_prefix = "PU5EPX-1";
 
 long int ident = 0; 
 long nextSendTime = millis() + 1000;
@@ -19,7 +15,6 @@ long nextSendTime = millis() + 1000;
 int recv_pcount = 0;
 int recv_dcount = 0;
 
-#ifndef __AVR__
 SSD1306 display(0x3c, 4, 15);
 
 void display_init()
@@ -36,24 +31,20 @@ void display_init()
 	display.setFont(ArialMT_Plain_10);
 	display.setTextAlignment(TEXT_ALIGN_LEFT);
 }
-#endif
 
 void show_diag(const char *error)
 {
-#ifndef __AVR__
 	display.clear();
 	display.drawString(0, 0, error);
 	display.display();
-#endif
+
 	Serial.println(error);
 }
 
 void setup()
 {
 	Serial.begin(9600);
-#ifndef __AVR__
 	display_init();
-#endif
 
 	if (! setup_lora()) {
 		show_diag("Starting LoRa failed!");
@@ -93,13 +84,11 @@ void show_sent(unsigned long int ident, unsigned int length, long int tx_time)
 	snprintf(msg, sizeof(msg), "%s sent #%ld, %u octets in %ldms", my_prefix, ident, length, tx_time);
 	Serial.println();
 	Serial.println(msg);
-	
-#ifndef __AVR__
+
 	display.clear();
 	display.drawString(0, 0, String(my_prefix) + " sent #" + String(ident));
 	display.drawString(0, 10, String(length) + " bytes in " + String(tx_time) + "ms");
 	display.display();
-#endif
 }
 
 void send_message()
@@ -160,7 +149,6 @@ void recv_show()
 	Serial.println(msg);
 	Serial.println(recv_msg);
 
-#ifndef __AVR__
 	display.clear();
 	display.drawString(0, 0, "Recv #" + String(recv_pcount) + " RSSI " + String(recv_rssi)); 
 	display.drawString(0, 12, recv_to + " < " + recv_from);
@@ -168,5 +156,4 @@ void recv_show()
 	display.drawString(0, 36, "Params " + recv_params);
 	display.drawStringMaxWidth(0 , 48, 80, recv_msg); 
 	display.display();
-#endif
 }
