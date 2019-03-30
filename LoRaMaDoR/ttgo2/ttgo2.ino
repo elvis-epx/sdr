@@ -11,7 +11,7 @@ const bool SEND_BEACON = true;
 const bool RECEIVER = true;
 const long int AVG_BEACON_TIME = 10000;
 
-const char *my_prefix = "PU5EPX-1";
+const char *my_prefix = "PU5EPX-3";
 
 long int ident = 0; 
 long nextSendTime = millis() + 1000;
@@ -55,20 +55,19 @@ void setup()
 	display_init();
 #endif
 
-	if (! setup_lora_ttgo()) {
+	if (! setup_lora()) {
 		show_diag("Starting LoRa failed!");
 		while (1);
 	}
 	show_diag("LoRa ok");
-
-	if (RECEIVER) {
-		activate_rx();
-	}
+	activate_rx();
 }
 
 void activate_rx()
 {
-	lora_rx(onReceive);
+	if (RECEIVER) {
+		lora_rx(onReceive);
+	}
 }
 
 void loop()
@@ -112,9 +111,7 @@ void send_message()
 	Buffer encoded = p.encode_l2();
 
 	long int tx_time = lora_tx(encoded);
-	if (RECEIVER) {
-		activate_rx();
-	}
+	activate_rx();
 
 	show_sent(ident, encoded.length(), tx_time);
 }
@@ -127,8 +124,9 @@ String recv_params;
 String recv_msg;
 
 // interrupt context, don't do too much here
-void onReceive(const char *recv_area, unsigned int plen, int recv_rssi)  
+void onReceive(const char *recv_area, unsigned int plen, int rssi)  
 {
+	recv_rssi = rssi;
 	++recv_pcount;
 	Packet *p = Packet::decode_l2(recv_area, plen);
 	if (!p) {
