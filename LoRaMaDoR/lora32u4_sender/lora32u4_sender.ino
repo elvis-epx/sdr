@@ -1,3 +1,9 @@
+// Use a LoRa32u4 as beacon sender for tests
+// Even though the LoRa32u4 has a better crystal than TTGO
+// and could go down to 31.25kHz bandwidth, the 32u4 can't
+// even load a program with proper packet encoding and decoding,
+// so we need to make veeeery simple to even use 32u4 as a
+// simple beacon for distance reach tests :(
 
 #include <SPI.h>              // include libraries
 #include <LoRa.h>
@@ -70,11 +76,6 @@ void sendMessage() {
   LoRa.write(encoded + MSGSIZE, REDUNDANCY);
 
   digitalWrite(LED_BUILTIN, HIGH);
-  long int t0 = millis();
   LoRa.endPacket();
-  long int t1 = millis();
   digitalWrite(LED_BUILTIN, LOW);
-  long int tm = t1 - t0;
-  long int bps = (msg.length() + REDUNDANCY) * 8L * 1000L / tm;
-  Serial.println("Sent " + String(msg.length() + REDUNDANCY) + " bytes in " + String(t1 - t0) + "ms = " + String(bps) + "bps");
 }
