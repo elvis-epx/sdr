@@ -4,25 +4,27 @@
 #include <string.h>
 #include "Modifier.h"
 
-int Rreqi::modify(const Packet &pkt, const char* callsign, Buffer &msg, Dict& params)
+Packet* Rreqi::modify(const Packet &pkt, const char* callsign)
 {
 	if (strlen(pkt.to()) > 2) {
 		// not QB, QC, etc.
-		if (params.has("RREQ") || params.has("RRSP")) {
-			msg.append("\r\n", 2);
-			msg.append(callsign, strlen(callsign));
-			return Modifier::MSG_MODIFIED;
+		if (pkt.params().has("RREQ") || pkt.params().has("RRSP")) {
+			Buffer new_msg = pkt.msg();
+			new_msg.append("\r\n", 2);
+			new_msg.append(callsign, strlen(callsign));
+			return pkt.change_msg(new_msg);
 		}
 	}
 	return 0;
 }
 
-int RetransBeacon::modify(const Packet &pkt, const char* callsign, Buffer &msg, Dict& params)
+Packet* RetransBeacon::modify(const Packet &pkt, const char* callsign)
 {
 	if ((strcmp(pkt.to(), "QB") == 0) || (strcmp(pkt.to(), "QC") == 0)) {
-		if (! params.has("R")) {
-			params.put("R");
-			return Modifier::PARAMS_MODIFIED;
+		if (! pkt.params().has("R")) {
+			Dict new_params = pkt.params();
+			new_params.put("R");
+			return pkt.change_params(new_params);
 		}
 	}
 	return 0;

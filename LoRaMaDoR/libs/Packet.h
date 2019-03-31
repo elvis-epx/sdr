@@ -23,8 +23,8 @@ struct Packet {
 	Packet& operator=(const Packet &) = delete;
 	bool operator==(const Packet &) = delete;
 
-	Packet change_msg(const Buffer&) const;
-	Packet change_params(const Dict &) const;
+	Packet* change_msg(const Buffer&) const;
+	Packet* change_params(const Dict &) const;
 	Buffer encode_l2() const;
 
 	/* public for unit testing */

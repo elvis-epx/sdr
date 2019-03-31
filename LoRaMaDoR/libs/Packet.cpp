@@ -377,14 +377,14 @@ Packet* Packet::decode_l3(const char* data, unsigned int len)
 	return new Packet(to.rbuf(), from.rbuf(), ident, params, Buffer(msg, msg_len));
 }
 
-Packet Packet::change_msg(const Buffer& msg) const
+Packet* Packet::change_msg(const Buffer& msg) const
 {
-	return Packet(this->to(), this->from(), this->ident(), this->params(), msg);
+	return new Packet(this->to(), this->from(), this->ident(), this->params(), msg);
 }
 
-Packet Packet::change_params(const Dict &new_params) const
+Packet* Packet::change_params(const Dict &new_params) const
 {
-	return Packet(this->to(), this->from(), this->ident(), new_params, this->msg());
+	return new Packet(this->to(), this->from(), this->ident(), new_params, this->msg());
 }
 
 bool encode_param(const Buffer& k, const Buffer *v, void* vs)

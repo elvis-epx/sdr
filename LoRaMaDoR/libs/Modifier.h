@@ -10,19 +10,17 @@
 
 class Modifier {
 public:
-	static const int MSG_MODIFIED = 1;
-	static const int PARAMS_MODIFIED = 2;
-	virtual int modify(const Packet &, const char *, Buffer &, Dict &) = 0;
+	virtual Packet* modify(const Packet &, const char *) = 0;
 };
 
 class Rreqi {
 public:
-	virtual int modify(const Packet &, const char *, Buffer &, Dict &);
+	virtual Packet* modify(const Packet &, const char *) = 0;
 };
 
 class RetransBeacon {
 public:
-	virtual int modify(const Packet &, const char *, Buffer &, Dict &);
+	virtual Packet* modify(const Packet &, const char *) = 0;
 };
 
 #endif
