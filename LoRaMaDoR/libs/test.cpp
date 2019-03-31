@@ -28,10 +28,10 @@ void test2()
 
 	p = Packet::decode_l3("AAAA<BBBB:133,A,B=C bla");
 	assert (p);
-	Packet q = p->change_msg(" ble");
+	Packet q = p->change_msg("bla ble");
 	Dict d = q.params();
 	d.put("E");
-	d.put("F=G");
+	d.put("F", "G");
 	Packet r = p->change_params(d);
 	assert(r.params().has("A"));
 	assert(r.params().has("B"));
@@ -39,14 +39,17 @@ void test2()
 	assert(r.params().get("B"));
 	assert(strcmp(r.params().get("B"), "C") == 0);
 
-	assert(r.params().has("E"));
 	assert(!q.params().has("E"));
-	assert(r.params().get("E") == 0);
 	assert(!q.params().has("F"));
+
+	assert(r.params().has("E"));
+	assert(r.params().get("E") == 0);
+	assert(r.params().has("F"));
+	assert(r.params().get("F"));
 	assert(strcmp(r.params().get("F"), "G") == 0);
 
-	assert(strcmp(q.msg().rbuf(), "bla") == 0);
-	assert(strcmp(r.msg().rbuf(), "bla ble") == 0);
+	assert(strcmp(q.msg().rbuf(), "bla ble") == 0);
+	assert(strcmp(r.msg().rbuf(), "bla") == 0);
 
 	delete p;
 }
