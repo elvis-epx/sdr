@@ -382,11 +382,9 @@ Packet Packet::change_msg(const Buffer& msg) const
 	return Packet(this->to(), this->from(), this->ident(), this->params(), msg);
 }
 
-Packet Packet::append_param(const char* key, const char* value) const
+Packet Packet::change_params(const Dict &new_params) const
 {
-	Dict p = this->params();
-	p.put(key, value);
-	return Packet(this->to(), this->from(), this->ident(), p, this->msg());
+	return Packet(this->to(), this->from(), this->ident(), new_params, this->msg());
 }
 
 bool encode_param(const Buffer& k, const Buffer *v, void* vs)

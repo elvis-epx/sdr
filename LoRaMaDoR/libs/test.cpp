@@ -25,6 +25,30 @@ void test2()
 	assert (!Packet::decode_l3("AAAA<BBBB:133,aaa,,ddd=eee,fff bla"));
 	assert (!Packet::decode_l3("AAAA<BBBB:01 bla"));
 	assert (!Packet::decode_l3("AAAA<BBBB:aa bla"));
+
+	p = Packet::decode_l3("AAAA<BBBB:133,A,B=C bla");
+	assert (p);
+	Packet q = p->change_msg(" ble");
+	Dict d = q.params();
+	d.put("E");
+	d.put("F=G");
+	Packet r = p->change_params(d);
+	assert(r.params().has("A"));
+	assert(r.params().has("B"));
+	assert(! r.params().get("A"));
+	assert(r.params().get("B"));
+	assert(strcmp(r.params().get("B"), "C") == 0);
+
+	assert(r.params().has("E"));
+	assert(!q.params().has("E"));
+	assert(r.params().get("E") == 0);
+	assert(!q.params().has("F"));
+	assert(strcmp(r.params().get("F"), "G") == 0);
+
+	assert(strcmp(q.msg().rbuf(), "bla") == 0);
+	assert(strcmp(r.msg().rbuf(), "bla ble") == 0);
+
+	delete p;
 }
 
 void test3()

@@ -11,5 +11,8 @@ Utility.o: Utility.cpp *.h
 Packet.o: Packet.cpp *.h
 	gcc $(CFLAGS) -c Packet.cpp
 
-test: test.cpp *.h Packet.o Utility.o
+Modifier.o: Modifier.cpp *.h
+	gcc $(CFLAGS) -c Modifier.cpp
+
+test: test.cpp *.h Packet.o Utility.o Modifier.o
 	gcc $(CFLAGS) -o test test.cpp Utility.o Packet.o -lstdc++
