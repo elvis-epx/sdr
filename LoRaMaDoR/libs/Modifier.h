@@ -13,14 +13,14 @@ public:
 	virtual Packet* modify(const Packet &, const char *) = 0;
 };
 
-class Rreqi {
+class Rreqi: public Modifier {
 public:
-	virtual Packet* modify(const Packet &, const char *) = 0;
+	virtual Packet* modify(const Packet &, const char *);
 };
 
-class RetransBeacon {
+class RetransBeacon: public Modifier {
 public:
-	virtual Packet* modify(const Packet &, const char *) = 0;
+	virtual Packet* modify(const Packet &, const char *);
 };
 
 #endif
