@@ -65,7 +65,7 @@ bool setup_lora_common()
 }
 
 char recv_area[255];
-void (*callback)(const char *, unsigned int, int) = 0;
+void (*rx_callback)(const char *, unsigned int, int) = 0;
 
 static void on_receive(int plen)
 {
@@ -73,16 +73,25 @@ static void on_receive(int plen)
 	for (unsigned int i = 0; i < plen && i < sizeof(recv_area); i++) {
 		recv_area[i] = LoRa.read();
 	}
-	if (callback) {
-		callback(recv_area, plen, rssi);
+	if (rx_callback) {
+		rx_callback(recv_area, plen, rssi);
+	}
+}
+
+void lora_resume_rx()
+{
+	if (cb) {
+		LoRa.onReceive(on_receive);
+		LoRa.receive();
+	} else {
+		LoRa.idle();
 	}
 }
 
 void lora_rx(void (*cb)(const char *buf, unsigned int plen, int rssi))
 {
-	callback = cb;
-	LoRa.onReceive(on_receive);
-	LoRa.receive();
+	rx_callback = cb;
+	lora_resume_rx();
 }
 
 int lora_tx(const Buffer& packet)
@@ -92,5 +101,6 @@ int lora_tx(const Buffer& packet)
 	long int t0 = millis();
 	LoRa.endPacket();
 	long int t1 = millis();
+	lora_resume_rx();
 	return t1 - t0;
 }

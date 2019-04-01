@@ -51,11 +51,6 @@ void setup()
 		while (1);
 	}
 	show_diag("LoRa ok");
-	activate_rx();
-}
-
-void activate_rx()
-{
 	if (RECEIVER) {
 		lora_rx(onReceive);
 	}
@@ -98,10 +93,7 @@ void send_message()
 	Buffer msg = "LoRaMaDoR 73.";
 	Packet p = Packet("QB", my_prefix, ident, Dict(), msg);
 	Buffer encoded = p.encode_l2();
-
 	long int tx_time = lora_tx(encoded);
-	activate_rx();
-
 	show_sent(ident, encoded.length(), tx_time);
 }
 
