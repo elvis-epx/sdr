@@ -38,7 +38,7 @@ class DecimalRS:
 
 	def _encode(self, msg):
 		rs_digits = ""
-		for rs_digit in range(0, self.nmk):
+		for rs_digit in range(1, self.nmk + 1):
 			rs_digits += self.calc_rs_digit(msg, rs_digit)
 		return rs_digits
 
@@ -95,11 +95,13 @@ class DecimalRS:
 
 		# If there is a single diff in RS code, the single error is 
 		# in the RS code itself. But, when the code is weakened, this
-		# is not 100% guaranteed, so we need to try to find the error
-		# on the message as well.
+		# is not 100% guaranteed.
 
-		if len(syndromes) == 1 and not self.weakened:
-			return int(base_msg), DecimalRS.DIGIT
+		if len(syndromes) == 1:
+			if not self.weakened:
+				return int(base_msg), DecimalRS.DIGIT
+			else:
+				return int(base_msg), DecimalRS.DIGIT_PROBABLY
 
 		# We can only correct one error, so it is feasible to try all
 		# combinations to see if anyone matches the received RS code
@@ -116,9 +118,6 @@ class DecimalRS:
 		# is good, ***BUT*** it is not 100% certain. The API client
 		# must decide what to do in this case.
 
-		if len(syndromes) == 1:
-			return int(base_msg), DecimalRS.DIGIT_PROBABLY
-
 		return None, DecimalRS.UNCORRECTABLE
 		
 
@@ -126,19 +125,28 @@ if __name__ == "__main__":
 	rs = DecimalRS(7, False)
 	rsw = DecimalRS(7, True)
 	e = rs.encode(3141592)
-	assert (e == "3141592313")
+	assert (e == "3141592134")
 	e = rsw.encode(3141592)
-	assert (e == "3141592313")
+	assert (e == "3141592134")
+	e = rs.encode(3141591)
+	assert (e == "3141591XX7")
+	e = rsw.encode(3141591)
+	assert (e == "3141591007")
 	# No errors
-	assert (rs.decode(3141592313) == (3141592, DecimalRS.NO_ERRORS))
-	assert (rsw.decode(3141592313) == (3141592, DecimalRS.NO_ERRORS))
+	assert (rs.decode(3141592134) == (3141592, DecimalRS.NO_ERRORS))
+	assert (rsw.decode(3141592134) == (3141592, DecimalRS.NO_ERRORS))
+	assert (rs.decode("3141591XX7") == (3141591, DecimalRS.NO_ERRORS))
+	assert (rsw.decode("3141591007") == (3141591, DecimalRS.NO_ERRORS))
 	# Single error in RS code itself
-	assert (rs.decode(3141592312) == (3141592, DecimalRS.DIGIT))
+	assert (rs.decode(3141592133) == (3141592, DecimalRS.DIGIT))
+	assert (rsw.decode(3141592133) == (3141592, DecimalRS.DIGIT_PROBABLY))
 	# Single error in main msg
-	assert (rs.decode(3142592313) == (3141592, DecimalRS.CORRECTED))
+	assert (rs.decode(3142592134) == (3141592, DecimalRS.CORRECTED))
+	assert (rsw.decode(3142592134) == (3141592, DecimalRS.CORRECTED))
 	# Two errors in main msg
-	assert (rs.decode(9142592313) == (None, DecimalRS.UNCORRECTABLE))
+	assert (rs.decode(9142592134) == (None, DecimalRS.UNCORRECTABLE))
+	assert (rsw.decode(9142592134) == (None, DecimalRS.UNCORRECTABLE))
 	# Two errors in RS code itself
-	assert (rs.decode(3141592334) == (None, DecimalRS.UNCORRECTABLE))
+	assert (rs.decode(3141592335) == (None, DecimalRS.UNCORRECTABLE))
 
 	print("Ok")
