@@ -56,13 +56,15 @@ for i in range(0, 10000):
 	elif error_count == 2:
 		if status != DecimalRS.UNCORRECTABLE:
 			false_oks_2 += 1
+			'''
 			print("False ok ", number, encoded, error_count, \
 				corrupted, decoded, status)
+			'''
 		false_oks_2_base += 1
 	else:
 		if status != DecimalRS.UNCORRECTABLE:
 			false_oks += 1
 		false_oks_base += 1
 
-print("False oks: %d of %d multiple-error decodes" % (false_oks, false_oks_base))
-print("False oks: %d of %d two-error decodes" % (false_oks_2, false_oks_2_base))
+print("False oks: %d of %d (%f%%) multiple-error decodes" % (false_oks, false_oks_base, 100.0 * false_oks / false_oks_base))
+print("False oks: %d of %d (%f%%) two-error decodes" % (false_oks_2, false_oks_2_base, 100.0 * false_oks_2 / false_oks_2_base))
