@@ -15,9 +15,10 @@ false_oks_base = 0
 false_oks_2 = 0
 false_oks_2_base = 0
 false_oks_1 = 0
+false_oks_1a = 0
 false_oks_1_base = 0
 
-for i in range(0, 10000):
+for i in range(0, 100000):
 	number = int(random() * 10 ** k)
 	encoded = rs.encode(number)
 	decode_res = rs.decode(encoded)
@@ -54,10 +55,12 @@ for i in range(0, 10000):
 	# This assertion not valid in weakened code
 	# assert(error_count > 2 or status != DecimalRS.NO_ERRORS)
 	if error_count == 1:
-		if decoded == number and (status == DecimalRS.DIGIT or status == DecimalRS.CORRECTED):
+		if decoded is not None and decoded == number:
 			pass
-		else:
+		elif decoded is not None and decoded != number:
 			false_oks_1 += 1
+		elif status == DecimalRS.UNCORRECTABLE:
+			false_oks_1a += 1
 		false_oks_1_base += 1
 	elif error_count == 2:
 		if status != DecimalRS.UNCORRECTABLE:
@@ -72,6 +75,7 @@ for i in range(0, 10000):
 			false_oks += 1
 		false_oks_base += 1
 
-print("False oks: %d of %d (%f%%) multiple-error decodes" % (false_oks, false_oks_base, 100.0 * false_oks / false_oks_base))
-print("False oks: %d of %d (%f%%) two-error decodes" % (false_oks_2, false_oks_2_base, 100.0 * false_oks_2 / false_oks_2_base))
-print("False oks: %d of %d (%f%%) single-error decodes" % (false_oks_1, false_oks_1_base, 100.0 * false_oks_1 / false_oks_1_base))
+print("False corrections: %d of %d (%f%%) multiple-error decodes" % (false_oks, false_oks_base, 100.0 * false_oks / false_oks_base))
+print("False corrections: %d of %d (%f%%) two-error decodes" % (false_oks_2, false_oks_2_base, 100.0 * false_oks_2 / false_oks_2_base))
+print("False corrections: %d of %d (%f%%) single-error decodes" % (false_oks_1, false_oks_1_base, 100.0 * false_oks_1 / false_oks_1_base))
+# print("False uncorrectables: %d of %d (%f%%) single-error decodes" % (false_oks_1a, false_oks_1_base, 100.0 * false_oks_1a / false_oks_1_base))
