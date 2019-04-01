@@ -5,7 +5,7 @@ from random import random
 import sys
 
 k = 7
-weakened = False
+weakened = True
 rs = DecimalRS(k, weakened)
 msg_digits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
 rs_digits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "X"]
@@ -14,6 +14,8 @@ false_oks = 0
 false_oks_base = 0
 false_oks_2 = 0
 false_oks_2_base = 0
+false_oks_1 = 0
+false_oks_1_base = 0
 
 for i in range(0, 10000):
 	number = int(random() * 10 ** k)
@@ -49,9 +51,14 @@ for i in range(0, 10000):
 
 	# Test decoding
 	decoded, status = rs.decode(corrupted)
-	assert(error_count > 2 or status != DecimalRS.NO_ERRORS)
+	# This assertion not valid in weakened code
+	# assert(error_count > 2 or status != DecimalRS.NO_ERRORS)
 	if error_count == 1:
-		assert(decoded == number and (status == DecimalRS.DIGIT or status == DecimalRS.CORRECTED))
+		if decoded == number and (status == DecimalRS.DIGIT or status == DecimalRS.CORRECTED):
+			pass
+		else:
+			false_oks_1 += 1
+		false_oks_1_base += 1
 	elif error_count == 2:
 		if status != DecimalRS.UNCORRECTABLE:
 			false_oks_2 += 1
@@ -67,3 +74,4 @@ for i in range(0, 10000):
 
 print("False oks: %d of %d (%f%%) multiple-error decodes" % (false_oks, false_oks_base, 100.0 * false_oks / false_oks_base))
 print("False oks: %d of %d (%f%%) two-error decodes" % (false_oks_2, false_oks_2_base, 100.0 * false_oks_2 / false_oks_2_base))
+print("False oks: %d of %d (%f%%) single-error decodes" % (false_oks_1, false_oks_1_base, 100.0 * false_oks_1 / false_oks_1_base))

@@ -7,15 +7,13 @@ class DecimalRS:
 	DIGIT_PROBABLY = 3
 	UNCORRECTABLE = 4
 
-	def __init__(self, n, k, weakened):
-		if n > 10 or n < 3:
-			raise Exception("n must be bigger than 2 and smaller than 11")
-		if ((n - k) != 2) and ((n - k) != 3):
-			raise Exception("n-k must be either 2 or 3 in this implementation")
-		# Final size of the encoded message
-		self.n = n
+	def __init__(self, k, weakened):
 		# Size of the original message
 		self.k = k
+		if self.k > 7 or self.k < 1:
+			raise Exception("k must be 1..7")
+		# Final size of the encoded message
+		self.n = k + 3
 		# Size of the redundancy code
 		self.nmk = self.n - self.k
 		# Convert 'X' digits to zero
@@ -57,9 +55,6 @@ class DecimalRS:
 		# Append redundancy code
 		msg = msg + self._encode(msg)
 
-		if self.weakened:
-			# No 'X' digits, so can be returned as number
-			return int(msg)
 		# May have 'X' digits, so must be returned as string
 		return msg
 
@@ -128,12 +123,12 @@ class DecimalRS:
 		
 
 if __name__ == "__main__":
-	rs = DecimalRS(10, 7, False)
-	rsw = DecimalRS(10, 7, True)
+	rs = DecimalRS(7, False)
+	rsw = DecimalRS(7, True)
 	e = rs.encode(3141592)
 	assert (e == "3141592313")
 	e = rsw.encode(3141592)
-	assert (e == 3141592313)
+	assert (e == "3141592313")
 	# No errors
 	assert (rs.decode(3141592313) == (3141592, DecimalRS.NO_ERRORS))
 	assert (rsw.decode(3141592313) == (3141592, DecimalRS.NO_ERRORS))
