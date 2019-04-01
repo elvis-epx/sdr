@@ -1,24 +1,10 @@
-#include <SPI.h>
-#include <LoRa.h>
-#include <Wire.h>
 #include "SSD1306.h"
 #include "Packet.h"
-
-// Pin definetion of WIFI LoRa 32
-// HelTec AutoMation 2017 support@heltec.cn 
-#define SCK     5    // GPIO5  -- SX127x's SCK
-#define MISO    19   // GPIO19 -- SX127x's MISO
-#define MOSI    27   // GPIO27 -- SX127x's MOSI
-#define SS      18   // GPIO18 -- SX127x's CS
-#define RST     14   // GPIO14 -- SX127x's RESET
-#define DI00    26   // GPIO26 -- SX127x's IRQ(Interrupt Request)
-
-#define BAND    916750000  //you can set band here directly,e.g. 868E6,915E6
-#define POWER   20 // dBm
-#define PABOOST 1
+#include "Radio.h"
 
 // use button to toogle this.
 const bool SEND_BEACON = true;
+const bool RECEIVER = true;
 const long int AVG_BEACON_TIME = 10000;
 
 const char *my_prefix = "PU5EPX-1";
@@ -30,87 +16,93 @@ int recv_pcount = 0;
 int recv_dcount = 0;
 
 SSD1306 display(0x3c, 4, 15);
-String rssi = "RSSI --";
-String packSize = "--";
-String packet ;
+
+void display_init()
+{
+	pinMode(16,OUTPUT);
+	pinMode(25,OUTPUT);
+	
+	digitalWrite(16, LOW); // reset
+	delay(50); 
+	digitalWrite(16, HIGH); // keep high while operating display
+
+	display.init();
+	display.flipScreenVertically();
+	display.setFont(ArialMT_Plain_10);
+	display.setTextAlignment(TEXT_ALIGN_LEFT);
+}
+
+void show_diag(const char *error)
+{
+	display.clear();
+	display.drawString(0, 0, error);
+	display.display();
+
+	Serial.println(error);
+}
 
 void setup()
 {
 	Serial.begin(9600);
-	pinMode(16,OUTPUT);
-	pinMode(25,OUTPUT);
-	
-	digitalWrite(16, LOW);    // set GPIO16 low to reset OLED
-	delay(50); 
-	digitalWrite(16, HIGH); // while OLED is running, must set GPIO16 in high
-		
-	SPI.begin(SCK,MISO,MOSI,SS);
-	LoRa.setPins(SS,RST,DI00);
+	display_init();
 
-	display.init();
-  display.flipScreenVertically();
-	display.setFont(ArialMT_Plain_10);
-
-	if (!LoRa.begin(BAND)) {
-		display.drawString(0, 0, "Starting LoRa failed!");
-		display.display();
+	if (! setup_lora()) {
+		show_diag("Starting LoRa failed!");
 		while (1);
 	}
-	
-	LoRa.setTxPower(POWER, PABOOST);
-	LoRa.setSpreadingFactor(9);
-	LoRa.setSignalBandwidth(62500);
-	LoRa.setCodingRate4(5);
-	LoRa.disableCrc();
+	show_diag("LoRa ok");
+	activate_rx();
+}
 
-	display.drawString(0, 0, "LoRa ok");
-	display.display();
-  
-  LoRa.onReceive(onReceive);
-  LoRa.receive();
+void activate_rx()
+{
+	if (RECEIVER) {
+		lora_rx(onReceive);
+	}
 }
 
 void loop()
 {
 	if (SEND_BEACON) {
 		if (millis() > nextSendTime) {
-			sendMessage();
+			send_message();
 			long int next = random(AVG_BEACON_TIME / 2,
 						AVG_BEACON_TIME * 3 / 2);
 			nextSendTime = millis() + next;
-      return;
+			return;
 		}
 	}
-  if (recv_pcount > recv_dcount) {
-    recv_dcount = recv_pcount;
-    recv_show();
-  }
+	if (recv_pcount > recv_dcount) {
+		recv_dcount = recv_pcount;
+		recv_show();
+	}
 }
 
-void sendMessage()
+void show_sent(unsigned long int ident, unsigned int length, long int tx_time)
 {
-  ident %= 999;
-  ++ident;
+	char msg[50];
+	snprintf(msg, sizeof(msg), "%s sent #%ld, %u octets in %ldms", my_prefix, ident, length, tx_time);
+	Serial.println();
+	Serial.println(msg);
+
+	display.clear();
+	display.drawString(0, 0, String(my_prefix) + " sent #" + String(ident));
+	display.drawString(0, 10, String(length) + " bytes in " + String(tx_time) + "ms");
+	display.display();
+}
+
+void send_message()
+{
+	ident %= 999;
+	++ident;
 	Buffer msg = "LoRaMaDoR 73.";
 	Packet p = Packet("QB", my_prefix, ident, Dict(), msg);
 	Buffer encoded = p.encode_l2();
 
-	LoRa.beginPacket();        
-	LoRa.write((uint8_t*) encoded.rbuf(), encoded.length());      
-	long int t0 = millis();
-	LoRa.endPacket();
-	long int t1 = millis();
-  LoRa.receive();
+	long int tx_time = lora_tx(encoded);
+	activate_rx();
 
-	// Serial.println("Send in " + String(t1 - t0) + "ms");
-
-	display.clear();
-	display.setTextAlignment(TEXT_ALIGN_LEFT);
-	display.setFont(ArialMT_Plain_10);
-	display.drawString(0, 0, "Sending #" + String(ident));
-	display.setFont(ArialMT_Plain_10);
-	display.drawString(0, 10, "Sent " + String(encoded.length()) + " bytes in " + String(t1 - t0) + "ms");
-	display.display();
+	show_sent(ident, encoded.length(), tx_time);
 }
 
 int recv_rssi;
@@ -120,44 +112,48 @@ unsigned long int recv_ident;
 String recv_params;
 String recv_msg;
 
-char recv_area[255];
-
-void onReceive(int plen)
+// interrupt context, don't do too much here
+void onReceive(const char *recv_area, unsigned int plen, int rssi)  
 {
-  // Serial.println("onReceive");
-  ++recv_pcount;
-  recv_rssi = LoRa.packetRssi();
-  for (int i = 0; i < plen && i < sizeof(recv_area); i++) {
-    recv_area[i] = LoRa.read();
-  }
-  Packet *p = Packet::decode_l2(recv_area, plen);
-  if (!p) {
-    recv_from = "";
-    recv_to = "";
-    recv_ident = 0;
-    recv_params = "";
-    recv_msg = ">>> Corrupted " + String(Packet::get_decode_error());
-    return;
-  }
-  
-  recv_from = p->from();
-  recv_to = p->to();
-  recv_ident = p->ident();
-  recv_params = p->sparams();
-  recv_msg = p->msg().rbuf();
-  delete p;
+	recv_rssi = rssi;
+	++recv_pcount;
+	Packet *p = Packet::decode_l2(recv_area, plen);
+	if (!p) {
+		recv_from = "";
+		recv_to = "";
+		recv_ident = 0;
+		recv_params = "";
+		recv_msg = ">>> Corrupted " + String(Packet::get_decode_error());
+		return;
+	}
+
+	recv_from = p->from();
+	recv_to = p->to();
+	recv_ident = p->ident();
+	recv_params = p->sparams();
+	recv_msg = p->msg().rbuf();
+	delete p;
 }
 
 void recv_show()
 {
-  display.clear();
-  display.setTextAlignment(TEXT_ALIGN_LEFT);
-  display.setFont(ArialMT_Plain_10);
-  display.drawString(0, 0, "Recv #" + String(recv_pcount) + " RSSI " + String(recv_rssi)); 
-  display.drawString(0, 12, recv_to + " < " + recv_from);
-  display.drawString(0, 24, "Ident " + String(recv_ident));
-  display.drawString(0, 36, "Params " + recv_params);
-  display.drawStringMaxWidth(0 , 48, 80, recv_msg); 
-  display.display();
-}
+	char msg[50];
+	Serial.println();
+	snprintf(msg, sizeof(msg), "Recv #%ld RSSI %d", recv_pcount, recv_rssi);
+	Serial.println(msg);
+	snprintf(msg, sizeof(msg), "%s < %s", recv_to.c_str(), recv_from.c_str());
+	Serial.println(msg);
+	snprintf(msg, sizeof(msg), "Ident %ld", recv_ident);
+	Serial.println(msg);
+	snprintf(msg, sizeof(msg), "Params %s", recv_params.c_str());
+	Serial.println(msg);
+	Serial.println(recv_msg);
 
+	display.clear();
+	display.drawString(0, 0, "Recv #" + String(recv_pcount) + " RSSI " + String(recv_rssi)); 
+	display.drawString(0, 12, recv_to + " < " + recv_from);
+	display.drawString(0, 24, "Ident " + String(recv_ident));
+	display.drawString(0, 36, "Params " + recv_params);
+	display.drawStringMaxWidth(0 , 48, 80, recv_msg); 
+	display.display();
+}

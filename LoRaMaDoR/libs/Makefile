@@ -5,11 +5,8 @@ all: test
 clean:
 	rm -f *.o test
 
-Utility.o: Utility.cpp *.h
-	gcc $(CFLAGS) -c Utility.cpp
+.cpp.o:
+	gcc $(CFLAGS) -c $<
 
-Packet.o: Packet.cpp *.h
-	gcc $(CFLAGS) -c Packet.cpp
-
-test: test.cpp *.h Packet.o Utility.o
-	gcc $(CFLAGS) -o test test.cpp Utility.o Packet.o -lstdc++
+test: test.cpp Handler.o Modifier.o Packet.o Utility.o *.h
+	gcc $(CFLAGS) -o test test.cpp *.o -lstdc++

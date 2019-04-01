@@ -1,4 +1,6 @@
+#ifndef __AVR__
 #include <SPI.h>
+#endif
 #include <LoRa.h>
 #include "Radio.h"
 
@@ -14,13 +16,6 @@
 #define RST     14   // GPIO14 -- SX127x's RESET
 #define DIO0    26   // GPIO26 -- SX127x's IRQ(Interrupt Request)
 
-#define BAND    916750000
-#define POWER   20
-#define PABOOST 1
-#define SPREAD  9
-#define BWIDTH  62500
-#define CR4SLSH 5
-
 #else
 
 #define SS 8
@@ -29,16 +24,28 @@
 
 #endif
 
-bool setup_lora_ttgo()
+/* LoRa parameters */
+#define BAND    916750000
+#define POWER   20
+#define PABOOST 1
+#define SPREAD  9
+#define BWIDTH  62500
+#define CR4SLSH 5
+
+bool setup_lora_common();
+
+#ifndef __AVR__
+bool setup_lora()
 {
 	SPI.begin(SCK, MISO, MOSI, SS);
 	return setup_lora_common();
 }
-
-bool setup_lora_32u4()
+#else
+bool setup_lora()
 {
 	return setup_lora_common();
 }
+#endif
 
 bool setup_lora_common()
 {

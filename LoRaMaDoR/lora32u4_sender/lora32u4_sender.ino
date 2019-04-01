@@ -1,3 +1,9 @@
+// Use a LoRa32u4 as beacon sender for tests
+// Even though the LoRa32u4 has a better crystal than TTGO
+// and could go down to 31.25kHz bandwidth, the 32u4 can't
+// even load a program with proper packet encoding and decoding,
+// so we need to make veeeery simple to even use 32u4 as a
+// simple beacon for distance reach tests :(
 
 #include <SPI.h>              // include libraries
 #include <LoRa.h>
@@ -9,7 +15,7 @@ const int irqPin = 7;         // change for your board; must be a hardware inter
 
 long int msgCount = 0;            // count of outgoing messages
 long lastSendTime = millis();        // last send time
-int interval = 5000;      
+int interval = 10000;      
 
 #define POWER   20 // dBm
 #define PABOOST 1
@@ -42,7 +48,7 @@ void loop() {
     Serial.println("Preparing");
     sendMessage();
     lastSendTime = millis();
-    interval = 2000;
+    interval = 10000;
   }
 }
 
@@ -55,7 +61,7 @@ unsigned char encoded[MSGSIZE + REDUNDANCY];
 void sendMessage() {
   digitalWrite(LED_BUILTIN, LOW);
 
-  String msg = "QB<PU5EPX:" + String(++msgCount) + " LoRaMaDoR 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 ";
+  String msg = "QB<PU5EPX-3:" + String(++msgCount) + " LoRaMaDoR 73";
   
   memset(message, 0, sizeof(message));
   for(unsigned int i = 0; i < msg.length() && i < MSGSIZE; i++) {
@@ -70,11 +76,6 @@ void sendMessage() {
   LoRa.write(encoded + MSGSIZE, REDUNDANCY);
 
   digitalWrite(LED_BUILTIN, HIGH);
-  long int t0 = millis();
   LoRa.endPacket();
-  long int t1 = millis();
   digitalWrite(LED_BUILTIN, LOW);
-  long int tm = t1 - t0;
-  long int bps = (msg.length() + REDUNDANCY) * 8L * 1000L / tm;
-  Serial.println("Sent " + String(msg.length() + REDUNDANCY) + " bytes in " + String(t1 - t0) + "ms = " + String(bps) + "bps");
 }

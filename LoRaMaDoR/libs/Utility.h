@@ -3,6 +3,9 @@
  * Copyright (c) 2019 PU5EPX
  */
 
+#ifndef _UTILITY_H
+#define _UTILITY_H
+
 class Buffer;
 
 class Dict {
@@ -51,3 +54,5 @@ private:
 	char *buf;
 	unsigned int len;
 };
+
+#endif
