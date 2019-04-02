@@ -24,7 +24,7 @@ static int decode_error;
 bool Packet::check_callsign(const Buffer &sbuf)
 {
 	unsigned int length = sbuf.length();
-	const char *s = sbuf.rbuf();
+	const char *s = sbuf.cold();
 
 	if (length < 2) {
 		return false;
@@ -87,7 +87,7 @@ bool Packet::check_callsign(const Buffer &sbuf)
 	return true;
 }
 
-static bool parse_symbol_param(const char *data, unsigned int len, Buffer& key, Buffer*& value)
+static bool parse_symbol_param(const char *data, unsigned int len, Buffer& key, Buffer& value)
 {
 	if (! len) {
 		decode_error = 1;
@@ -136,9 +136,9 @@ static bool parse_symbol_param(const char *data, unsigned int len, Buffer& key, 
 	key = Buffer(data, skey_len);
 
 	if (equal) {
-		value = new Buffer(equal + 1, svalue_len);
+		value = Buffer(equal + 1, svalue_len);
 	} else {
-		value = 0;
+		value = Buffer(None);
 	}
 
 	return true;
@@ -168,7 +168,7 @@ static bool parse_ident_param(const char* s, unsigned int len, unsigned long int
 }
 
 static bool parse_param(const char* data, unsigned int len,
-		unsigned long int &ident, Buffer &key, Buffer *&value)
+		unsigned long int &ident, Buffer &key, Buffer &value)
 {
 	if (! len) {
 		decode_error = 50;
@@ -192,16 +192,16 @@ static bool parse_param(const char* data, unsigned int len,
 }
 
 bool Packet::parse_params(const char* data,
-			unsigned long int &ident, Dict &params)
+			unsigned long int &ident, Params &params)
 {
 	return parse_params(data, strlen(data), ident, params);
 }
 
 bool Packet::parse_params(const char *data, unsigned int len,
-		unsigned long int &ident, Dict &params)
+		unsigned long int &ident, Params &params)
 {
 	ident = 0;
-	params = Dict();
+	params = Params();
 
 	while (len > 0) {
 		unsigned int param_len;
@@ -224,10 +224,9 @@ bool Packet::parse_params(const char *data, unsigned int len,
 
 		unsigned long int tident = 0;
 		Buffer key;
-		Buffer *value = 0;
+		Buffer value;
 
 		if (! parse_param(data, param_len, tident, key, value)) {
-			delete value;
 			return false;
 		}
 		if (tident) {
@@ -247,7 +246,7 @@ bool Packet::parse_params(const char *data, unsigned int len,
 }
 
 static bool decode_preamble(const char* data, unsigned int len,
-		Buffer &to, Buffer &from, unsigned long int& ident, Dict& params)
+		Buffer &to, Buffer &from, unsigned long int& ident, Params& params)
 {
 	const char *d1 = (const char*) memchr(data, '<', len);
 	const char *d2 = (const char*) memchr(data, ':', len);
@@ -287,7 +286,7 @@ static bool decode_preamble(const char* data, unsigned int len,
 }
 
 Packet::Packet(const char* to, const char* from, unsigned long int ident, 
-			const Dict& params, const Buffer& msg): 
+			const Params& params, const Buffer& msg): 
 			_to(to), _from(from), _ident(ident), _params(params), _msg(msg)
 {
 	_sparams = encode_params(_ident, _params);
@@ -295,7 +294,7 @@ Packet::Packet(const char* to, const char* from, unsigned long int ident,
 	_from.uppercase();
 
 	char scratchpad[32];
-	snprintf(scratchpad, 31, "%s:%ld", _from.rbuf(), _ident);
+	snprintf(scratchpad, 31, "%s:%ld", _from.cold(), _ident);
 	_signature = Buffer(scratchpad);
 }
 
@@ -311,7 +310,7 @@ Packet::~Packet()
 {
 }
 
-Packet* Packet::decode_l2(const char *data, unsigned int len)
+Ptr<Packet> Packet::decode_l2(const char *data, unsigned int len)
 {
   decode_error = 0;
 	if (len <= REDUNDANCY || len > (MSGSIZE_LONG + REDUNDANCY)) {
@@ -340,12 +339,12 @@ Packet* Packet::decode_l2(const char *data, unsigned int len)
 }
 
 // just for testing
-Packet* Packet::decode_l3(const char* data)
+Ptr<Packet> Packet::decode_l3(const char* data)
 {
 	return decode_l3(data, strlen(data));
 }
 
-Packet* Packet::decode_l3(const char* data, unsigned int len)
+Ptr<Packet> Packet::decode_l3(const char* data, unsigned int len)
 {
 	const char *preamble = 0;
 	const char *msg = 0;
@@ -367,40 +366,40 @@ Packet* Packet::decode_l3(const char* data, unsigned int len)
 
 	Buffer to;
 	Buffer from;
-	Dict params;
+	Params params;
 	unsigned long int ident = 0;
 
 	if (! decode_preamble(preamble, preamble_len, to, from, ident, params)) {
 		return 0;
 	}
 
-	return new Packet(to.rbuf(), from.rbuf(), ident, params, Buffer(msg, msg_len));
+	return new Packet(to.cold(), from.cold(), ident, params, Buffer(msg, msg_len));
 }
 
-Packet* Packet::change_msg(const Buffer& msg) const
+Ptr<Packet> Packet::change_msg(const Buffer& msg) const
 {
 	return new Packet(this->to(), this->from(), this->ident(), this->params(), msg);
 }
 
-Packet* Packet::change_params(const Dict &new_params) const
+Ptr<Packet> Packet::change_params(const Params&new_params) const
 {
 	return new Packet(this->to(), this->from(), this->ident(), new_params, this->msg());
 }
 
-bool encode_param(const Buffer& k, const Buffer *v, void* vs)
+bool encode_param(const Buffer& k, const Buffer& v, void* vs)
 {
 	char scratchpad[251];
-	Buffer *b = (Buffer*) vs;
-	if (v) {
-		snprintf(scratchpad, sizeof(scratchpad) - 1, ",%s=%s", k.rbuf(), v->rbuf());
+	if (! v.str_equal(None)) {
+		snprintf(scratchpad, sizeof(scratchpad) - 1, ",%s=%s", k.cold(), v.cold());
 	} else {
-		snprintf(scratchpad, sizeof(scratchpad) - 1, ",%s", k.rbuf());
+		snprintf(scratchpad, sizeof(scratchpad) - 1, ",%s", k.cold());
 	}
+	Buffer *b = (Buffer*) vs;
 	b->append(scratchpad, strlen(scratchpad));
 	return true; // do not stop foreach
 }
 
-Buffer Packet::encode_params(unsigned long int ident, const Dict &params)
+Buffer Packet::encode_params(unsigned long int ident, const Params &params)
 {
 	char sident[20];
 	sprintf(sident, "%ld", ident);
@@ -413,21 +412,21 @@ Buffer Packet::encode_l3() const
 {
 	unsigned int len = _to.length() + 1 + _from.length() + 1 + _sparams.length() + 1 + _msg.length();
 	Buffer b(len);
-	char *w = b.wbuf();
+	char *w = b.hot();
 
 	for (unsigned int i = 0; i < _to.length(); ++i) {
-		*w++ = _to.rbuf()[i];
+		*w++ = _to.cold()[i];
 	}
 	*w++ = '<';
 	for (unsigned int i = 0; i < _from.length(); ++i) {
-		*w++ = _from.rbuf()[i];
+		*w++ = _from.cold()[i];
 	}
 	*w++ = ':';
 	for (unsigned int i = 0; i < _sparams.length(); ++i) {
-		*w++ = _sparams.rbuf()[i];
+		*w++ = _sparams.cold()[i];
 	}
 	*w++ = ' ';
-	memcpy(w, _msg.rbuf(), _msg.length());
+	memcpy(w, _msg.cold(), _msg.length());
 
 	return b;
 }
@@ -437,7 +436,7 @@ Buffer Packet::encode_l2() const
 	Buffer b = encode_l3();
 
 	memset(rs_decoded, 0, sizeof(rs_decoded));
-	memcpy(rs_decoded, b.rbuf(), b.length());
+	memcpy(rs_decoded, b.cold(), b.length());
 	if (b.length() <= MSGSIZE_SHORT) {
 		rs_short.Encode(rs_decoded, rs_encoded);
 		b.append(rs_encoded + MSGSIZE_SHORT, REDUNDANCY);
@@ -451,7 +450,7 @@ Buffer Packet::encode_l2() const
 
 const char* Packet::signature() const
 {
-	return _signature.rbuf();
+	return _signature.cold();
 }
 
 bool Packet::is_dup(const Packet& other) const
@@ -463,22 +462,22 @@ Buffer Packet::repr() const
 {
 	char scratchpad[255];
 	snprintf(scratchpad, 254, "pkt %s < %s : %s msg %s",
-		_to.rbuf(), _from.rbuf(), _sparams.rbuf(), _msg.rbuf());
+		_to.cold(), _from.cold(), _sparams.cold(), _msg.cold());
 	return Buffer(scratchpad);
 }
 const char* Packet::to() const
 {
-	return _to.rbuf();
+	return _to.cold();
 }
 
 const char* Packet::from() const
 {
-	return _from.rbuf();
+	return _from.cold();
 }
 
 const char* Packet::sparams() const
 {
-  return _sparams.rbuf();
+  return _sparams.cold();
 }
 
 unsigned long int Packet::ident() const
@@ -486,7 +485,7 @@ unsigned long int Packet::ident() const
 	return _ident;
 }
 
-const Dict& Packet::params() const
+const Params& Packet::params() const
 {
 	return _params;
 }

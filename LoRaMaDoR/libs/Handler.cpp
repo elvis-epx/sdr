@@ -8,8 +8,8 @@ Packet* Ping::handle(const Packet &pkt, const char* callsign)
 {
 	Packet *ret = 0;
 	if (strlen(pkt.to()) > 2 && pkt.params().has("PING")) {
-		Dict pong = Dict();
-		pong.put("PONG");
+		Params pong = Params();
+		pong.put("PONG", None);
 		ret = new Packet(pkt.from(), callsign, pkt.ident(), pong, pkt.msg());
 	}
 	return ret;
@@ -21,8 +21,8 @@ Packet* Rreq::handle(const Packet &pkt, const char* callsign)
 	if (strlen(pkt.to()) > 2 && pkt.params().has("RREQ")) {
 		Buffer msg = pkt.msg();
 		msg.append("\r\n", 2);
-		Dict rrsp = Dict();
-		rrsp.put("RRSP");
+		Params rrsp = Params();
+		rrsp.put("RRSP", None);
 		ret = new Packet(pkt.from(), callsign, pkt.ident(), rrsp, msg);
 	}
 	return ret;

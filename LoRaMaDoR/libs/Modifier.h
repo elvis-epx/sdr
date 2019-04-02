@@ -10,17 +10,17 @@
 
 class Modifier {
 public:
-	virtual Packet* modify(const Packet &, const char *) = 0;
+	virtual Ptr<Packet> modify(const Packet &, const char *) = 0;
 };
 
 class Rreqi: public Modifier {
 public:
-	virtual Packet* modify(const Packet &, const char *);
+	virtual Ptr<Packet> modify(const Packet &, const char *);
 };
 
 class RetransBeacon: public Modifier {
 public:
-	virtual Packet* modify(const Packet &, const char *);
+	virtual Ptr<Packet> modify(const Packet &, const char *);
 };
 
 #endif

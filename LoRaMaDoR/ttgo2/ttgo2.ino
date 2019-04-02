@@ -91,7 +91,7 @@ void send_message()
 	ident %= 999;
 	++ident;
 	Buffer msg = "LoRaMaDoR 73.";
-	Packet p = Packet("QB", my_prefix, ident, Dict(), msg);
+	Packet p = Packet("QB", my_prefix, ident, Params(), msg);
 	Buffer encoded = p.encode_l2();
 	long int tx_time = lora_tx(encoded);
 	show_sent(ident, encoded.length(), tx_time);
@@ -109,7 +109,7 @@ void onReceive(const char *recv_area, unsigned int plen, int rssi)
 {
 	recv_rssi = rssi;
 	++recv_pcount;
-	Packet *p = Packet::decode_l2(recv_area, plen);
+	Ptr<Packet> p = Packet::decode_l2(recv_area, plen);
 	if (!p) {
 		recv_from = "";
 		recv_to = "";
@@ -123,8 +123,7 @@ void onReceive(const char *recv_area, unsigned int plen, int rssi)
 	recv_to = p->to();
 	recv_ident = p->ident();
 	recv_params = p->sparams();
-	recv_msg = p->msg().rbuf();
-	delete p;
+	recv_msg = p->msg().cold();
 }
 
 void recv_show()

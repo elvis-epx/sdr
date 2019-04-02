@@ -4,7 +4,7 @@
 #include <string.h>
 #include "Modifier.h"
 
-Packet* Rreqi::modify(const Packet &pkt, const char* callsign)
+Ptr<Packet> Rreqi::modify(const Packet &pkt, const char* callsign)
 {
 	if (strlen(pkt.to()) > 2) {
 		// not QB, QC, etc.
@@ -18,12 +18,12 @@ Packet* Rreqi::modify(const Packet &pkt, const char* callsign)
 	return 0;
 }
 
-Packet* RetransBeacon::modify(const Packet &pkt, const char* callsign)
+Ptr<Packet> RetransBeacon::modify(const Packet &pkt, const char* callsign)
 {
 	if ((strcmp(pkt.to(), "QB") == 0) || (strcmp(pkt.to(), "QC") == 0)) {
 		if (! pkt.params().has("R")) {
-			Dict new_params = pkt.params();
-			new_params.put("R");
+			Params new_params = pkt.params();
+			new_params.put("R", None);
 			return pkt.change_params(new_params);
 		}
 	}

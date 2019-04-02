@@ -80,7 +80,7 @@ static void on_receive(int plen)
 
 void lora_resume_rx()
 {
-	if (cb) {
+	if (rx_callback) {
 		LoRa.onReceive(on_receive);
 		LoRa.receive();
 	} else {
@@ -97,7 +97,7 @@ void lora_rx(void (*cb)(const char *buf, unsigned int plen, int rssi))
 int lora_tx(const Buffer& packet)
 {
 	LoRa.beginPacket();        
-	LoRa.write((uint8_t*) packet.rbuf(), packet.length());      
+	LoRa.write((uint8_t*) packet.cold(), packet.length());      
 	long int t0 = millis();
 	LoRa.endPacket();
 	long int t1 = millis();

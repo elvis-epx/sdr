@@ -6,80 +6,74 @@
 void test2()
 {
 	printf("---\n");
-	Packet *p = Packet::decode_l3("AAAA<BBBB:133");
-	assert (p);
+	Ptr<Packet> p = Packet::decode_l3("AAAA<BBBB:133");
+	assert (!!p);
 	assert (p->msg().length() == 0);
-	delete p;
 
 	p = Packet::decode_l3("AAAA-12<BBBB:133 ee");
-	assert (p);
-	assert (strcmp("ee", p->msg().rbuf()) == 0);
+	assert (!!p);
+	assert (strcmp("ee", p->msg().cold()) == 0);
+	assert (p->msg().str_equal("ee"));
 	assert (strcmp(p->to(), "AAAA-12") == 0);
-	delete p;
 	
 	assert (!Packet::decode_l3("AAAA:BBBB<133"));
 	p = Packet::decode_l3("AAAA<BBBB:133,aaa,bbb=ccc,ddd=eee,fff bla");
-	assert (p);
-	delete p;
+	assert (!!p);
 
 	assert (!Packet::decode_l3("AAAA<BBBB:133,aaa,,ddd=eee,fff bla"));
 	assert (!Packet::decode_l3("AAAA<BBBB:01 bla"));
 	assert (!Packet::decode_l3("AAAA<BBBB:aa bla"));
 
 	p = Packet::decode_l3("AAAA<BBBB:133,A,B=C bla");
-	assert (p);
-	Packet* q = p->change_msg("bla ble");
-	Dict d = q->params();
-	d.put("E");
+	assert (!!p);
+	Ptr<Packet> q = p->change_msg("bla ble");
+	Params d = q->params();
+	d.put("E", None);
 	d.put("F", "G");
-	Packet* r = p->change_params(d);
+	Ptr<Packet> r = p->change_params(d);
 	assert(r->params().has("A"));
 	assert(r->params().has("B"));
-	assert(! r->params().get("A"));
-	assert(r->params().get("B"));
-	assert(strcmp(r->params().get("B"), "C") == 0);
+	assert(r->params().get("A").str_equal(None));
+	assert(! r->params().get("B").str_equal(None));
+	assert(r->params().get("B").str_equal("C"));
 
 	assert(!q->params().has("E"));
 	assert(!q->params().has("F"));
 
 	assert(r->params().has("E"));
-	assert(r->params().get("E") == 0);
+	assert(r->params().get("E").str_equal(None));
 	assert(r->params().has("F"));
-	assert(r->params().get("F"));
-	assert(strcmp(r->params().get("F"), "G") == 0);
+	assert(! r->params().get("F").str_equal(None));
+	assert(strcmp(r->params().get("F").cold(), "G") == 0);
 
-	assert(strcmp(q->msg().rbuf(), "bla ble") == 0);
-	assert(strcmp(r->msg().rbuf(), "bla") == 0);
-
-	delete p;
-	delete q;
-	delete r;
+	assert(strcmp(q->msg().cold(), "bla ble") == 0);
+	assert(strcmp(r->msg().cold(), "bla") == 0);
 }
 
 void test3()
 {
 	unsigned long int ident;
-	Dict params;
+	Params params;
 
 	assert(Packet::parse_params("1234", ident, params));
 	assert (ident == 1234);
 	assert(Packet::parse_params("1235,abc", ident, params));
 	assert (ident == 1235);
 	assert(params.has("ABC"));
-	assert(params.get("ABC") == 0);
+	assert(params.get("ABC").str_equal(None));
 
 	assert(Packet::parse_params("1236,abc,def=ghi", ident, params));
 	assert (ident == 1236);
 	assert(params.has("ABC"));
 	assert(params.has("DEF"));
-	assert(strcmp(params.get("DEF"), "ghi") == 0);
+	assert(strcmp(params.get("DEF").cold(), "ghi") == 0);
 	assert(params.count() == 2);
 
 	assert(Packet::parse_params("def=ghi,1239", ident, params));
 	assert (ident == 1239);
 	assert (params.count() == 1);
 	assert (params.has("DEF"));
-	assert (strcmp(params.get("DEF"), "ghi") == 0);
+	assert (strcmp(params.get("DEF").cold(), "ghi") == 0);
 
 	assert (!Packet::parse_params("123a", ident, params));
 	assert (!Packet::parse_params("0123", ident, params));
@@ -119,44 +113,43 @@ int main()
 
 	Buffer bb("abcde");
 	assert (bb.length() == 5);
-	assert (strcmp(bb.rbuf(), "abcde") == 0);
+	assert (strcmp(bb.cold(), "abcde") == 0);
 
-	Dict d;
-	d.put("x");
+	Params d;
+	d.put("x", None);
 	d.put("y", "456");
 	Packet p = Packet("aaAA", "BBbB", 123, d, Buffer("bla ble"));
 	Buffer spl3 = p.encode_l3();
 	Buffer spl2 = p.encode_l2();
 
-	printf("'%s'\n", spl3.rbuf());
-	assert (strcmp(spl3.rbuf(), "AAAA<BBBB:123,X,Y=456 bla ble") == 0);
+	printf("'%s'\n", spl3.cold());
+	assert (strcmp(spl3.cold(), "AAAA<BBBB:123,X,Y=456 bla ble") == 0);
 	printf("---\n");
-	Packet* q = Packet::decode_l2(spl2.rbuf(), spl2.length());
+	Ptr<Packet> q = Packet::decode_l2(spl2.cold(), spl2.length());
 	assert (q);
-	delete q;
 
 	/* Corrupt some chars */
-	spl2.wbuf()[1] = 66;
-	spl2.wbuf()[3] = 66;
-	spl2.wbuf()[7] = 66;
-	spl2.wbuf()[9] = 66;
-	spl2.wbuf()[12] = 66;
-	spl2.wbuf()[15] = 66;
-	spl2.wbuf()[33] = 66;
-	spl2.wbuf()[40] = 66;
-	q = Packet::decode_l2(spl2.rbuf(), spl2.length());
+	spl2.hot()[1] = 66;
+	spl2.hot()[3] = 66;
+	spl2.hot()[7] = 66;
+	spl2.hot()[9] = 66;
+	spl2.hot()[12] = 66;
+	spl2.hot()[15] = 66;
+	spl2.hot()[33] = 66;
+	spl2.hot()[40] = 66;
+	q = Packet::decode_l2(spl2.cold(), spl2.length());
 	assert (q);
 
 	/* Corrupt too many chars */
-	spl2.wbuf()[2] = 66;
-	spl2.wbuf()[5] = 66;
-	spl2.wbuf()[6] = 66;
-	spl2.wbuf()[8] = 66;
-	spl2.wbuf()[10] = 66;
-	spl2.wbuf()[11] = 66;
-	spl2.wbuf()[13] = 66;
-	spl2.wbuf()[39] = 66;
-	assert(! Packet::decode_l2(spl2.rbuf(), spl2.length()));
+	spl2.hot()[2] = 66;
+	spl2.hot()[5] = 66;
+	spl2.hot()[6] = 66;
+	spl2.hot()[8] = 66;
+	spl2.hot()[10] = 66;
+	spl2.hot()[11] = 66;
+	spl2.hot()[13] = 66;
+	spl2.hot()[39] = 66;
+	assert(! Packet::decode_l2(spl2.cold(), spl2.length()));
 
 	assert (p.is_dup(*q));
 	assert (q->is_dup(p));
@@ -166,9 +159,8 @@ int main()
 	assert (q->params().has("X"));
 	assert (q->params().has("Y"));
 	assert (! q->params().has("Z"));
-	assert (strcmp(q->params().get("Y"), "456") == 0);
-	assert (! q->params().get("X"));
-	delete q;
+	assert (strcmp(q->params().get("Y").cold(), "456") == 0);
+	assert (q->params().get("X").str_equal(None));
 
 	test2();
 
