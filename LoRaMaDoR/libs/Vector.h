@@ -32,6 +32,8 @@
 #ifndef VECTOR_H
 #define VECTOR_H JUN_2014
 
+#include <stddef.h>
+
 //as far as I can tell placement new is not included with AVR or arduino.h
 template<typename T>
 void* operator new(size_t s, T* v){
@@ -64,15 +66,11 @@ class Vector {
 	
 	A alloc;
 	
-	int sz;
+	unsigned int sz;
 	T* elem;
-	int space;
-	
-	Vector(const Vector&);			//private copy constrution because I
-									//have not got this working yet and don't
-									//want to expose this for clients who might
-									//be expecting it.
-	
+	unsigned int space;
+	Vector(const Vector&);
+
 public:
 	Vector() : sz(0), elem(0), space(0) {}
 	Vector(const int s) : sz(0) {
@@ -82,16 +80,17 @@ public:
 	Vector& operator=(const Vector&);	//copy assignment
 	
 	~Vector() { 
-		for(int i=0; i<sz; ++i) alloc.destroy(&elem[i]);
+		for(unsigned int i=0; i<sz; ++i) alloc.destroy(&elem[i]);
+		alloc.deallocate(elem, space);
 	}
 	
 	T& operator[](int n) { return elem[n]; }
 	const T& operator[](int n) const { return elem[n]; }
 	
-	int size() const { return sz; }
-	int capacity() const { return space; }
+	unsigned int size() const { return sz; }
+	unsigned int capacity() const { return space; }
 	
-	void reserve(int newalloc);
+	void reserve(unsigned int newalloc);
 	void push_back(const T& val);
 	void remov(int pos);
 };
@@ -100,27 +99,22 @@ template<class T, class A>
 Vector<T, A>& Vector<T, A>::operator=(const Vector& a) {
 	if(this==&a) return *this;
 	
-	if(a.size()<=space) {	//enough space, no need for new allocation
-		for(int i=0; i<a.size(); ++i) elem[i]=a[i];
-		sz = a.size();
-		return *this;
-	}
-	
 	T* p = alloc.allocate(a.size());		//get new memory 
-	for(int i=0; i<a.size(); ++i) {
+	for(unsigned int i=0; i<a.size(); ++i) {
 		alloc.construct(&p[i], a[i]);	//copy
 	}
-	for(int i=0; i<sz; ++i) alloc.destroy(&elem[i]);
+	for(unsigned int i=0; i<sz; ++i) alloc.destroy(&elem[i]);
+	alloc.deallocate(elem, space);
 	space = sz = a.size();
 	elem = p;
 	return *this;
 }
 
-template<class T, class A> void Vector<T, A>::reserve(int newalloc){
+template<class T, class A> void Vector<T, A>::reserve(unsigned int newalloc){
 	if(newalloc <= space) return;		                    //never decrease space
 	T* p = alloc.allocate(newalloc);
-	for(int i=0; i<sz; ++i) alloc.construct(&p[i], elem[i]);	//copy
-	for(int i=0; i<sz; ++i) alloc.destroy(&elem[i]);
+	for(unsigned int i=0; i<sz; ++i) alloc.construct(&p[i], elem[i]);	//copy
+	for(unsigned int i=0; i<sz; ++i) alloc.destroy(&elem[i]);
 	alloc.deallocate(elem, space);
 	elem = p;
 	space = newalloc;	
