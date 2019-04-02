@@ -23,6 +23,7 @@ public:
 	char* hot();
 	void uppercase();
 	bool str_equal(const char *cmp) const;
+	int strcmp(const char *cmp) const;
 	void append(const char *s, unsigned int length);
 
 private:

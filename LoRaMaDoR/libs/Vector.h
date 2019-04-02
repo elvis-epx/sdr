@@ -1,36 +1,11 @@
-//*********************************************************************************
-//    Lightweight Arduino Compatible implementation of key STL Vector methods
-//*********************************************************************************
 //
+// Based on Vector frm
 // Zac Staples
 // zacstaples (at) mac (dot) com
 //
-// 13 June 2014...Friday the 13th...therfore this is probably broken
-//
-// I needed a data structure to hold refernces and/or pointers as a data
-// member of an abstract class for sensors on my robot.  That's the point
-// I decided I wanted the basic implementation of the STL vector available 
-// to me in my Arduino sketches.  This is not a complete implementation of
-// the STL vector, but is designed to be "good enough" to take sketches
-// further into OOP.
-//
-// Based on Stroustrup's basic implementation of vector in Programming 3rd
-// edition page 656 and his Simple allocator from The c++ programming 
-// language, 4th edition.  However, I needed info from the following sources
-// to implement to allocator to correctly handle placement new in 
-// the AVR/Arduino environment.
-//
-// http://www.codeproject.com/Articles/4795/C-Standard-Allocator-An-Introduction-and-Implement
-// http://www.glenmccl.com/nd_cmp.htm
-// http://www.sourcetricks.com/2008/05/c-placement-new.html#.U5yJF41dW0Q
-// http://stackoverflow.com/questions/9805829/arduino-c-destructor
-// http://arduino.land/FAQ/index.php?solution_id=1023
-//
-// Released on the beer license...if this works for you...then remember my
-// name an buy me a beer sometime.
 
-#ifndef VECTOR_H
-#define VECTOR_H JUN_2014
+#ifndef __VECTOR_H
+#define __VECTOR_H
 
 #include <stddef.h>
 
@@ -65,6 +40,7 @@ public:
 	void reserve(unsigned int newalloc);
 	void push_back(const T& val);
 	void remov(unsigned int pos);
+	void insert(unsigned int pos, const T& val);
 };
 
 template<class T> 
@@ -139,6 +115,24 @@ void Vector<T>::push_back(const T& val){
 	else if(sz==space) reserve(2*space);
 	elem[sz] = new T(val);
 	++sz;
+}
+
+template<class T> 
+void Vector<T>::insert(unsigned int pos, const T& val){
+	if (pos >= sz || pos < 0) {
+		push_back(val);
+		return;
+	}
+
+	if(space == 0) reserve(4);
+	else if(sz==space) reserve(2*space);
+
+	// move pointers
+	for (unsigned int i = sz; i > pos; --i) {
+		elem[i] = elem[i-1];
+	}
+	++sz;
+	elem[pos] = new T(val);
 }
 
 #endif

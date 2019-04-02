@@ -51,17 +51,18 @@ public:
 		key.uppercase();
 
 		int pos = indexOf(key.cold());
-		bool ret = false;
+		bool new_key = pos <= -1;
 
-		if (pos <= -1) {
-			keys.push_back(key);
-			values.push_back(value);
+		if (new_key) {
+			int insertion_pos = indexOf(key.cold(), 0, keys.size(), false);
+			keys.insert(insertion_pos, key);
+			values.insert(insertion_pos, value);
 		} else {
 			keys[pos] = key;	
 			values[pos] = value;
 		}
 	
-		return ret;
+		return new_key;
 	}
 
 	int count() const {
@@ -76,17 +77,45 @@ public:
 		}
 	}
 
+	int indexOf(const char *key, unsigned int from, unsigned int to, bool exact) const {
+		if ((to - from) <= 3) {
+			// linear search
+			for (unsigned int i = from; i < to; ++i) {
+				int cmp = keys[i].strcmp(key);
+				if (cmp == 0) {
+					// good for exact and non-exact queriers
+					return i;
+				} else if ((! exact) && (cmp < 0)) {
+					// non-exact, looks for insertion point
+					return i;
+				}
+			}
+
+			return exact ? -1 : to;
+		}
+
+		// recursive binary search
+		unsigned int middle = (from + to) / 2;
+		int cmp = keys[middle].strcmp(key);
+		if (cmp == 0) {
+			return middle;
+		} else if (cmp < 0) {
+			// key A, middle key N, look into left
+			return indexOf(key, from, middle, exact);
+		} else {
+			// key Z, middle key N, look into right 
+			return indexOf(key, middle + 1, to, exact);
+		}
+
+		return -1;
+	}
+
 	int indexOf(const Buffer &key) const {
-		return indexOf(key.cold());
+		return indexOf(key.cold(), true);
 	}
 
 	int indexOf(const char *key) const {
-		for (unsigned int i = 0; i < keys.size(); ++i) {
-			if (keys[i].str_equal(key)) {
-				return i;
-			}
-		}
-		return -1;
+		return indexOf(key, 0, keys.size(), true);
 	}
 
 private:

@@ -131,5 +131,10 @@ void Buffer::uppercase()
 
 bool Buffer::str_equal(const char *cmp) const
 {
-	return strcmp(buf, cmp) == 0;
+	return strncmp(cmp, buf, len) == 0;
+}
+
+int Buffer::strcmp(const char *cmp) const
+{
+	return strncmp(cmp, buf, len);
 }

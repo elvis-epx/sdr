@@ -60,6 +60,7 @@ void test3()
 	assert(Packet::parse_params("1235,abc", ident, params));
 	assert (ident == 1235);
 	assert(params.has("ABC"));
+	printf("ABC=%s\n", params.get("ABC").cold());
 	assert(params.get("ABC").str_equal(None));
 
 	assert(Packet::parse_params("1236,abc,def=ghi", ident, params));
