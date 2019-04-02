@@ -34,11 +34,22 @@ public:
 		return indexOf(key) != -1;
 	}
 
-	T get(const char* key) const {
+	const T& get(const char* key) const {
 		return values[indexOf(key)];
 	}
 
-	T get(const Buffer& key) const {
+	const T& operator[](const char* key) const {
+		return values[indexOf(key)];
+	}
+
+	const T& get(const Buffer& key) const {
+		return values[indexOf(key)];
+	}
+
+	T& operator[](const char* key) {
+		if (!has(key)) {
+			put(key, T());
+		}
 		return values[indexOf(key)];
 	}
 

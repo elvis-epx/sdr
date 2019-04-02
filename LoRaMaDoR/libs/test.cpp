@@ -104,6 +104,31 @@ void test4()
 	assert(a[1].str_equal("D"));
 }
 
+void test5()
+{
+	Dict<int> a;
+	a["B"] = 2;
+	a["Z"] = 26;
+	a["A"] = 1;
+	a["D"] = 4;
+	a["G"] = 7;
+	a["F"] = 6;
+
+	assert(a["B"] == 2);
+	assert(a["Z"] == 26);
+	assert(a["A"] == 1);
+	assert(a["D"] == 4);
+	assert(a["G"] == 7);
+	assert(a["F"] == 6);
+
+	assert(a.indexOf("A") == 0);
+	assert(a.indexOf("B") == 1);
+	assert(a.indexOf("D") == 2);
+	assert(a.indexOf("F") == 3);
+	assert(a.indexOf("G") == 4);
+	assert(a.indexOf("Z") == 5);
+}
+
 int main()
 {
 	assert (!Packet::check_callsign("Q"));
@@ -177,6 +202,7 @@ int main()
 
 	test2();
 	test4();
+	test5();
 
 	printf("Autotest ok\n");
 }
