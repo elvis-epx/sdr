@@ -34,40 +34,10 @@
 
 #include <stddef.h>
 
-//as far as I can tell placement new is not included with AVR or arduino.h
-template<typename T>
-void* operator new(size_t s, T* v){
-	return v;
-}
-
-//*********************************************************************************
-//                               Allocator for Vector
-//*********************************************************************************
-template<typename T> struct Simple_alloc {
-
-	Simple_alloc() {};
-
-	//memory allocation
-	T* allocate(int n)
-		{ return reinterpret_cast<T*>(new char[n*sizeof(T)]); }
-	void deallocate(T* p, int n)
-		{ delete[] reinterpret_cast<char*>(p); }
-
-	//construction/destruction
-	void construct(T* p, const T& t) { new(p) T(t); }  
-	void destroy(T* p) { p->~T(); }	
-};
-
-//*********************************************************************************
-//                               Vector
-//*********************************************************************************
-template<class T, class A = Simple_alloc<T> > 
+template<class T>
 class Vector {
-	
-	A alloc;
-	
 	unsigned int sz;
-	T* elem;
+	T** elem;
 	unsigned int space;
 	Vector(const Vector&);
 
@@ -77,65 +47,97 @@ public:
 		reserve(s);
 	}
 	
-	Vector& operator=(const Vector&);	//copy assignment
+	Vector& operator=(const Vector&);
+	Vector& operator=(Vector&&);
+	Vector(const Vector&&);
 	
 	~Vector() { 
-		for(unsigned int i=0; i<sz; ++i) alloc.destroy(&elem[i]);
-		alloc.deallocate(elem, space);
+		clear();
 	}
 	
-	T& operator[](int n) { return elem[n]; }
-	const T& operator[](int n) const { return elem[n]; }
+	void clear();
+	T& operator[](int n) { return *elem[n]; }
+	const T& operator[](int n) const { return *elem[n]; }
 	
 	unsigned int size() const { return sz; }
 	unsigned int capacity() const { return space; }
 	
 	void reserve(unsigned int newalloc);
 	void push_back(const T& val);
-	void remov(int pos);
+	void remov(unsigned int pos);
 };
 
-template<class T, class A> 
-Vector<T, A>& Vector<T, A>::operator=(const Vector& a) {
-	if(this==&a) return *this;
-	
-	T* p = alloc.allocate(a.size());		//get new memory 
-	for(unsigned int i=0; i<a.size(); ++i) {
-		alloc.construct(&p[i], a[i]);	//copy
-	}
-	for(unsigned int i=0; i<sz; ++i) alloc.destroy(&elem[i]);
-	alloc.deallocate(elem, space);
+template<class T> 
+Vector<T>& Vector<T>::operator=(const Vector& a) {
+	if (this==&a) return *this;
+
+	clear();
+
+	// new array
+	elem = new T*[a.size()];
 	space = sz = a.size();
-	elem = p;
+
+	// copy elements
+	for(unsigned int i=0; i < sz; ++i) {
+		elem[i] = new T(a[i]);
+	}
+
 	return *this;
 }
 
-template<class T, class A> void Vector<T, A>::reserve(unsigned int newalloc){
-	if(newalloc <= space) return;		                    //never decrease space
-	T* p = alloc.allocate(newalloc);
-	for(unsigned int i=0; i<sz; ++i) alloc.construct(&p[i], elem[i]);	//copy
-	for(unsigned int i=0; i<sz; ++i) alloc.destroy(&elem[i]);
-	alloc.deallocate(elem, space);
+template<class T> 
+void Vector<T>::clear()
+{
+	for (unsigned int i=0; i<sz; ++i) delete elem[i];
+	delete [] elem;
+	elem = 0;
+	sz = space = 0;
+}
+
+template<class T> 
+Vector<T>& Vector<T>::operator=(Vector&& a) {
+	if(this==&a) return *this;
+
+	clear();
+
+	elem = a.elem;
+	sz = a.sz;
+	space = a.sz;
+
+	a.elem = 0;
+	a.sz = 0;
+	a.space = 0;
+}
+
+template<class T> void Vector<T>::reserve(unsigned int newalloc){
+	if(newalloc <= space) return;
+
+	T** p = new T*[newalloc];
+	if (elem) {
+		memcpy(p, elem, sizeof(T*) * sz);
+		delete [] elem;
+	}
 	elem = p;
 	space = newalloc;	
 }
 
-template<class T, class A> void
-Vector<T, A>::remov(int pos){
+template<class T> void
+Vector<T>::remov(unsigned int pos){
 	if (pos >= 0 && pos < sz) {
-		alloc.destroy(&elem[pos]);
+		delete elem[pos];
 		--sz;
-		for (int i = pos; i < sz; ++i) {
+		// move pointers
+		for (unsigned int i = pos; i < sz; ++i) {
 			elem[i] = elem[i+1];
 		}
 	}
 }
 
-template<class T, class A> 
-void Vector<T, A>::push_back(const T& val){
+template<class T> 
+void Vector<T>::push_back(const T& val){
 	if(space == 0) reserve(4);				//start small
 	else if(sz==space) reserve(2*space);
-	alloc.construct(&elem[sz], val);
+	elem[sz] = new T(val);
 	++sz;
 }
 

@@ -91,6 +91,18 @@ void test3()
 	assert (!Packet::parse_params("1,ac=d ef", ident, params));
 }
 
+void test4()
+{
+	Vector<Buffer> a;
+	a.push_back(Buffer("B"));
+	a.push_back(Buffer("C"));
+	a.push_back(Buffer("D"));
+	a.remov(1);
+	assert(a.size() == 2);
+	assert(a[0].str_equal("B"));
+	assert(a[1].str_equal("D"));
+}
+
 int main()
 {
 	assert (!Packet::check_callsign("Q"));
@@ -163,6 +175,7 @@ int main()
 	assert (q->params().get("X").str_equal(None));
 
 	test2();
+	test4();
 
 	printf("Autotest ok\n");
 }
