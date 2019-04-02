@@ -46,6 +46,8 @@ public:
 		return values[indexOf(key)];
 	}
 
+	// due to limitations of C++, we can't avoid creating a new
+	// empty element when an unknown subscript is request
 	T& operator[](const char* key) {
 		if (!has(key)) {
 			put(key, T());
