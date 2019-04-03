@@ -60,7 +60,12 @@ public:
 		return (payload->pointer != 0);
 	}
 
-	inline T* naked() const
+	inline T* p() const
+	{
+		return payload->pointer;
+	}
+
+	inline const T* id() const
 	{
 		return payload->pointer;
 	}

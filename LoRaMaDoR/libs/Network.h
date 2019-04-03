@@ -8,7 +8,7 @@
 #include "Packet.h"
 #include "Task.h"
 #include "Radio.h"
-#include "ODict.h"
+#include "Dict.h"
 
 struct AdjacentStation {
 	long int last_q;
@@ -40,9 +40,10 @@ private:
 	void forward(int radio_rssi, const Packet *pkt, bool we_are_origin);
 
 	Buffer my_prefix;
-	ODict<RecvLogItem> recv_log;
-	ODict<AdjacentStation> adjacent_stations;
+	Dict<RecvLogItem> recv_log;
+	Dict<AdjacentStation> adjacent_stations;
 	unsigned int last_pkt_id;
-	Task* fixed_tasks[];
-	Task* oneoff_tasks[];
+	Vector< Ptr<Task> > fixed_tasks;
+	Vector< Ptr<Task> > trans_tasks;
+	Ptr<TaskManager> task_mgr;
 };
