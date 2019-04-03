@@ -9,30 +9,30 @@ class TaskCallable {
 
 class TaskManager;
 
-// TaskManager and cb_target must outlive the Task.
+// cb_target must outlive the Task.
 
 class Task {
 public:
-	Task(TaskManager *mgr,
-		long int offset,
+	Task(unsigned long int offset,
 		TaskCallable* cb_target,
-		long int (TaskCallable::*callback)(const Task*));
-	~Task();
+		unsigned long int (TaskCallable::*callback)(Task*));
+	virtual ~Task();
+
+protected:
+	virtual bool run();
 
 private:
 	friend class TaskManager;
-	bool set_timebase(long int timebase);
-	bool should_run(long int now) const;
-	bool run();
+	bool set_timebase(unsigned long int timebase);
+	bool should_run(unsigned long int now) const;
 
-	TaskManager *mgr;
-	long int offset;
-	long int timebase;
+	unsigned long int offset;
+	unsigned long int timebase;
 	TaskCallable *cb_target;
-	long int (TaskCallable::*callback)(const Task*);
+	unsigned long int (TaskCallable::*callback)(Task*);
 
 	// Tasks must be manipulated through (smart) pointers,
-	// the pointer is the ID, no copies whatsoever
+	// the pointer is the ID, no copies allowed
 	Task() = delete;
 	Task(const Task&) = delete;
 	Task(const Task&&) = delete;
@@ -44,19 +44,17 @@ class TaskManager {
 public:
 	TaskManager();
 	~TaskManager();
-	bool run(long int now);
+	bool run(unsigned long int now);
 	void schedule(Task* task);
 	void cancel(const Task* task);
 private:
 	Vector< Ptr<Task> > tasks;
 
-	// TaskManager should not be copied around
 	TaskManager() = delete;
 	TaskManager(const TaskManager&) = delete;
 	TaskManager(const TaskManager&&) = delete;
 	TaskManager& operator=(const TaskManager&) = delete;
 	TaskManager& operator=(TaskManager&&) = delete;
-
 };
 
 #endif

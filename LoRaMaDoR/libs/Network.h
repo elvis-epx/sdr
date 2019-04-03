@@ -19,6 +19,20 @@ struct RecvLogItem {
 	long int timestamp;
 }
 
+// Task who calls back Network::tx_task() 
+class PacketTx: public Task {
+public:
+	PacketTx(const Buffer& packet,
+		unsigned long int offset,
+		TaskCallable* cb_target,
+		unsigned long int (TaskCallable::*callback)(Task*));
+	virtual bool run();
+	virtual ~Task();
+
+	// read by tx_task() 
+	Buffer packet;
+}
+
 class Network: public TaskCallable {
 public:
 	Network(const char *callsign);
@@ -30,11 +44,11 @@ public:
 	void sendmsg(Packet *pkt);
 	void recv(Packet *pkt);
 	void radio_recv(Packet *pkt, int radio_rssi);
-	bool beacon(const char*);
-	bool clean_recv_log(const char*);
-	bool clean_adjacent_stations(const char*);
-	bool reset_pkt_id(const char*);
-	bool tx_task(const char *);
+	unsigned long int beacon(Task*);
+	unsigned long int clean_recv_log(Task*);
+	unsigned long int clean_adjacent_stations(Task*);
+	unsigned long int reset_pkt_id(Task*);
+	unsigned long int tx(Task*);
 
 private:
 	void forward(int radio_rssi, const Packet *pkt, bool we_are_origin);
@@ -43,7 +57,5 @@ private:
 	Dict<RecvLogItem> recv_log;
 	Dict<AdjacentStation> adjacent_stations;
 	unsigned int last_pkt_id;
-	Vector< Ptr<Task> > fixed_tasks;
-	Vector< Ptr<Task> > trans_tasks;
 	Ptr<TaskManager> task_mgr;
 };

@@ -1,10 +1,11 @@
 #include "Task.h"
 
-Task::Task(TaskManager *mgr, long int offset,
-			TaskCallable* cb_target,
-			long int (TaskCallable::*callback)(const Task*))
+unsigned long int millis();
+
+Task::Task(unsigned long int offset,
+		TaskCallable* cb_target,
+		unsigned long int (TaskCallable::*callback)(const Task*))
 {
-	this->mgr = mgr;
 	this->offset = offset;
 	this->timebase = 0;
 	this->cb_target = cb_target;
@@ -15,16 +16,15 @@ Task::~Task()
 {
 	this->cb_target = 0;
 	this->cb_callback = 0;
-	this->mgr = 0;
 	this->timebase = 0;
 }
 
-void Task::set_timebase(long int now)
+void Task::set_timebase(unsigned long int now)
 {
 	this->timebase = now;
 }
 
-bool Task::should_run(long int now) const
+bool Task::should_run(unsigned long int now) const
 {
 	return this->timebase > 0 && 
 		(this->timebase + this->offset) <= now;
@@ -66,7 +66,7 @@ void TaskManager::cancel(const Task *task)
 	}
 }
 
-bool TaskManager::run(long int now)
+bool TaskManager::run(unsigned long int now)
 {
 	bool dirty = false;
 
