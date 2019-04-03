@@ -1,21 +1,21 @@
 #include "Task.h"
 
-unsigned long int millis();
+unsigned long int arduino_millis();
 
 Task::Task(unsigned long int offset,
-		TaskCallable* cb_target,
-		unsigned long int (TaskCallable::*callback)(const Task*))
+		TaskCallable* callback_target,
+		unsigned long int (TaskCallable::*callback)(Task*))
 {
 	this->offset = offset;
 	this->timebase = 0;
-	this->cb_target = cb_target;
+	this->callback_target = callback_target;
 	this->callback = callback;
 }
 
 Task::~Task()
 {
-	this->cb_target = 0;
-	this->cb_callback = 0;
+	this->callback_target = 0;
+	this->callback = 0;
 	this->timebase = 0;
 }
 
@@ -38,10 +38,10 @@ bool Task::cancelled() const
 bool Task::run()
 {
 	// callback returns new timeout (which could be random)
-	this->timeout = cb_target->callback(this);
+	this->offset = (callback_target->*callback)(this);
 	// task cancelled by default, rescheduled by task mgr
 	this->timebase = 0;
-	return this->timeout > 0;
+	return this->offset > 0;
 }
 
 
@@ -53,20 +53,20 @@ void TaskManager::schedule(Task* task)
 {
 	Ptr<Task> etask = task;
 	tasks.push_back(etask);
-	etask->set_timebase(millis());
+	etask->set_timebase(arduino_millis());
 }
 
 void TaskManager::cancel(const Task *task)
 {
 	for (unsigned int i = 0 ; i < tasks.size(); ++i) {
-		if (tasks[i]->id() == task) {
+		if (tasks[i].id() == task) {
 			tasks.remov(i);
 			break;
 		}
 	}
 }
 
-bool TaskManager::run(unsigned long int now)
+void TaskManager::run(unsigned long int now)
 {
 	bool dirty = false;
 
@@ -76,7 +76,7 @@ bool TaskManager::run(unsigned long int now)
 			bool stay = t->run();
 			if (stay) {
 				// reschedule
-				t->set_timebase(millis());
+				t->set_timebase(arduino_millis());
 			} else {
 				// task list must be pruned
 				dirty = true;

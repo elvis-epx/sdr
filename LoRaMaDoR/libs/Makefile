@@ -8,5 +8,5 @@ clean:
 .cpp.o:
 	gcc $(CFLAGS) -c $<
 
-test: test.cpp Handler.o Modifier.o Packet.o Buffer.o *.h
+test: test.cpp Handler.o Modifier.o Packet.o Buffer.o Task.o FakeArduino.o *.h
 	gcc $(CFLAGS) -o test test.cpp *.o -lstdc++

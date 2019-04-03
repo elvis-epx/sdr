@@ -3,18 +3,22 @@
 
 // inherited by classes that will supply callback methods for tasks
 
+#include "Vector.h"
+#include "Pointer.h"
+#include "Dict.h"
+
 class TaskCallable {
 	virtual ~TaskCallable() {}
 };
 
 class TaskManager;
 
-// cb_target must outlive the Task.
+// callback_target must outlive the Task.
 
 class Task {
 public:
 	Task(unsigned long int offset,
-		TaskCallable* cb_target,
+		TaskCallable* callback_target,
 		unsigned long int (TaskCallable::*callback)(Task*));
 	virtual ~Task();
 
@@ -23,12 +27,13 @@ protected:
 
 private:
 	friend class TaskManager;
-	bool set_timebase(unsigned long int timebase);
+	void set_timebase(unsigned long int timebase);
 	bool should_run(unsigned long int now) const;
+	bool cancelled() const;
 
 	unsigned long int offset;
 	unsigned long int timebase;
-	TaskCallable *cb_target;
+	TaskCallable *callback_target;
 	unsigned long int (TaskCallable::*callback)(Task*);
 
 	// Tasks must be manipulated through (smart) pointers,
@@ -44,13 +49,12 @@ class TaskManager {
 public:
 	TaskManager();
 	~TaskManager();
-	bool run(unsigned long int now);
+	void run(unsigned long int now);
 	void schedule(Task* task);
 	void cancel(const Task* task);
 private:
 	Vector< Ptr<Task> > tasks;
 
-	TaskManager() = delete;
 	TaskManager(const TaskManager&) = delete;
 	TaskManager(const TaskManager&&) = delete;
 	TaskManager& operator=(const TaskManager&) = delete;

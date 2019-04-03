@@ -1,1 +1,3 @@
 *.o
+test
+test.DSYM

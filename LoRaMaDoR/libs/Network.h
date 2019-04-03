@@ -4,11 +4,11 @@
 #ifndef __NETWORK_H
 #define __NETWORK_H
 
-#include "Utility.h"
-#include "Packet.h"
-#include "Task.h"
-#include "Radio.h"
+#include "Vector.h"
 #include "Dict.h"
+#include "Packet.h"
+#include "Radio.h"
+#include "Task.h"
 
 struct AdjacentStation {
 	long int last_q;
@@ -22,38 +22,61 @@ struct RecvLogItem {
 // Task who calls back Network::tx_task() 
 class PacketTx: public Task {
 public:
-	PacketTx(const Buffer& packet,
+	PacketTx(const Buffer& encoded_packet,
 		unsigned long int offset,
-		TaskCallable* cb_target,
-		unsigned long int (TaskCallable::*callback)(Task*));
-	virtual bool run();
-	virtual ~Task();
+		TaskCallable* callback_target,
+		unsigned long int (TaskCallable::*callback)(Task*)):
+			Task(offset, callback_target, callback),
+			encoded_packet(encoded_packet) {}
+	virtual ~PacketTx() {}
+protected:
+	virtual unsigned long int run();
+private:
+	// read by callback tx(), who downcasts Task to PacketTx
+	Buffer encoded_packet;
+}
 
-	// read by tx_task() 
-	Buffer packet;
+// Task who calls back Network::forward() 
+class PacketFwd: public Task {
+public:
+	PacketFwd(Ptr<Packet> packet,
+		int rssi,
+		bool we_are_origin,
+		unsigned long int offset,
+		TaskCallable* callback_target,
+		unsigned long int (TaskCallable::*callback)(Task*)):
+			Task(offset, callback_target, callback),
+			packet(packet), rssi(rssi),
+			we_are_origin(we_are_origin) {}
+	virtual ~PacketFwd() {}
+protected:
+	virtual unsigned long int run();
+private:
+	// read by callback forward(), who downcasts Task to PacketFwd
+	int rssi;
+	bool we_are_origin;
+	Ptr<Packet> packet;
 }
 
 class Network: public TaskCallable {
 public:
 	Network(const char *callsign);
-	virtual ~Network() {};
-	void clean_adjacent_stations();
-	void clean_recv_log();
+	virtual ~Network();
 	unsigned int get_pkt_id();
 	void send(const char *to, const Dict &params, const Buffer& msg);
-	void sendmsg(Packet *pkt);
-	void recv(Packet *pkt);
-	void radio_recv(Packet *pkt, int radio_rssi);
+	void recv(Ptr<Packet> pkt);
+	void radio_recv(const char *recv_area, unsigned int plen, int rssi);
 	unsigned long int beacon(Task*);
 	unsigned long int clean_recv_log(Task*);
 	unsigned long int clean_adjacent_stations(Task*);
 	unsigned long int reset_pkt_id(Task*);
 	unsigned long int tx(Task*);
+	static unsigned long int random(unsigned long int);
 
 private:
-	void forward(int radio_rssi, const Packet *pkt, bool we_are_origin);
+	void forward(Task*);
 
-	Buffer my_prefix;
+	Buffer my_callsign;
 	Dict<RecvLogItem> recv_log;
 	Dict<AdjacentStation> adjacent_stations;
 	unsigned int last_pkt_id;
