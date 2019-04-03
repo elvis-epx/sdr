@@ -7,7 +7,7 @@ const bool SEND_BEACON = true;
 const bool RECEIVER = true;
 const long int AVG_BEACON_TIME = 10000;
 
-const char *my_prefix = "PU5EPX-1";
+const char *my_prefix = "PU5EPX-2";
 
 long int ident = 0; 
 long nextSendTime = millis() + 1000;
@@ -76,8 +76,7 @@ void loop()
 void show_sent(unsigned long int ident, unsigned int length, long int tx_time)
 {
 	char msg[50];
-	snprintf(msg, sizeof(msg), "%s sent #%ld, %u octets in %ldms", my_prefix, ident, length, tx_time);
-	Serial.println();
+	snprintf(msg, sizeof(msg), "< %s #%ld, %u octets in %ldms", my_prefix, ident, length, tx_time);
 	Serial.println(msg);
 
 	display.clear();
@@ -128,17 +127,11 @@ void onReceive(const char *recv_area, unsigned int plen, int rssi)
 
 void recv_show()
 {
-	char msg[50];
-	Serial.println();
-	snprintf(msg, sizeof(msg), "Recv #%ld RSSI %d", recv_pcount, recv_rssi);
+	char msg[300];
+	snprintf(msg, sizeof(msg), "> #%ld RSSI %d %s < %s id %ld param %s msg %s",
+		recv_pcount, recv_rssi,	recv_to.c_str(), recv_from.c_str(),
+		recv_ident, recv_params.c_str(), recv_msg.c_str());
 	Serial.println(msg);
-	snprintf(msg, sizeof(msg), "%s < %s", recv_to.c_str(), recv_from.c_str());
-	Serial.println(msg);
-	snprintf(msg, sizeof(msg), "Ident %ld", recv_ident);
-	Serial.println(msg);
-	snprintf(msg, sizeof(msg), "Params %s", recv_params.c_str());
-	Serial.println(msg);
-	Serial.println(recv_msg);
 
 	display.clear();
 	display.drawString(0, 0, "Recv #" + String(recv_pcount) + " RSSI " + String(recv_rssi)); 
