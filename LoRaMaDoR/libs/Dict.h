@@ -31,11 +31,15 @@ public:
 	}
 
 	bool has(const Buffer& key) const {
-		return indexOf(key) != -1;
+		return has(key.cold());
 	}
 
 	const T& get(const char* key) const {
 		return _values[indexOf(key)];
+	}
+
+	const T& get(const Buffer& key) const {
+		return get(key.cold());
 	}
 
 	const T& operator[](const char* key) const {
@@ -43,11 +47,20 @@ public:
 	}
 
 	const T& operator[](const Buffer& key) const {
-		return _values[indexOf(key.cold())];
+		return operator[](key.cold());
 	}
 
-	const T& get(const Buffer& key) const {
-		return _values[indexOf(key)];
+	void remove(const char* key) const {
+		int i = indexOf(key);
+		if (i < 0) {
+			return;
+		}
+		_keys.remov(i);
+		_values.remov(i);
+	}
+
+	void remove(const Buffer& key) const {
+		return remove(key.cold());
 	}
 
 	// due to limitations of C++, we can't avoid creating a new
