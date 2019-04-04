@@ -32,7 +32,7 @@
 #define BWIDTH  62500
 #define CR4SLSH 5
 
-unsigned long int speed_bps()
+unsigned long int lora_speed_bps()
 {
 	unsigned long int bps = BWIDTH;
 	bps *= SPREAD;

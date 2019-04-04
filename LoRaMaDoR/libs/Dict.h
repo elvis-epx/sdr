@@ -144,7 +144,7 @@ public:
 	}
 
 	int indexOf(const Buffer &key) const {
-		return indexOf(key.cold(), true);
+		return indexOf(key.cold());
 	}
 
 	int indexOf(const char *key) const {

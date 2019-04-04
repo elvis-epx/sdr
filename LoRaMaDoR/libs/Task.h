@@ -7,8 +7,12 @@
 #include "Pointer.h"
 #include "Dict.h"
 
+class Task;
+
 class TaskCallable {
-	virtual ~TaskCallable() {}
+public:
+	virtual ~TaskCallable() {};
+	virtual unsigned long int task_callback(int, unsigned long int, Task*) = 0;
 };
 
 class TaskManager;
@@ -17,13 +21,11 @@ class TaskManager;
 
 class Task {
 public:
-	Task(unsigned long int offset,
-		TaskCallable* callback_target,
-		unsigned long int (TaskCallable::*callback)(unsigned long int, Task*));
+	Task(int id, unsigned long int offset, TaskCallable* callback_target);
 	virtual ~Task();
 
 protected:
-	virtual bool run(unsigned long int);
+	virtual bool run(unsigned long int now);
 
 private:
 	friend class TaskManager;
@@ -31,10 +33,10 @@ private:
 	bool should_run(unsigned long int now) const;
 	bool cancelled() const;
 
+	int id;
 	unsigned long int offset;
 	unsigned long int timebase;
 	TaskCallable *callback_target;
-	unsigned long int (TaskCallable::*callback)(unsigned long int, Task*);
 
 	// Tasks must be manipulated through (smart) pointers,
 	// the pointer is the ID, no copies allowed

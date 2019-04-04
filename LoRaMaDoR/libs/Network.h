@@ -7,12 +7,15 @@
 #include "Vector.h"
 #include "Dict.h"
 #include "Packet.h"
+#include "Modifier.h"
+#include "Handler.h"
 #include "Radio.h"
 #include "Task.h"
 
 struct AdjacentStation {
 	AdjacentStation(int rssi, unsigned long int timestamp):
 		rssi(rssi), timestamp(timestamp) {}
+	AdjacentStation() {}
 	int rssi;
 	unsigned long int timestamp;
 };
@@ -20,67 +23,30 @@ struct AdjacentStation {
 struct RecvLogItem {
 	RecvLogItem(int rssi, unsigned long int timestamp):
 		rssi(rssi), timestamp(timestamp) {}
+	RecvLogItem() {}
 	int rssi;
 	unsigned long int timestamp;
-}
-
-// Task who calls back Network::tx_task() 
-class PacketTx: public Task {
-public:
-	PacketTx(const Buffer& encoded_packet,
-		unsigned long int offset,
-		TaskCallable* callback_target,
-		unsigned long int (TaskCallable::*callback)(Task*)):
-			Task(offset, callback_target, callback),
-			encoded_packet(encoded_packet) {}
-	virtual ~PacketTx() {}
-protected:
-	virtual unsigned long int run();
-private:
-	// read by callback tx(), who downcasts Task to PacketTx
-	Buffer encoded_packet;
-}
-
-// Task who calls back Network::forward() 
-class PacketFwd: public Task {
-public:
-	PacketFwd(const Ptr<Packet> packet,
-		int rssi,
-		bool we_are_origin,
-		unsigned long int offset,
-		TaskCallable* callback_target,
-		unsigned long int (TaskCallable::*callback)(Task*)):
-			Task(offset, callback_target, callback),
-			packet(packet), rssi(rssi),
-			we_are_origin(we_are_origin) {}
-	virtual ~PacketFwd() {}
-protected:
-	virtual unsigned long int run();
-private:
-	// read by callback forward(), who downcasts Task to PacketFwd
-	int rssi;
-	bool we_are_origin;
-	const Ptr<Packet> packet;
-}
+};
 
 class Network: public TaskCallable {
 public:
-	Network(const char *callsign);
+	Network(const char *callsign); // client must get the singleton instead
 	virtual ~Network();
 	unsigned int get_pkt_id();
-	void send(const char *to, const Dict &params, const Buffer& msg);
-	void sendmsg(const Ptr<Packet> pkt);
+	void send(const char *to, const Params &params, const Buffer& msg);
 	void recv(Ptr<Packet> pkt);
+	static unsigned long int fudge(unsigned long int, double fudge);
 	void radio_recv(const char *recv_area, unsigned int plen, int rssi);
-	unsigned long int beacon(unsigned long int, Task*);
-	unsigned long int clean_recv_log(unsigned long int, Task*);
-	unsigned long int clean_adjacent_stations(unsigned long int, Task*);
-	unsigned long int reset_pkt_id(unsigned long int, Task*);
-	unsigned long int tx(unsigned long int, Task*);
-	static unsigned long int random(unsigned long int, double fudge);
+	virtual unsigned long int task_callback(int, unsigned long int, Task*);
 
 private:
-	void forward(Task*);
+	void sendmsg(const Ptr<Packet> pkt);
+	unsigned long int forward(unsigned long int, Task*);
+	unsigned long int clean_recv_log(unsigned long int, Task*);
+	unsigned long int clean_adjacent_stations(unsigned long int, Task*);
+	unsigned long int beacon(unsigned long int, Task*);
+	unsigned long int tx(unsigned long int, Task*);
+	unsigned long int reset_pkt_id(unsigned long int, Task*);
 
 	Buffer my_callsign;
 	Dict<RecvLogItem> recv_log;
@@ -90,3 +56,8 @@ private:
 	Vector< Ptr<Modifier> > modifiers;
 	Vector< Ptr<Handler> > handlers;
 };
+
+void config_net(const char *callsign);
+Ptr<Network> net(); // returns singleton
+
+#endif

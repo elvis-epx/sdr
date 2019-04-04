@@ -1,21 +1,17 @@
 #include "Task.h"
+#include "FakeArduino.h"
 
-unsigned long int arduino_millis();
-
-Task::Task(unsigned long int offset,
-		TaskCallable* callback_target,
-		unsigned long int (TaskCallable::*callback)(unsigned long int, Task*))
+Task::Task(int id, unsigned long int offset, TaskCallable* callback_target)
 {
+	this->id = id;
 	this->offset = offset;
 	this->timebase = 0;
 	this->callback_target = callback_target;
-	this->callback = callback;
 }
 
 Task::~Task()
 {
 	this->callback_target = 0;
-	this->callback = 0;
 	this->timebase = 0;
 }
 
@@ -38,12 +34,11 @@ bool Task::cancelled() const
 bool Task::run(unsigned long int now)
 {
 	// callback returns new timeout (which could be random)
-	this->offset = (callback_target->*callback)(now, this);
+	this->offset = callback_target->task_callback(id, now, this);
 	// task cancelled by default, rescheduled by task mgr
 	this->timebase = 0;
 	return this->offset > 0;
 }
-
 
 TaskManager::TaskManager() {}
 

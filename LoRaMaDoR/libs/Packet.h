@@ -3,6 +3,9 @@
  * Copyright (c) 2019 PU5EPX
  */
 
+#ifndef __PACKET_H
+#define  __PACKET_H
+
 #include "Vector.h"
 #include "Dict.h"
 #include "Buffer.h"
@@ -64,3 +67,5 @@ private:
 	Buffer _signature;
 	const Buffer _msg;
 };
+
+#endif
