@@ -4,7 +4,7 @@
 #include <string.h>
 #include "Handler.h"
 
-Packet* Ping::handle(const Packet &pkt, const char* callsign)
+Ptr<Packet> Ping::handle(const Packet &pkt, const char* callsign)
 {
 	Packet *ret = 0;
 	if (strlen(pkt.to()) > 2 && pkt.params().has("PING")) {
@@ -15,7 +15,7 @@ Packet* Ping::handle(const Packet &pkt, const char* callsign)
 	return ret;
 }
 
-Packet* Rreq::handle(const Packet &pkt, const char* callsign)
+Ptr<Packet> Rreq::handle(const Packet &pkt, const char* callsign)
 {
 	Packet *ret = 0;
 	if (strlen(pkt.to()) > 2 && pkt.params().has("RREQ")) {

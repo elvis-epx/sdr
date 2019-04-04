@@ -11,6 +11,7 @@
 class Modifier {
 public:
 	virtual Ptr<Packet> modify(const Packet &, const char *) = 0;
+	virtual ~Modifier() {}
 };
 
 class Rreqi: public Modifier {

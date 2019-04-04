@@ -11,18 +11,16 @@ static const unsigned int RECV_PKT_CLEAN = 60 * 1000; /* 1 minute */
 static const unsigned int AVG_BEACON_TIME = 600 * 1000; /* 10 minutes */
 static const unsigned int AVG_FIRST_BEACON_TIME = 30 * 1000; /* 30 seconds */
 
-static const unsigned int VERBOSITY = 51;
-
-unsigned long int PacketFwd::run()
+unsigned long int PacketFwd::run(unsigned long int now)
 {
-	Task::run();
+	Task::run(unsigned long int now);
 	// forces this task to be one-off
 	return 0;
 }
 
-unsigned long int PacketTx::run()
+unsigned long int PacketTx::run(unsigned long int now)
 {
-	Task::run();
+	Task::run(unsigned long int now);
 	// forces this task to be one-off
 	return 0;
 }
@@ -32,16 +30,21 @@ Network::Network(const char *callsign)
 	my_callsign = Buffer(callsign);
 	last_pkt_id = 0;
 	task_mgr = new TaskManager();
+
 	Task *beacon = new Task(Network::random(AVG_FIRST_BEACON_TIME), this, &Network::beacon);
 	Task *clean_recv = new Task(RECV_PKT_PERSIST, this, &Network::clean_recv_log);
 	Task *clean_adj = new Task(ADJ_STATIONS_PERSIST, this, &Network::adjacent_stations_clean);
 	Task *id_reset = new Task(PKT_ID_RESET_TIME, this, &Network::reset_pkt_id);
+
 	task_mgr->schedule(beacon);
 	task_mgr->schedule(clean_recv);
 	task_mgr->schedule(clean_adj);
 	task_mgr->schedule(id_reset);
 
-	// FIXME modifiers and handlers
+	modifiers.push_back(new Rreqi());
+	modifiers.push_back(new RetransBeacon());
+	handlers.push_back(new Ping());
+	handlers.push_back(new Rreq());
 }
 
 Network::~Network()
@@ -54,39 +57,39 @@ unsigned int Network::get_pkt_id()
 
 void Network::send(const char *to, const Dict &params, const Buffer& msg)
 {
-	pkt = Packet(to, self.callsign, self.get_pkt_id(), params, msg);
-	// FIXME message 
+	Ptr<Packet> pkt = new Packet(to, self.callsign, self.get_pkt_id(), params, msg);
+	sendmsg(pkt);
+}
+
+void Network::sendmsg(const Ptr<Packet> pkt)
+{
 	Task *fwd_task = new PacketFwd(pkt, 999, true, this, &Network::forward);
 	task_mgr->schedule(fwd_task);
 }
 
 void Network::recv(Ptr<Packet> pkt)
 {
-	// FIXME message
-
-	# Automatic application protocol handlers
-	for handler in app_handlers:
-		if handler.match(pkt):
-			handler(self, pkt)
-			return
+	// FIXME message log
+	for (unsigned int i = 0; i < handlers.size(); ++i) {
+		Ptr<Packet> response = handlers[i](*pkt);
+		if (response) {
+			sendmsg(response);
+			return;
+		}
+	}
+	// FIXME send to higher level
 }
 
 // called indirectly by Radio, takes a trampoline somewhere to adapt 
-// function callback to this method callback
+// function callback to this method callback (FIXME)
 void Network::radio_recv(const char *recv_area, unsigned int plen, int rssi)
 {
 	Ptr<Packet> pkt = Packet::decode_l2(recv_area, plen);
 	if (!pkt) {
-		if (VERBOSITY > 10) {
-			log("Invalid packet received, error =", Packet::get_decode_error());
-		}
+		log(10, "Invalid packet received, error =", Packet::get_decode_error());
 		return;
 	}
-	
-	if (VERBOSITY > 80) {
-		log("Good packet, RSSI =", rssi);
-	}
-
+	log(80, "Good packet, RSSI =", rssi);
 	Task *fwd_task = new PacketFwd(pkt, rssi, false, this, &Network::forward);
 	task_mgr->schedule(fwd_task);
 }
@@ -97,17 +100,19 @@ unsigned long int Network::beacon(Task*)
 	return Network::random(AVG_BEACON_TIME);
 }
 
-unsigned long int Network::clean_recv_log(Task*)
+unsigned long int Network::clean_recv_log(unsigned long int now, Task*)
 {
-	remove_list = []
-	cutoff = time.time() - 600
+	Vector<Buffer> remove_list;
+	long int cutoff = now - RECV_PKT_PERSIST;
+
 	for k, v in self.known_pkts.items():
 		if v < cutoff:
 			remove_list.append(k)
-	for k in remove_list:
-		if VERBOSITY > 10:
-			print("Forgotten packet %s" % k)
-		del self.known_pkts[k]
+
+	for (unsigned int i = 0; i < remove_list.size(); ++i) {
+		recv_log.remove(remove_list[i]);
+		log(50, "Forgotten packet", 0)
+	}
 
 	return RECV_PKT_CLEAN;
 }
@@ -137,7 +142,7 @@ unsigned long int Network::tx(Task* task)
 {
 	const PacketTx* packet_task = dynamic_cast<PacketTx*>(task);
 	lora_tx(packet_task->encoded_packet);
-	return 0; // one-time task
+	return 0;
 }
 
 unsigned long int Network::forward(Task* task)
@@ -209,6 +214,8 @@ unsigned long int Network::forward(Task* task)
 
 	Task *tx_task = new PacketTx(pkt->encode(), this, &Network::tx);
 	task_mgr->schedule(tx_task);
+
+	return 0;
 }
 
 unsigned long int Network::random(unsigned long int avg)

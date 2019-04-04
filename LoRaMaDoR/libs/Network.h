@@ -39,7 +39,7 @@ private:
 // Task who calls back Network::forward() 
 class PacketFwd: public Task {
 public:
-	PacketFwd(Ptr<Packet> packet,
+	PacketFwd(const Ptr<Packet> packet,
 		int rssi,
 		bool we_are_origin,
 		unsigned long int offset,
@@ -55,7 +55,7 @@ private:
 	// read by callback forward(), who downcasts Task to PacketFwd
 	int rssi;
 	bool we_are_origin;
-	Ptr<Packet> packet;
+	const Ptr<Packet> packet;
 }
 
 class Network: public TaskCallable {
@@ -64,13 +64,14 @@ public:
 	virtual ~Network();
 	unsigned int get_pkt_id();
 	void send(const char *to, const Dict &params, const Buffer& msg);
+	void sendmsg(const Ptr<Packet> pkt);
 	void recv(Ptr<Packet> pkt);
 	void radio_recv(const char *recv_area, unsigned int plen, int rssi);
-	unsigned long int beacon(Task*);
-	unsigned long int clean_recv_log(Task*);
-	unsigned long int clean_adjacent_stations(Task*);
-	unsigned long int reset_pkt_id(Task*);
-	unsigned long int tx(Task*);
+	unsigned long int beacon(unsigned long int, Task*);
+	unsigned long int clean_recv_log(unsigned long int, Task*);
+	unsigned long int clean_adjacent_stations(unsigned long int, Task*);
+	unsigned long int reset_pkt_id(unsigned long int, Task*);
+	unsigned long int tx(unsigned long int, Task*);
 	static unsigned long int random(unsigned long int);
 
 private:
@@ -81,4 +82,6 @@ private:
 	Dict<AdjacentStation> adjacent_stations;
 	unsigned int last_pkt_id;
 	Ptr<TaskManager> task_mgr;
+	Vector< Ptr<Modifier> > modifiers;
+	Vector< Ptr<Handler> > handlers;
 };

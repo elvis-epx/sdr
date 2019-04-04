@@ -14,13 +14,13 @@ public:
 	Dict() {}
 
 	Dict(const Dict& model) {
-		keys = model.keys;
-		values = model.values;
+		_keys = model._keys;
+		_values = model._values;
 	}
 
 	Dict& operator=(const Dict& model) {
-		keys = model.keys;
-		values = model.values;
+		_keys = model._keys;
+		_values = model._values;
 		return *this;
 	}
 
@@ -35,15 +35,19 @@ public:
 	}
 
 	const T& get(const char* key) const {
-		return values[indexOf(key)];
+		return _values[indexOf(key)];
 	}
 
 	const T& operator[](const char* key) const {
-		return values[indexOf(key)];
+		return _values[indexOf(key)];
+	}
+
+	const T& operator[](const Buffer& key) const {
+		return _values[indexOf(key.cold())];
 	}
 
 	const T& get(const Buffer& key) const {
-		return values[indexOf(key)];
+		return _values[indexOf(key)];
 	}
 
 	// due to limitations of C++, we can't avoid creating a new
@@ -52,7 +56,14 @@ public:
 		if (!has(key)) {
 			put(key, T());
 		}
-		return values[indexOf(key)];
+		return _values[indexOf(key)];
+	}
+
+	T& operator[](const Buffer& key) {
+		if (!has(key)) {
+			put(key, T());
+		}
+		return _values[indexOf(key)];
 	}
 
 	bool put(const Buffer &akey, const T& value) {
@@ -67,34 +78,30 @@ public:
 		bool new_key = pos <= -1;
 
 		if (new_key) {
-			int insertion_pos = indexOf(key.cold(), 0, keys.size(), false);
-			keys.insert(insertion_pos, key);
-			values.insert(insertion_pos, value);
+			int insertion_pos = indexOf(key.cold(), 0, _keys.size(), false);
+			_keys.insert(insertion_pos, key);
+			_values.insert(insertion_pos, value);
 		} else {
-			keys[pos] = key;	
-			values[pos] = value;
+			_keys[pos] = key;	
+			_values[pos] = value;
 		}
 	
 		return new_key;
 	}
 
 	int count() const {
-		return keys.size();
+		return _keys.size();
 	}
 
-	void foreach(void* cargo, bool (*f)(const Buffer&, const T&, void *)) const {
-		for (unsigned int i = 0; i < keys.size(); ++i) {
-			if (! f(keys[i], values[i], cargo)) {
-				break;
-			}
-		}
+	const Vector<Buffer>& keys() const{
+		return _keys;
 	}
 
 	int indexOf(const char *key, unsigned int from, unsigned int to, bool exact) const {
 		if ((to - from) <= 3) {
 			// linear search
 			for (unsigned int i = from; i < to; ++i) {
-				int cmp = keys[i].strcmp(key);
+				int cmp = _keys[i].strcmp(key);
 				if (cmp == 0) {
 					// good for exact and non-exact queriers
 					return i;
@@ -109,7 +116,7 @@ public:
 
 		// recursive binary search
 		unsigned int middle = (from + to) / 2;
-		int cmp = keys[middle].strcmp(key);
+		int cmp = _keys[middle].strcmp(key);
 		if (cmp == 0) {
 			return middle;
 		} else if (cmp < 0) {
@@ -128,12 +135,12 @@ public:
 	}
 
 	int indexOf(const char *key) const {
-		return indexOf(key, 0, keys.size(), true);
+		return indexOf(key, 0, _keys.size(), true);
 	}
 
 private:
-	Vector<Buffer> keys;
-	Vector<T> values;
+	Vector<Buffer> _keys;
+	Vector<T> _values;
 };
 
 #endif

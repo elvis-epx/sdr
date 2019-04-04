@@ -4,7 +4,7 @@ unsigned long int arduino_millis();
 
 Task::Task(unsigned long int offset,
 		TaskCallable* callback_target,
-		unsigned long int (TaskCallable::*callback)(Task*))
+		unsigned long int (TaskCallable::*callback)(unsigned long int, Task*))
 {
 	this->offset = offset;
 	this->timebase = 0;
@@ -35,10 +35,10 @@ bool Task::cancelled() const
 	return this->timebase <= 0;
 }
 
-bool Task::run()
+bool Task::run(unsigned long int now)
 {
 	// callback returns new timeout (which could be random)
-	this->offset = (callback_target->*callback)(this);
+	this->offset = (callback_target->*callback)(now, this);
 	// task cancelled by default, rescheduled by task mgr
 	this->timebase = 0;
 	return this->offset > 0;
@@ -73,7 +73,7 @@ void TaskManager::run(unsigned long int now)
 	for (unsigned int i = 0 ; i < tasks.size(); ++i) {
 		Ptr<Task> t = tasks[i];
 		if (t->should_run(now)) {
-			bool stay = t->run();
+			bool stay = t->run(now);
 			if (stay) {
 				// reschedule
 				t->set_timebase(arduino_millis());

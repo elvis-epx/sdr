@@ -19,11 +19,11 @@ class Task {
 public:
 	Task(unsigned long int offset,
 		TaskCallable* callback_target,
-		unsigned long int (TaskCallable::*callback)(Task*));
+		unsigned long int (TaskCallable::*callback)(unsigned long int, Task*));
 	virtual ~Task();
 
 protected:
-	virtual bool run();
+	virtual bool run(unsigned long int);
 
 private:
 	friend class TaskManager;
@@ -34,7 +34,7 @@ private:
 	unsigned long int offset;
 	unsigned long int timebase;
 	TaskCallable *callback_target;
-	unsigned long int (TaskCallable::*callback)(Task*);
+	unsigned long int (TaskCallable::*callback)(unsigned long int, Task*);
 
 	// Tasks must be manipulated through (smart) pointers,
 	// the pointer is the ID, no copies allowed

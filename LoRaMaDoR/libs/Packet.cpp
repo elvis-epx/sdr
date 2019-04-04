@@ -386,26 +386,27 @@ Ptr<Packet> Packet::change_params(const Params&new_params) const
 	return new Packet(this->to(), this->from(), this->ident(), new_params, this->msg());
 }
 
-bool encode_param(const Buffer& k, const Buffer& v, void* vs)
-{
-	char scratchpad[251];
-	if (! v.str_equal(None)) {
-		snprintf(scratchpad, sizeof(scratchpad) - 1, ",%s=%s", k.cold(), v.cold());
-	} else {
-		snprintf(scratchpad, sizeof(scratchpad) - 1, ",%s", k.cold());
-	}
-	Buffer *b = (Buffer*) vs;
-	b->append(scratchpad, strlen(scratchpad));
-	return true; // do not stop foreach
-}
-
 Buffer Packet::encode_params(unsigned long int ident, const Params &params)
 {
-	char sident[20];
-	sprintf(sident, "%ld", ident);
-	Buffer p(sident);
-	params.foreach(&p, &encode_param);
-	return p;
+	char scratchpad[255];
+	snprintf(scratchpad, sizeof(scratchpad) - 1, "%ld", ident);
+	Buffer buf(scratchpad);
+
+	const Vector<Buffer>& keys = params.keys();
+	for (unsigned int i = 0; i < keys.size(); ++i) {
+		const Buffer& key = keys[i];
+		const Buffer& value = params[key];
+		if (! value.str_equal(None)) {
+			snprintf(scratchpad, sizeof(scratchpad) - 1, ",%s=%s",
+				key.cold(), value.cold());
+		} else {
+			snprintf(scratchpad, sizeof(scratchpad) - 1, ",%s",
+				key.cold());
+		}
+		buf.append(scratchpad, strlen(scratchpad));
+	}
+
+	return buf;
 }
 
 Buffer Packet::encode_l3() const
