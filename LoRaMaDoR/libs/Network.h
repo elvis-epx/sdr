@@ -11,12 +11,17 @@
 #include "Task.h"
 
 struct AdjacentStation {
-	long int last_q;
+	AdjacentStation(int rssi, unsigned long int timestamp):
+		rssi(rssi), timestamp(timestamp) {}
+	int rssi;
+	unsigned long int timestamp;
 };
 
 struct RecvLogItem {
+	RecvLogItem(int rssi, unsigned long int timestamp):
+		rssi(rssi), timestamp(timestamp) {}
 	int rssi;
-	long int timestamp;
+	unsigned long int timestamp;
 }
 
 // Task who calls back Network::tx_task() 
@@ -72,7 +77,7 @@ public:
 	unsigned long int clean_adjacent_stations(unsigned long int, Task*);
 	unsigned long int reset_pkt_id(unsigned long int, Task*);
 	unsigned long int tx(unsigned long int, Task*);
-	static unsigned long int random(unsigned long int);
+	static unsigned long int random(unsigned long int, double fudge);
 
 private:
 	void forward(Task*);

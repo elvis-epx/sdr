@@ -32,6 +32,16 @@
 #define BWIDTH  62500
 #define CR4SLSH 5
 
+unsigned long int speed_bps()
+{
+	unsigned long int bps = BWIDTH;
+	bps *= SPREAD;
+	bps *= 4;
+	bps /= CR4SLSH;
+	bps /= (1 << SPREAD);
+	return bps;
+}
+
 bool setup_lora_common();
 
 #ifndef __AVR__
