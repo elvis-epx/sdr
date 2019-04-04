@@ -50,16 +50,16 @@ public:
 		return operator[](key.cold());
 	}
 
-	void remove(const char* key) const {
+	void remove(const char* key) {
 		int i = indexOf(key);
 		if (i < 0) {
 			return;
 		}
-		_keys.remov(i);
-		_values.remov(i);
+		_keys.remov((unsigned) i);
+		_values.remov((unsigned) i);
 	}
 
-	void remove(const Buffer& key) const {
+	void remove(const Buffer& key) {
 		return remove(key.cold());
 	}
 
