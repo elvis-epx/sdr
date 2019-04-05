@@ -46,6 +46,7 @@ private:
 	unsigned long int clean_adjacent_stations(unsigned long int, Task*);
 	unsigned long int beacon(unsigned long int, Task*);
 	unsigned long int tx(unsigned long int, Task*);
+	unsigned long int check_radio_busy(unsigned long int, Task*);
 	unsigned long int reset_pkt_id(unsigned long int, Task*);
 
 	Buffer my_callsign;
@@ -55,6 +56,7 @@ private:
 	Ptr<TaskManager> task_mgr;
 	Vector< Ptr<Modifier> > modifiers;
 	Vector< Ptr<Handler> > handlers;
+	bool radio_busy;
 };
 
 void config_net(const char *callsign);

@@ -31,9 +31,15 @@ unsigned long int lora_speed_bps()
 	return 1200;
 }
 
-void lora_tx(const Buffer&)
+bool lora_tx_async(const Buffer&)
 {
+	return true;
 	// FIXME print, impl
+}
+
+bool lora_tx_busy()
+{
+	return false;
 }
 
 void lora_rx(void (*)(char const*, unsigned int, int))

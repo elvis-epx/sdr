@@ -74,8 +74,9 @@ bool setup_lora_common()
 	return true;
 }
 
-char recv_area[255];
-void (*rx_callback)(const char *, unsigned int, int) = 0;
+static bool rx_enabled = false;
+static char recv_area[255];
+static void (*rx_callback)(const char *, unsigned int, int) = 0;
 
 static void on_receive(int plen)
 {
@@ -90,11 +91,14 @@ static void on_receive(int plen)
 
 void lora_resume_rx()
 {
-	if (rx_callback) {
-		LoRa.onReceive(on_receive);
-		LoRa.receive();
-	} else {
-		LoRa.idle();
+	if (!rx_enabled) {
+		rx_enabled = true;
+		if (rx_callback) {
+			LoRa.onReceive(on_receive);
+			LoRa.receive();
+		} else {
+			LoRa.idle();
+		}
 	}
 }
 
@@ -106,6 +110,7 @@ void lora_rx(void (*cb)(const char *buf, unsigned int plen, int rssi))
 
 int lora_tx(const Buffer& packet)
 {
+	rx_enabled = false;
 	LoRa.beginPacket();        
 	LoRa.write((uint8_t*) packet.cold(), packet.length());      
 	long int t0 = millis();
@@ -113,4 +118,24 @@ int lora_tx(const Buffer& packet)
 	long int t1 = millis();
 	lora_resume_rx();
 	return t1 - t0;
+}
+
+bool lora_tx_async(const Buffer& packet)
+{
+	if (!LoRa.beginPacket()) {
+		return false;
+	}
+	rx_enabled = false;
+	LoRa.write((uint8_t*) packet.cold(), packet.length());      
+	LoRa.endPacket(true);
+	return true;
+}
+
+bool lora_tx_busy()
+{
+	bool busy = LoRa.isTransmitting();
+	if (! busy) {
+		lora_resume_rx();
+	}
+	return busy;
 }
