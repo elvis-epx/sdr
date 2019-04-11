@@ -18,7 +18,7 @@ false_oks_1 = 0
 false_oks_1a = 0
 false_oks_1_base = 0
 
-for i in range(0, 100000):
+for i in range(0, 10000):
 	number = int(random() * 10 ** k)
 	encoded = rs.encode(number)
 	decode_res = rs.decode(encoded)

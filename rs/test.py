@@ -14,8 +14,10 @@ false_oks = 0
 false_oks_base = 0
 false_oks_2 = 0
 false_oks_2_base = 0
+false_oks_3 = 0
+false_oks_3_base = 0
 
-for i in range(0, 100000):
+for i in range(0, 10000):
 	number = int(random() * 10 ** k)
 	encoded = rs.encode(number)
 	decode_res = rs.decode(encoded)
@@ -60,6 +62,10 @@ for i in range(0, 100000):
 				corrupted, decoded, status)
 			'''
 		false_oks_2_base += 1
+	elif error_count == 3:
+		if status != DecimalRS.UNCORRECTABLE:
+			false_oks_3 += 1
+		false_oks_3_base += 1
 	else:
 		if status != DecimalRS.UNCORRECTABLE:
 			false_oks += 1
@@ -67,3 +73,4 @@ for i in range(0, 100000):
 
 print("False corrections: %d of %d (%f%%) multiple-error decodes" % (false_oks, false_oks_base, 100.0 * false_oks / false_oks_base))
 print("False corrections: %d of %d (%f%%) two-error decodes" % (false_oks_2, false_oks_2_base, 100.0 * false_oks_2 / false_oks_2_base))
+print("False corrections: %d of %d (%f%%) three-error decodes" % (false_oks_3, false_oks_3_base, 100.0 * false_oks_3 / false_oks_3_base))
