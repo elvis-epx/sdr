@@ -255,13 +255,13 @@ static bool decode_preamble(const char* data, unsigned int len,
 		decode_error = 100;
 		return false;
 	} else if (d1 >= d2)  {
-	  decode_error = 101;
+		decode_error = 101;
 		return false;
 	} else if ((d2 - data) >= len) {
-    decode_error = 102;
+		decode_error = 102;
 		return false;
 	} else if (d1 == data) {
-    decode_error = 103;
+		decode_error = 103;
 		return false;
 	}
 
@@ -272,7 +272,7 @@ static bool decode_preamble(const char* data, unsigned int len,
 	from.uppercase();
 
 	if (!Packet::check_callsign(to) || !Packet::check_callsign(from)) {
-    decode_error = 104;
+		decode_error = 104;
 		return false;
 	}
 
@@ -314,7 +314,7 @@ Ptr<Packet> Packet::decode_l2(const char *data, unsigned int len)
 {
   decode_error = 0;
 	if (len <= REDUNDANCY || len > (MSGSIZE_LONG + REDUNDANCY)) {
-    decode_error = 999;
+		decode_error = 999;
 		return 0;
 	}
 
