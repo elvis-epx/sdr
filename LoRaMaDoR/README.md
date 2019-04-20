@@ -92,9 +92,13 @@ There shall be one and only one naked number in the parameter list: it is the
 packet ID. Together with the source callsign, it uniquely identifies the packet
 within the network in a 20-minute time window.
 
-Keys (naked or not) must be composed of letters and numbers only, and must start
+Keys (naked or not) must be composed of capital letters and numbers only, and must start
 with a letter. Values may be composed of any characters except those used as delimiters
 in the header (space, comma, equal, etc.)
+
+A value can be empty and this should be handled different from a naked key e.g.
+in `A=,B`, B is naked while A has a value, which is an empty string. Implementations
+should allow for this distinction.
 
 Predefined parameters:
 
@@ -117,10 +121,20 @@ Every packet is augmented by a 20-octet FEC (Forward Error Code) suffix.
 The FEC is a Reed-Solomon code.
 
 Since Reed-Solomon codes demand a fixed-size message, it is calculated as if
-the network packet was padded with nulls (binary zeros) to size.
+the network packet was padded with nulls (binary zeros).
 
 In order to contemplate low-memory microcontrollers, which cannot handle RS codes
 above a certain size, two base sizes (and therefore two different RS codes) are
 used: 100/80 and 200/180.
 
 The reference FEC RS implementation is https://github.com/simonyipeter/Arduino-FEC .
+
+## LoRa mode
+
+Packets shall be transmitted using LoRa explicit mode, so the packet size is known
+when it reaches the network layer to be parsed. CRC shall be disabled.
+
+In our experiments, LoRa packets often arrive with errors even under the
+best circunstances. Using maximum CR is not enough to prevent this, and
+LoRa CRC protection would discard lots of packets. Software-level FEC code
+seems to be the best solution.
