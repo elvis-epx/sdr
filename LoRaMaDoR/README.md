@@ -123,4 +123,4 @@ In order to contemplate low-memory microcontrollers, which cannot handle RS code
 above a certain size, two base sizes (and therefore two different RS codes) are
 used: 100/80 and 200/180.
 
-The reference FEC RS implementation is {https://github.com/simonyipeter/Arduino-FEC}.
+The reference FEC RS implementation is https://github.com/simonyipeter/Arduino-FEC .
