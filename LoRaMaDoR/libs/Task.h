@@ -32,6 +32,7 @@ private:
 	void set_timebase(unsigned long int timebase);
 	bool should_run(unsigned long int now) const;
 	bool cancelled() const;
+	unsigned long int next_run() const;
 
 	int id;
 	unsigned long int offset;
@@ -51,9 +52,11 @@ class TaskManager {
 public:
 	TaskManager();
 	~TaskManager();
-	void run(unsigned long int now);
+	void run(unsigned long int);
 	void schedule(Task* task);
 	void cancel(const Task* task);
+	// for testing purposes
+	unsigned long int next_task();
 private:
 	Vector< Ptr<Task> > tasks;
 

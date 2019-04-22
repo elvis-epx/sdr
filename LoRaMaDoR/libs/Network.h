@@ -39,6 +39,9 @@ public:
 	void radio_recv(const char *recv_area, unsigned int plen, int rssi);
 	virtual unsigned long int task_callback(int, unsigned long int, Task*);
 
+	// publicized for testing
+	Ptr<TaskManager> task_mgr;
+
 private:
 	void sendmsg(const Ptr<Packet> pkt);
 	unsigned long int forward(unsigned long int, Task*);
@@ -53,7 +56,6 @@ private:
 	Dict<RecvLogItem> recv_log;
 	Dict<AdjacentStation> adjacent_stations;
 	unsigned int last_pkt_id;
-	Ptr<TaskManager> task_mgr;
 	Vector< Ptr<Modifier> > modifiers;
 	Vector< Ptr<Handler> > handlers;
 	bool radio_busy;

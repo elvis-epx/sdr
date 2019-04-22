@@ -1,5 +1,5 @@
 #include "Task.h"
-#include "FakeArduino.h"
+#include "ArduinoBridge.h"
 
 Task::Task(int id, unsigned long int offset, TaskCallable* callback_target)
 {
@@ -20,15 +20,19 @@ void Task::set_timebase(unsigned long int now)
 	this->timebase = now;
 }
 
-bool Task::should_run(unsigned long int now) const
-{
-	return this->timebase > 0 && 
-		(this->timebase + this->offset) <= now;
-}
-
 bool Task::cancelled() const
 {
 	return this->timebase <= 0;
+}
+
+unsigned long int Task::next_run() const
+{
+	return this->timebase + this->offset;
+}
+
+bool Task::should_run(unsigned long int now) const
+{
+	return ! this->cancelled() && this->next_run() <= now;
 }
 
 bool Task::run(unsigned long int now)
@@ -49,6 +53,18 @@ void TaskManager::schedule(Task* task)
 	Ptr<Task> etask = task;
 	tasks.push_back(etask);
 	etask->set_timebase(arduino_millis());
+}
+
+unsigned long int TaskManager::next_task()
+{
+	unsigned long int task_time = 999999999999;
+	for (unsigned int i = 0 ; i < tasks.size(); ++i) {
+		Ptr<Task> t = tasks[i];
+		if (! t->cancelled() && t->next_run() < task_time) {
+			task_time = t->next_run();
+		}
+	}
+	return task_time;
 }
 
 void TaskManager::cancel(const Task *task)

@@ -2,8 +2,7 @@
 // Copyright (c) 2019 PU5EPX
 
 #include "Network.h"
-#include "Log.h"
-#include "FakeArduino.h"
+#include "ArduinoBridge.h"
 
 static const unsigned int PKT_ID_RESET_TIME = 1200 * 1000; /* 20 minutes */
 

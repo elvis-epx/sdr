@@ -1,3 +1,5 @@
+// Emulation of certain Arduino APIs for testing on UNIX
+
 #include <sys/time.h>
 #include <stdio.h>
 #include <strings.h>
@@ -8,14 +10,10 @@
 #include <arpa/inet.h>
 #include "Buffer.h"
 
-#define PORT 6000
-#define GROUP "239.0.0.1"
+// Emulation of millis() and random()
 
 static struct timeval tm_first;
 static bool virgin = true;
-static int sock = -1;
-static struct sockaddr_in addr;
-static int addrlen;
 
 unsigned long int arduino_millis()
 {
@@ -32,6 +30,32 @@ unsigned long int arduino_millis()
 long int arduino_random(long int min, long int max)
 {
 	return min + random() % (max - min + 1);
+}
+
+// Logging
+
+void logs(const char* s1, const char* s2)
+{
+	printf("%s %s\n", s1, s2);
+}
+
+void logi(const char* s1, long int s2)
+{
+	printf("%s %ld\n", s1, s2);
+}
+
+// Emulation of LoRa APIs, network and radio
+
+#define PORT 6000
+#define GROUP "239.0.0.1"
+
+static int sock = -1;
+static struct sockaddr_in addr;
+static int addrlen;
+
+int lora_emu_socket()
+{
+	return sock;
 }
 
 void setup_lora()
@@ -84,9 +108,11 @@ bool lora_tx_busy()
 	return false;
 }
 
-void lora_rx(void (*)(char const*, unsigned int, int))
+static void (*rx_callback)(char const*, unsigned int, int) = 0;
+
+void lora_rx(void (*new_cb)(char const*, unsigned int, int))
 {
-	// FIXME set callback
+	rx_callback = new_cb;
 }
 
 void _lora_rx()
@@ -98,5 +124,6 @@ void _lora_rx()
 	if (rec < 0) {
 		printf("recvfrom\n");
 		exit(1);
-	 }
+	}
+	rx_callback(message, rec, -50);
 }
