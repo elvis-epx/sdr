@@ -1,4 +1,4 @@
-CFLAGS=-fsanitize=undefined -fstack-protector-strong -fstack-protector-all -std=c++1y -Wall -g -O0
+CFLAGS=-DDEBUG -fsanitize=undefined -fstack-protector-strong -fstack-protector-all -std=c++1y -Wall -g -O0
 
 all: test testnet
 

@@ -6,8 +6,7 @@
 
 static const unsigned int PKT_ID_RESET_TIME = 1200 * 1000; /* 20 minutes */
 
-static const unsigned int CHK_BUSY_TIME = 1000;             /* 1 second */
-static const unsigned int TX_BUSY_RETRY_TIME = 2000;             /* 2 seconds */
+static const unsigned int TX_BUSY_RETRY_TIME = 1000;        /* 1 second */
 
 static const unsigned int ADJ_STATIONS_PERSIST = 3600 * 1000; /* 60 minutes */
 static const unsigned int ADJ_STATIONS_CLEAN = 600 * 1000; /* 10 minutes */
@@ -16,10 +15,8 @@ static const unsigned int RECV_LOG_PERSIST = 600 * 1000; /* 10 minutes */
 static const unsigned int RECV_LOG_CLEAN = 60 * 1000; /* 1 minute */
 
 static const unsigned int AVG_BEACON_TIME = 600 * 1000; /* 10 minutes */
-static const unsigned int AVG_FIRST_BEACON_TIME = 30 * 1000; /* 30 seconds */
+static const unsigned int AVG_FIRST_BEACON_TIME = 10 * 1000; /* 30 seconds */
 static const char* BEACON_MSG = "73";
-
-#define DEBUG 1
 
 // Task IDs
 
@@ -29,7 +26,6 @@ static const int TASK_ID_BEACON = 3;
 static const int TASK_ID_ADJ_STATIONS = 4;
 static const int TASK_ID_PKT_ID = 5;
 static const int TASK_ID_RECV_LOG = 6;
-static const int TASK_ID_CHK_BUSY = 7;
 
 // Task who calls back Network::tx_task() 
 
@@ -93,19 +89,16 @@ Network::Network(const char *callsign)
 {
 	my_callsign = Buffer(callsign);
 	last_pkt_id = 0;
-	task_mgr = new TaskManager();
 
 	Task *beacon = new Task(TASK_ID_BEACON, fudge(AVG_FIRST_BEACON_TIME, 0.5), this);
 	Task *clean_recv = new Task(TASK_ID_RECV_LOG, RECV_LOG_PERSIST, this);
 	Task *clean_adj = new Task(TASK_ID_ADJ_STATIONS, ADJ_STATIONS_PERSIST, this);
 	Task *id_reset = new Task(TASK_ID_PKT_ID, PKT_ID_RESET_TIME, this);
-	Task *chk_busy = new Task(TASK_ID_CHK_BUSY, CHK_BUSY_TIME, this);
 
-	task_mgr->schedule(beacon);
-	task_mgr->schedule(clean_recv);
-	task_mgr->schedule(clean_adj);
-	task_mgr->schedule(id_reset);
-	task_mgr->schedule(chk_busy);
+	task_mgr.schedule(beacon);
+	task_mgr.schedule(clean_recv);
+	task_mgr.schedule(clean_adj);
+	task_mgr.schedule(id_reset);
 
 	modifiers.push_back(new Rreqi());
 	modifiers.push_back(new RetransBeacon());
@@ -114,7 +107,6 @@ Network::Network(const char *callsign)
 
 	setup_lora();
 	lora_rx(radio_recv_trampoline);
-	radio_busy = false;
 }
 
 Network::~Network()
@@ -137,7 +129,7 @@ void Network::send(const char *to, const Params& params, const Buffer& msg)
 void Network::sendmsg(const Ptr<Packet> pkt)
 {
 	Task *fwd_task = new PacketFwd(pkt, 999, true, TASK_ID_FWD, this);
-	task_mgr->schedule(fwd_task);
+	task_mgr.schedule(fwd_task);
 }
 
 void Network::recv(Ptr<Packet> pkt)
@@ -174,7 +166,7 @@ void Network::radio_recv(const char *recv_area, unsigned int plen, int rssi)
 	logi("Good packet, RSSI =", rssi);
 #endif
 	Task *fwd_task = new PacketFwd(pkt, rssi, false, TASK_ID_FWD, this);
-	task_mgr->schedule(fwd_task);
+	task_mgr.schedule(fwd_task);
 }
 
 unsigned long int Network::beacon(unsigned long int, Task*)
@@ -237,23 +229,12 @@ unsigned long int Network::reset_pkt_id(unsigned long int, Task*)
 
 unsigned long int Network::tx(unsigned long int now, Task* task)
 {
-	if (radio_busy) {
+	if (lora_tx_busy()) {
 		return TX_BUSY_RETRY_TIME;
 	}
 	const PacketTx* packet_task = dynamic_cast<PacketTx*>(task);
 	lora_tx_async(packet_task->encoded_packet);
-	radio_busy = true;
 	return 0;
-}
-
-unsigned long int Network::check_radio_busy(unsigned long int, Task*)
-{
-	if (radio_busy) {
-		if (! lora_tx_busy()) {
-			radio_busy = false;
-		}
-	}
-	return CHK_BUSY_TIME;
 }
 
 unsigned long int Network::forward(unsigned long int now, Task* task)
@@ -275,7 +256,7 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 		recv_log.put(pkt->signature(), RecvLogItem(rssi, now));
 		// Transmit
 		Task *tx_task = new PacketTx(pkt->encode_l2(), 50, this);
-		task_mgr->schedule(tx_task);
+		task_mgr.schedule(tx_task);
 		return 0;
 	}
 
@@ -342,7 +323,7 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 #endif
 
 	Task *tx_task = new PacketTx(encoded_pkt, delay, this);
-	task_mgr->schedule(tx_task);
+	task_mgr.schedule(tx_task);
 
 	return 0;
 }
@@ -367,8 +348,6 @@ unsigned long int Network::task_callback(int id, unsigned long int now, Task* ta
 			return reset_pkt_id(now, task);
 		case TASK_ID_RECV_LOG:
 			return clean_recv_log(now, task);
-		case TASK_ID_CHK_BUSY:
-			return check_radio_busy(now, task);
 		default:
 #ifdef DEBUG
 			logi("invalid task id ", id);

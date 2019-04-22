@@ -40,7 +40,7 @@ public:
 	virtual unsigned long int task_callback(int, unsigned long int, Task*);
 
 	// publicized for testing
-	Ptr<TaskManager> task_mgr;
+	TaskManager task_mgr;
 
 private:
 	void sendmsg(const Ptr<Packet> pkt);
@@ -49,7 +49,6 @@ private:
 	unsigned long int clean_adjacent_stations(unsigned long int, Task*);
 	unsigned long int beacon(unsigned long int, Task*);
 	unsigned long int tx(unsigned long int, Task*);
-	unsigned long int check_radio_busy(unsigned long int, Task*);
 	unsigned long int reset_pkt_id(unsigned long int, Task*);
 
 	Buffer my_callsign;
@@ -58,7 +57,6 @@ private:
 	unsigned int last_pkt_id;
 	Vector< Ptr<Modifier> > modifiers;
 	Vector< Ptr<Handler> > handlers;
-	bool radio_busy;
 };
 
 void config_net(const char *callsign);

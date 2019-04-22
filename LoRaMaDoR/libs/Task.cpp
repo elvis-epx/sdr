@@ -57,12 +57,20 @@ void TaskManager::schedule(Task* task)
 
 unsigned long int TaskManager::next_task()
 {
+	bool has_task = false;
 	unsigned long int task_time = 999999999999;
 	for (unsigned int i = 0 ; i < tasks.size(); ++i) {
 		Ptr<Task> t = tasks[i];
 		if (! t->cancelled() && t->next_run() < task_time) {
+			has_task = true;
 			task_time = t->next_run();
 		}
+	}
+	if (! has_task) {
+		return 0;
+	}
+	if (task_time <= 0) {
+		task_time = 1;
 	}
 	return task_time;
 }
