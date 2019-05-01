@@ -73,17 +73,24 @@ void setup_lora()
 		exit(1);
 	}
 
-	// Disable receiving our own multicast packets
-	int loop = 0;
-	setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop));
+	// Self-receive must be enabled because we run multiple instances
+	// on the same machine
+	int loop = 1;
+	if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) < 0) {
+		perror("setsockopt loop");
+		exit(1);
+	}
 
 	// Allow multiple listeners to the same port
 	int optval = 1;
-	setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
+	if (setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval)) < 0) {
+		perror("setsockopt reuseport");
+		exit(1);
+	}
 
 	// Enter multicast group
 	mreq.imr_multiaddr.s_addr = inet_addr(GROUP);
-	mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+	mreq.imr_interface.s_addr = INADDR_ANY;
 	if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP,
 					&mreq, sizeof(mreq)) < 0) {
 		perror("setsockopt mreq");
@@ -94,7 +101,7 @@ void setup_lora()
 	struct sockaddr_in addr;
 	memset((char *)&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	addr.sin_addr.s_addr = INADDR_ANY;
 	addr.sin_port = htons(PORT);
 
 	if (bind(sock, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
