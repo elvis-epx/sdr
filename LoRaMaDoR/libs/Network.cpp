@@ -34,7 +34,7 @@ public:
 	PacketTx(const Buffer& encoded_packet,
 		unsigned long int offset,
 		TaskCallable* callback_target):
-			Task(TASK_ID_TX, offset, callback_target),
+			Task(TASK_ID_TX, "tx", offset, callback_target),
 			encoded_packet(encoded_packet) {}
 	virtual ~PacketTx() {}
 	const Buffer encoded_packet; // read by callback tx(), who downcasts Task to PacketTx
@@ -49,7 +49,7 @@ public:
 		bool we_are_origin,
 		unsigned long int offset,
 		TaskCallable* callback_target):
-			Task(TASK_ID_FWD, offset, callback_target),
+			Task(TASK_ID_FWD, "fwd", offset, callback_target),
 			packet(packet), rssi(rssi),
 			we_are_origin(we_are_origin) {}
 	virtual ~PacketFwd() {}
@@ -90,10 +90,10 @@ Network::Network(const char *callsign)
 	my_callsign = Buffer(callsign);
 	last_pkt_id = 0;
 
-	Task *beacon = new Task(TASK_ID_BEACON, fudge(AVG_FIRST_BEACON_TIME, 0.5), this);
-	Task *clean_recv = new Task(TASK_ID_RECV_LOG, RECV_LOG_PERSIST, this);
-	Task *clean_adj = new Task(TASK_ID_ADJ_STATIONS, ADJ_STATIONS_PERSIST, this);
-	Task *id_reset = new Task(TASK_ID_PKT_ID, PKT_ID_RESET_TIME, this);
+	Task *beacon = new Task(TASK_ID_BEACON, "beacon", fudge(AVG_FIRST_BEACON_TIME, 0.5), this);
+	Task *clean_recv = new Task(TASK_ID_RECV_LOG, "recv_log", RECV_LOG_PERSIST, this);
+	Task *clean_adj = new Task(TASK_ID_ADJ_STATIONS, "adj_list", ADJ_STATIONS_PERSIST, this);
+	Task *id_reset = new Task(TASK_ID_PKT_ID, "pkt_id", PKT_ID_RESET_TIME, this);
 
 	task_mgr.schedule(beacon);
 	task_mgr.schedule(clean_recv);
@@ -134,9 +134,7 @@ void Network::sendmsg(const Ptr<Packet> pkt)
 
 void Network::recv(Ptr<Packet> pkt)
 {
-#ifdef DEBUG
 	logs("Received pkt", pkt->encode_l3().cold());
-#endif
 	for (unsigned int i = 0; i < handlers.size(); ++i) {
 		Ptr<Packet> response = handlers[i]->handle(*pkt, my_callsign.cold());
 		if (response) {
@@ -157,14 +155,10 @@ void Network::radio_recv(const char *recv_area, unsigned int plen, int rssi)
 {
 	Ptr<Packet> pkt = Packet::decode_l2(recv_area, plen);
 	if (!pkt) {
-#ifdef DEBUG
 		logi("Invalid packet received, error =", Packet::get_decode_error());
-#endif
 		return;
 	}
-#ifdef DEBUG
 	logi("Good packet, RSSI =", rssi);
-#endif
 	Task *fwd_task = new PacketFwd(pkt, rssi, false, TASK_ID_FWD, this);
 	task_mgr.schedule(fwd_task);
 }
@@ -172,7 +166,9 @@ void Network::radio_recv(const char *recv_area, unsigned int plen, int rssi)
 unsigned long int Network::beacon(unsigned long int, Task*)
 {
 	send("QB", Params(), Buffer(BEACON_MSG));
-	return fudge(AVG_BEACON_TIME, 0.5);
+	unsigned long int next = fudge(AVG_BEACON_TIME, 0.5);
+	logi("Next beacon in ", next);
+	return next;
 }
 
 unsigned long int Network::clean_recv_log(unsigned long int now, Task*)
@@ -190,9 +186,7 @@ unsigned long int Network::clean_recv_log(unsigned long int now, Task*)
 
 	for (unsigned int i = 0; i < remove_list.size(); ++i) {
 		recv_log.remove(remove_list[i]);
-#ifdef DEBUG
 		logs("Forgotten packet", remove_list[i].cold());
-#endif
 	}
 
 	return RECV_LOG_CLEAN;
@@ -213,9 +207,7 @@ unsigned long int Network::clean_adjacent_stations(unsigned long int now, Task*)
 
 	for (unsigned int i = 0; i < remove_list.size(); ++i) {
 		adjacent_stations.remove(remove_list[i]);
-#ifdef DEBUG
 		logs("Forgotten station", remove_list[i].cold());
-#endif
 	}
 
 	return ADJ_STATIONS_CLEAN;
@@ -262,17 +254,13 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 
 	// Packet originated from us but received via radio = loop
 	if (my_callsign.str_equal(pkt->from())) {
-#ifdef DEBUG
 		logs("pkt loop", pkt->signature());
-#endif
 		return 0;
 	}
 
 	// Discard received duplicates
 	if (recv_log.has(pkt->signature())) {
-#ifdef DEBUG
 		logs("pkt dup", pkt->signature());
-#endif
 		return 0;
 	}
 	recv_log.put(pkt->signature(), RecvLogItem(rssi, now)); 
@@ -286,11 +274,9 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 	if (strcmp(pkt->to(), "QB") == 0 || strcmp(pkt->to(), "QC") == 0) {
 		// We are just one of the destinations
 		if (! pkt->params().has("R")) {
-#ifdef DEBUG
 			if (! adjacent_stations.has(pkt->from())) {
 				logs("discovered neighbour", pkt->from());
 			}
-#endif
 			adjacent_stations[pkt->from()] = AdjacentStation(rssi, now);
 		}
 		recv(pkt);
@@ -318,9 +304,7 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 	// e.g. 900 bits @ 600 bps = 1500 ms
 	unsigned long int delay = bit_delay * 1000 / lora_speed_bps();
 
-#ifdef DEBUG
 	logi("relaying w/ delay", delay);
-#endif
 
 	Task *tx_task = new PacketTx(encoded_pkt, delay, this);
 	task_mgr.schedule(tx_task);
@@ -349,9 +333,7 @@ unsigned long int Network::task_callback(int id, unsigned long int now, Task* ta
 		case TASK_ID_RECV_LOG:
 			return clean_recv_log(now, task);
 		default:
-#ifdef DEBUG
 			logi("invalid task id ", id);
-#endif
 	}
 	return 0;
 }

@@ -28,9 +28,7 @@ int main(int argc, char* argv[])
 	printf("Socket %d\n", s);
 
 	while (1) {
-		unsigned long int now = arduino_millis();
-		unsigned long int toa = net()->task_mgr.next_task();
-		unsigned long int to = toa - now;
+		Ptr<Task> tsk = net()->task_mgr.next_task();
 
 		fd_set set;
 		FD_ZERO(&set);
@@ -38,14 +36,22 @@ int main(int argc, char* argv[])
 
 		struct timeval timeout;
 		struct timeval* ptimeout = 0;
-		if (to > 0) {
-			printf("Timeout: %lu\n", to);
+		if (tsk) {
+			long int now = arduino_millis();
+			long int to = tsk->next_run() - now;
+			printf("Timeout: %s %ld\n", tsk->get_name(), to);
+			if (to < 0) {
+				to = 0;
+			}
 			timeout.tv_sec = to / 1000;
 			timeout.tv_usec = (to % 1000) * 1000;
 			ptimeout = &timeout;
 		} else {
 			printf("No timeout (bug?)\n");
+			timeout.tv_sec = 1;
+			timeout.tv_usec = 0;
 		}
+		ptimeout = &timeout;
 
 		int sel = select(s + 1, &set, NULL, NULL, ptimeout);
 		if (sel < 0) {

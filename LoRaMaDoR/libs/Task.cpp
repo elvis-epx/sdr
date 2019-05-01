@@ -1,12 +1,9 @@
 #include "Task.h"
 #include "ArduinoBridge.h"
 
-Task::Task(int id, unsigned long int offset, TaskCallable* callback_target)
+Task::Task(int id, const char *name, unsigned long int offset, TaskCallable* callback_target):
+	id(id), name(name), offset(offset), timebase(0), callback_target(callback_target)
 {
-	this->id = id;
-	this->offset = offset;
-	this->timebase = 0;
-	this->callback_target = callback_target;
 }
 
 Task::~Task()
@@ -22,11 +19,13 @@ void Task::set_timebase(unsigned long int now)
 
 bool Task::cancelled() const
 {
-	return this->timebase <= 0;
+	return this->timebase == 0;
 }
 
 unsigned long int Task::next_run() const
 {
+	// logi("Timebase", this->timebase);
+	// logi("Offset", this->offset);
 	return this->timebase + this->offset;
 }
 
@@ -44,6 +43,11 @@ bool Task::run(unsigned long int now)
 	return this->offset > 0;
 }
 
+const char* Task::get_name() const
+{
+	return name;
+}
+
 TaskManager::TaskManager() {}
 
 TaskManager::~TaskManager() {}
@@ -55,24 +59,21 @@ void TaskManager::schedule(Task* task)
 	etask->set_timebase(arduino_millis());
 }
 
-unsigned long int TaskManager::next_task()
+Ptr<Task> TaskManager::next_task() const
 {
-	bool has_task = false;
+	Ptr<Task> ret = 0;
 	unsigned long int task_time = 999999999999;
 	for (unsigned int i = 0 ; i < tasks.size(); ++i) {
 		Ptr<Task> t = tasks[i];
-		if (! t->cancelled() && t->next_run() < task_time) {
-			has_task = true;
-			task_time = t->next_run();
+		if (! t->cancelled()) {
+			unsigned long int nr = t->next_run();
+			if (nr < task_time) {
+				task_time = nr;
+				ret = t;
+			}
 		}
 	}
-	if (! has_task) {
-		return 0;
-	}
-	if (task_time <= 0) {
-		task_time = 1;
-	}
-	return task_time;
+	return ret;
 }
 
 void TaskManager::cancel(const Task *task)

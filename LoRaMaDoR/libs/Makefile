@@ -5,7 +5,7 @@ all: test testnet
 clean:
 	rm -f *.o test
 
-.cpp.o:
+.cpp.o: *.h
 	gcc $(CFLAGS) -c $<
 
 test: test.cpp Handler.o Modifier.o Packet.o Buffer.o Task.o FakeArduino.o Network.o *.h

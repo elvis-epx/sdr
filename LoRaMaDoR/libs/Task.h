@@ -21,8 +21,10 @@ class TaskManager;
 
 class Task {
 public:
-	Task(int id, unsigned long int offset, TaskCallable* callback_target);
+	Task(int id, const char *name, unsigned long int offset, TaskCallable* callback_target);
 	virtual ~Task();
+	unsigned long int next_run() const;
+	const char *get_name() const;
 
 protected:
 	virtual bool run(unsigned long int now);
@@ -32,9 +34,9 @@ private:
 	void set_timebase(unsigned long int timebase);
 	bool should_run(unsigned long int now) const;
 	bool cancelled() const;
-	unsigned long int next_run() const;
 
 	int id;
+	const char *name;
 	unsigned long int offset;
 	unsigned long int timebase;
 	TaskCallable *callback_target;
@@ -56,7 +58,7 @@ public:
 	void schedule(Task* task);
 	void cancel(const Task* task);
 	// for testing purposes
-	unsigned long int next_task();
+	Ptr<Task> next_task() const;
 private:
 	Vector< Ptr<Task> > tasks;
 
