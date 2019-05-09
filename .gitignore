@@ -5,3 +5,8 @@ __pycache__/
 build/
 fastfm.cy
 *.wav
+*.gcda
+*.gcno
+*.dSYM
+main_coverage.info
+out/
