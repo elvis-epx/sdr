@@ -27,7 +27,8 @@ int main(int argc, char* argv[])
 	int s = lora_emu_socket();
 	printf("Socket %d\n", s);
 
-	while (1) {
+	int x = 5000;
+	while (x-- > 0) {
 		Ptr<Task> tsk = net()->task_mgr.next_task();
 
 		fd_set set;

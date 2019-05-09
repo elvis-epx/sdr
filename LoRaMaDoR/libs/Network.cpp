@@ -166,7 +166,11 @@ void Network::radio_recv(const char *recv_area, unsigned int plen, int rssi)
 unsigned long int Network::beacon(unsigned long int, Task*)
 {
 	send("QB", Params(), Buffer(BEACON_MSG));
+#ifdef UNDER_TEST
+	unsigned long int next = fudge(10000, 0.5);
+#else
 	unsigned long int next = fudge(AVG_BEACON_TIME, 0.5);
+#endif
 	logi("Next beacon in ", next);
 	return next;
 }
