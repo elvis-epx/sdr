@@ -169,12 +169,10 @@ while True:
 
 			# Translate rotation to frequency deviation e.g.
 			# cos(tau + 3.6º) = cos(1.01 * tau)
-			# Frequency should be divided by 1.01
 			# cos(tau - 9º) = cos(tau * 0.975)
-			# Frequency should be multiplied by (1 / 0.975)
-			#	i.e. divided by 0.975
+                        #
 			# Overcorrect by 5% to (try to) sync phase,
-			# not only keep it as is
+                        # otherwise only the frequency would be synced.
 
 			STEREO_CARRIER /= (1 + (rotation * 1.05) / tau)
 
