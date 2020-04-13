@@ -2,8 +2,8 @@
 #include "Packet.h"
 #include "Network.h"
 
-const char *my_prefix = "PU5EPX-1";
-const long int AVG_BEACON_TIME = 30000;
+const char *my_prefix = "PU5EPX-2";
+const long int AVG_BEACON_TIME = 5000;
 
 SSD1306 display(0x3c, 4, 15);
 
@@ -22,27 +22,13 @@ void display_init()
   display.setTextAlignment(TEXT_ALIGN_LEFT);
 }
 
-char *lines[5] = {0, 0, 0, 0, 0};
-int linecount = 0;
-
 void show_diag(const char *msg)
 {
-	if (linecount < 5) {
-		lines[linecount++] = strdup(msg);
-	} else {
-		free(lines[0]);
-		lines[0] = lines[1];
-		lines[1] = lines[2];
-		lines[2] = lines[3];
-		lines[3] = lines[4];
-		lines[4] = strdup(msg);
-	}
+	char ms[20];
+	sprintf(ms, "%ld", millis());
 	display.clear();
-	display.drawStringMaxWidth(0, 0, 80, lines[0]);
-	if (lines[1]) display.drawStringMaxWidth(0, 12, 80, lines[1]);
-	if (lines[2]) display.drawStringMaxWidth(0, 24, 80, lines[2]);
-	if (lines[3]) display.drawStringMaxWidth(0, 36, 80, lines[3]);
-	if (lines[4]) display.drawStringMaxWidth(0, 48, 80, lines[4]);
+	display.drawString(0, 0, msg);
+	display.drawString(0, 48, ms);
 	display.display();
 	Serial.println(msg);
 }
@@ -58,7 +44,7 @@ void setup()
   show_diag("net ok");
 }
 
-long nextSendTime = millis() + 1000;
+long nextSendTime = millis() + 5000;
 
 void loop()
 {
@@ -74,13 +60,17 @@ void loop()
 
 void send_message()
 {
+	show_diag("send_message()");
 	Net->send("QC", Params(), "LoRaMaDoR 73!");
+	show_diag("send_message() ok");
 }
+
+char msg[300];
 
 void app_recv(Ptr<Packet> pkt)
 {
-  char msg[300];
-  snprintf(msg, sizeof(msg), "RSSI %d %s < %s id %ld params %s msg %s",
+	show_diag("recv");
+	snprintf(msg, sizeof(msg), "RSSI %d %s < %s id %ld params %s msg %s",
            pkt->rssi(),	pkt->to(), pkt->from(),
            pkt->ident(), pkt->sparams(), pkt->msg().cold());
   show_diag(msg);
@@ -97,13 +87,11 @@ long int arduino_random(long int min, long int max)
 }
 
 void logs(const char* a, const char* b) {
-  char msg[300];
   snprintf(msg, sizeof(msg), "%s %s", a, b);
-  show_diag(msg);
+  Serial.println(msg);
 }
 
 void logi(const char* a, long int b) {
-  char msg[300];
   snprintf(msg, sizeof(msg), "%s %ld", a, b);
-  show_diag(msg);
+  Serial.println(msg);
 }

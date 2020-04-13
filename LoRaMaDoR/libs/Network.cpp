@@ -20,7 +20,7 @@ static const char* BEACON_MSG = "73";
 
 static unsigned long int fudge(unsigned long int avg, double fudge)
 {
-	return arduino_random(avg * (1.0 - fudge), avg * (1.0 + fudge) + 1);
+	return arduino_random(avg * (1.0 - fudge), avg * (1.0 + fudge));
 }
 
 
@@ -55,7 +55,7 @@ public:
 		unsigned long int offset,
 		TaskCallable* callback_target):
 			Task(TASK_ID_FWD, "fwd", offset, callback_target),
-			packet(packet), 
+			packet(packet),
 			we_are_origin(we_are_origin) {}
 	virtual ~PacketFwd() {}
 	virtual bool run(unsigned long int now) {
