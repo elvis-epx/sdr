@@ -286,8 +286,8 @@ static bool decode_preamble(const char* data, unsigned int len,
 }
 
 Packet::Packet(const char* to, const char* from, unsigned long int ident, 
-			const Params& params, const Buffer& msg): 
-			_to(to), _from(from), _ident(ident), _params(params), _msg(msg)
+			const Params& params, const Buffer& msg, int rssi): 
+			_to(to), _from(from), _ident(ident), _params(params), _msg(msg), _rssi(rssi)
 {
 	_sparams = encode_params(_ident, _params);
 	_to.uppercase();
@@ -310,9 +310,9 @@ Packet::~Packet()
 {
 }
 
-Ptr<Packet> Packet::decode_l2(const char *data, unsigned int len)
+Ptr<Packet> Packet::decode_l2(const char *data, unsigned int len, int rssi)
 {
-  decode_error = 0;
+	decode_error = 0;
 	if (len <= REDUNDANCY || len > (MSGSIZE_LONG + REDUNDANCY)) {
 		decode_error = 999;
 		return 0;
@@ -326,7 +326,7 @@ Ptr<Packet> Packet::decode_l2(const char *data, unsigned int len)
 			decode_error = 998;
 			return 0;
 		}
-		return decode_l3(rs_decoded, len - REDUNDANCY);
+		return decode_l3(rs_decoded, len - REDUNDANCY, rssi);
 	} else {
 		memcpy(rs_encoded, data, len - REDUNDANCY);
 		memcpy(rs_encoded + MSGSIZE_LONG, data + len - REDUNDANCY, REDUNDANCY);
@@ -334,17 +334,17 @@ Ptr<Packet> Packet::decode_l2(const char *data, unsigned int len)
 			decode_error = 997;
 			return 0;
 		}
-		return decode_l3(rs_decoded, len - REDUNDANCY);
+		return decode_l3(rs_decoded, len - REDUNDANCY, rssi);
 	}
 }
 
 // just for testing
 Ptr<Packet> Packet::decode_l3(const char* data)
 {
-	return decode_l3(data, strlen(data));
+	return decode_l3(data, strlen(data), -50);
 }
 
-Ptr<Packet> Packet::decode_l3(const char* data, unsigned int len)
+Ptr<Packet> Packet::decode_l3(const char* data, unsigned int len, int rssi)
 {
 	const char *preamble = 0;
 	const char *msg = 0;
@@ -373,7 +373,7 @@ Ptr<Packet> Packet::decode_l3(const char* data, unsigned int len)
 		return 0;
 	}
 
-	return new Packet(to.cold(), from.cold(), ident, params, Buffer(msg, msg_len));
+	return new Packet(to.cold(), from.cold(), ident, params, Buffer(msg, msg_len), rssi);
 }
 
 Ptr<Packet> Packet::change_msg(const Buffer& msg) const
@@ -494,6 +494,11 @@ const Params& Packet::params() const
 const Buffer& Packet::msg() const
 {
 	return _msg;
+}
+
+int Packet::rssi() const
+{
+	return _rssi;
 }
 
 int Packet::get_decode_error()

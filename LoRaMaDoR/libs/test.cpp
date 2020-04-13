@@ -167,7 +167,7 @@ int main()
 	printf("'%s'\n", spl3.cold());
 	assert (strcmp(spl3.cold(), "AAAA<BBBB:123,X,Y=456 bla ble") == 0);
 	printf("---\n");
-	Ptr<Packet> q = Packet::decode_l2(spl2.cold(), spl2.length());
+	Ptr<Packet> q = Packet::decode_l2(spl2.cold(), spl2.length(), -50);
 	assert (q);
 
 	/* Corrupt some chars */
@@ -179,7 +179,7 @@ int main()
 	spl2.hot()[15] = 66;
 	spl2.hot()[33] = 66;
 	spl2.hot()[40] = 66;
-	q = Packet::decode_l2(spl2.cold(), spl2.length());
+	q = Packet::decode_l2(spl2.cold(), spl2.length(), -50);
 	assert (q);
 
 	/* Corrupt too many chars */
@@ -191,7 +191,7 @@ int main()
 	spl2.hot()[11] = 66;
 	spl2.hot()[13] = 66;
 	spl2.hot()[39] = 66;
-	assert(! Packet::decode_l2(spl2.cold(), spl2.length()));
+	assert(! Packet::decode_l2(spl2.cold(), spl2.length(), -50));
 
 	assert (p.is_dup(*q));
 	assert (q->is_dup(p));

@@ -37,7 +37,7 @@ long int arduino_random(long int min, long int max)
 		virgin = false;
 		srandom(tm_first.tv_sec + tm_first.tv_usec);
 	}
-	return min + random() % (max - min + 1);
+	return min + random() % (max - min);
 }
 
 // Logging
@@ -122,7 +122,7 @@ unsigned long int lora_speed_bps()
 	return 1200;
 }
 
-bool lora_tx_async(const Buffer& b)
+int lora_tx(const Buffer& b)
 {
 	// Send to multicast group & port
 	struct sockaddr_in addr;
@@ -137,7 +137,7 @@ bool lora_tx_async(const Buffer& b)
 		exit(1);
 	}
 	printf("Sent packet\n");
-	return true;
+	return 1;
 }
 
 bool lora_tx_busy()

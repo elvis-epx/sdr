@@ -20,7 +20,7 @@ static const char* BEACON_MSG = "73";
 
 static unsigned long int fudge(unsigned long int avg, double fudge)
 {
-	return arduino_random(avg * (1.0 - fudge), avg * (1.0 + fudge));
+	return arduino_random(avg * (1.0 - fudge), avg * (1.0 + fudge) + 1);
 }
 
 
@@ -51,12 +51,11 @@ public:
 class PacketFwd: public Task {
 public:
 	PacketFwd(const Ptr<Packet> packet,
-		int rssi,
 		bool we_are_origin,
 		unsigned long int offset,
 		TaskCallable* callback_target):
 			Task(TASK_ID_FWD, "fwd", offset, callback_target),
-			packet(packet), rssi(rssi),
+			packet(packet), 
 			we_are_origin(we_are_origin) {}
 	virtual ~PacketFwd() {}
 	virtual bool run(unsigned long int now) {
@@ -66,7 +65,6 @@ public:
 	}
 	// read by callback forward(), who downcasts Task to PacketFwd
 	const Ptr<Packet> packet;
-	const int rssi;
 	const bool we_are_origin;
 };
 
@@ -130,7 +128,7 @@ void Network::send(const char *to, const Params& params, const Buffer& msg)
 
 void Network::sendmsg(const Ptr<Packet> pkt)
 {
-	Task *fwd_task = new PacketFwd(pkt, 999, true, TASK_ID_FWD, this);
+	Task *fwd_task = new PacketFwd(pkt, true, TASK_ID_FWD, this);
 	task_mgr.schedule(fwd_task);
 }
 
@@ -155,13 +153,13 @@ void radio_recv_trampoline(const char *recv_area, unsigned int plen, int rssi)
 
 void Network::radio_recv(const char *recv_area, unsigned int plen, int rssi)
 {
-	Ptr<Packet> pkt = Packet::decode_l2(recv_area, plen);
+	Ptr<Packet> pkt = Packet::decode_l2(recv_area, plen, rssi);
 	if (!pkt) {
 		logi("Invalid packet received, error =", Packet::get_decode_error());
 		return;
 	}
 	logi("Good packet, RSSI =", rssi);
-	Task *fwd_task = new PacketFwd(pkt, rssi, false, TASK_ID_FWD, this);
+	Task *fwd_task = new PacketFwd(pkt, false, TASK_ID_FWD, this);
 	task_mgr.schedule(fwd_task);
 }
 
@@ -227,19 +225,21 @@ unsigned long int Network::reset_pkt_id(unsigned long int, Task*)
 
 unsigned long int Network::tx(unsigned long int now, Task* task)
 {
+	/*
 	if (lora_tx_busy()) {
 		return TX_BUSY_RETRY_TIME;
 	}
-	const PacketTx* packet_task = dynamic_cast<PacketTx*>(task);
-	lora_tx_async(packet_task->encoded_packet);
+	*/
+	const PacketTx* packet_task = static_cast<PacketTx*>(task);
+	lora_tx(packet_task->encoded_packet);
 	return 0;
 }
 
 unsigned long int Network::forward(unsigned long int now, Task* task)
 {
-	const PacketFwd* fwd_task = dynamic_cast<PacketFwd*>(task);
+	const PacketFwd* fwd_task = static_cast<PacketFwd*>(task);
 	Ptr<Packet> pkt = fwd_task->packet;
-	int rssi = fwd_task->rssi;
+	int rssi = pkt->rssi();
 	bool we_are_origin = fwd_task->we_are_origin;
 
 	if (we_are_origin) {

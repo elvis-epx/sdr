@@ -1,19 +1,9 @@
 #include "SSD1306.h"
 #include "Packet.h"
-#include "Radio.h"
+#include "Network.h"
 
-// use button to toogle this.
-const bool SEND_BEACON = true;
-const bool RECEIVER = true;
-const long int AVG_BEACON_TIME = 10000;
-
-const char *my_prefix = "PU5EPX-2";
-
-long int ident = 0;
-long nextSendTime = millis() + 1000;
-
-int recv_pcount = 0;
-int recv_dcount = 0;
+const char *my_prefix = "PU5EPX-1";
+const long int AVG_BEACON_TIME = 30000;
 
 SSD1306 display(0x3c, 4, 15);
 
@@ -32,33 +22,46 @@ void display_init()
   display.setTextAlignment(TEXT_ALIGN_LEFT);
 }
 
-void show_diag(const char *error)
-{
-  display.clear();
-  display.drawString(0, 0, error);
-  display.display();
+char *lines[5] = {0, 0, 0, 0, 0};
+int linecount = 0;
 
-  Serial.println(error);
+void show_diag(const char *msg)
+{
+	if (linecount < 5) {
+		lines[linecount++] = strdup(msg);
+	} else {
+		free(lines[0]);
+		lines[0] = lines[1];
+		lines[1] = lines[2];
+		lines[2] = lines[3];
+		lines[3] = lines[4];
+		lines[4] = strdup(msg);
+	}
+	display.clear();
+	display.drawStringMaxWidth(0, 0, 80, lines[0]);
+	if (lines[1]) display.drawStringMaxWidth(0, 12, 80, lines[1]);
+	if (lines[2]) display.drawStringMaxWidth(0, 24, 80, lines[2]);
+	if (lines[3]) display.drawStringMaxWidth(0, 36, 80, lines[3]);
+	if (lines[4]) display.drawStringMaxWidth(0, 48, 80, lines[4]);
+	display.display();
+	Serial.println(msg);
 }
+
+Ptr<Network> Net;
 
 void setup()
 {
-  Serial.begin(9600);
+  Serial.begin(115200);
   display_init();
-
-  if (! setup_lora()) {
-    show_diag("Starting LoRa failed!");
-    while (1);
-  }
-  show_diag("LoRa ok");
-  if (RECEIVER) {
-    lora_rx(onReceive);
-  }
+  show_diag("setup");
+  Net = net(my_prefix);
+  show_diag("net ok");
 }
+
+long nextSendTime = millis() + 1000;
 
 void loop()
 {
-  if (SEND_BEACON) {
     if (millis() > nextSendTime) {
       send_message();
       long int next = random(AVG_BEACON_TIME / 2,
@@ -66,78 +69,41 @@ void loop()
       nextSendTime = millis() + next;
       return;
     }
-  }
-  if (recv_pcount > recv_dcount) {
-    recv_dcount = recv_pcount;
-    recv_show();
-  }
-}
-
-void show_sent(unsigned long int ident, unsigned int length, long int tx_time)
-{
-  char msg[50];
-  snprintf(msg, sizeof(msg), "< %s #%ld, %u octets in %ldms", my_prefix, ident, length, tx_time);
-  Serial.println(msg);
-
-  display.clear();
-  display.drawString(0, 0, String(my_prefix) + " sent #" + String(ident));
-  display.drawString(0, 10, String(length) + " bytes in " + String(tx_time) + "ms");
-  display.display();
+     Net->run_tasks(millis());
 }
 
 void send_message()
 {
-  ident %= 999;
-  ++ident;
-  Buffer msg = "LoRaMaDoR 73.";
-  Packet p = Packet("QB", my_prefix, ident, Params(), msg);
-  Buffer encoded = p.encode_l2();
-  long int tx_time = lora_tx(encoded);
-  show_sent(ident, encoded.length(), tx_time);
+	Net->send("QC", Params(), "LoRaMaDoR 73!");
 }
 
-int recv_rssi;
-String recv_from;
-String recv_to;
-unsigned long int recv_ident;
-String recv_params;
-String recv_msg;
-
-// interrupt context, don't do too much here
-void onReceive(const char *recv_area, unsigned int plen, int rssi)
-{
-  recv_rssi = rssi;
-  ++recv_pcount;
-  Ptr<Packet> p = Packet::decode_l2(recv_area, plen);
-  if (!p) {
-    recv_from = "";
-    recv_to = "";
-    recv_ident = 0;
-    recv_params = "";
-    recv_msg = ">>> Corrupted " + String(Packet::get_decode_error());
-    return;
-  }
-
-  recv_from = p->from();
-  recv_to = p->to();
-  recv_ident = p->ident();
-  recv_params = p->sparams();
-  recv_msg = p->msg().cold();
-}
-
-void recv_show()
+void app_recv(Ptr<Packet> pkt)
 {
   char msg[300];
-  snprintf(msg, sizeof(msg), "> #%ld RSSI %d %s < %s id %ld param %s msg %s",
-           recv_pcount, recv_rssi,	recv_to.c_str(), recv_from.c_str(),
-           recv_ident, recv_params.c_str(), recv_msg.c_str());
-  Serial.println(msg);
+  snprintf(msg, sizeof(msg), "RSSI %d %s < %s id %ld params %s msg %s",
+           pkt->rssi(),	pkt->to(), pkt->from(),
+           pkt->ident(), pkt->sparams(), pkt->msg().cold());
+  show_diag(msg);
+}
 
-  display.clear();
-  display.drawString(0, 0, "Recv #" + String(recv_pcount) + " RSSI " + String(recv_rssi));
-  display.drawString(0, 12, recv_to + " < " + recv_from);
-  display.drawString(0, 24, "Ident " + String(recv_ident));
-  display.drawString(0, 36, "Params " + recv_params);
-  display.drawStringMaxWidth(0 , 48, 80, recv_msg);
-  display.display();
+unsigned long int arduino_millis()
+{
+	return millis();
+}
+
+long int arduino_random(long int min, long int max)
+{
+	return random(min, max);
+}
+
+void logs(const char* a, const char* b) {
+  char msg[300];
+  snprintf(msg, sizeof(msg), "%s %s", a, b);
+  show_diag(msg);
+}
+
+void logi(const char* a, long int b) {
+  char msg[300];
+  snprintf(msg, sizeof(msg), "%s %ld", a, b);
+  show_diag(msg);
 }

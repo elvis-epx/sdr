@@ -119,23 +119,3 @@ int lora_tx(const Buffer& packet)
 	lora_resume_rx();
 	return t1 - t0;
 }
-
-bool lora_tx_async(const Buffer& packet)
-{
-	if (!LoRa.beginPacket()) {
-		return false;
-	}
-	rx_enabled = false;
-	LoRa.write((uint8_t*) packet.cold(), packet.length());      
-	LoRa.endPacket(true);
-	return true;
-}
-
-bool lora_tx_busy()
-{
-	bool busy = LoRa.isTransmitting();
-	if (! busy) {
-		lora_resume_rx();
-	}
-	return busy;
-}

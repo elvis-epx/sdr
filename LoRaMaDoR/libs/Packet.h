@@ -17,14 +17,14 @@ typedef Dict<Buffer> Params;
 
 struct Packet {
 	Packet(const char *to, const char *from, unsigned long int ident, 
-		const Params& params, const Buffer& msg);
+		const Params& params, const Buffer& msg, int rssi=0);
 	~Packet();
 
-	static Ptr<Packet> decode_l2(const char* data, unsigned int len);
+	static Ptr<Packet> decode_l2(const char* data, unsigned int len, int rssi);
 	static int get_decode_error();
 
 	/* public for unit testing */
-	static Ptr<Packet> decode_l3(const char* data, unsigned int len);
+	static Ptr<Packet> decode_l3(const char* data, unsigned int len, int rssi);
 	static Ptr<Packet> decode_l3(const char *data);
 
 	Packet(const Packet &) = delete;
@@ -49,6 +49,7 @@ struct Packet {
 	const Params& params() const;
 	const char *sparams() const;
 	const Buffer& msg() const;
+	int rssi() const;
 
 	/* public for unit testing */
 	static bool check_callsign(const Buffer&);
@@ -66,6 +67,7 @@ private:
 	Buffer _sparams;
 	Buffer _signature;
 	const Buffer _msg;
+	int _rssi;
 };
 
 #endif
