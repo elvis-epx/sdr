@@ -2,8 +2,8 @@
 #include "Packet.h"
 #include "Network.h"
 
-const char *my_prefix = "PU5EPX-2";
-const long int AVG_BEACON_TIME = 5000;
+const char *my_prefix = "PU5EPX-1";
+const long int AVG_BEACON_TIME = 30000;
 
 SSD1306 display(0x3c, 4, 15);
 
@@ -89,9 +89,11 @@ long int arduino_random(long int min, long int max)
 void logs(const char* a, const char* b) {
   snprintf(msg, sizeof(msg), "%s %s", a, b);
   Serial.println(msg);
+  // show_diag(msg);
 }
 
 void logi(const char* a, long int b) {
   snprintf(msg, sizeof(msg), "%s %ld", a, b);
   Serial.println(msg);
+  // show_diag(msg);
 }
