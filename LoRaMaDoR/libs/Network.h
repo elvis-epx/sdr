@@ -30,25 +30,31 @@ struct RecvLogItem {
 
 class Network: public TaskCallable {
 public:
-	Network(const char *callsign); // client must get the singleton instead
-	virtual ~Network();
-	unsigned int get_pkt_id();
 	void send(const char *to, const Params &params, const Buffer& msg);
-	void recv(Ptr<Packet> pkt);
-	static unsigned long int fudge(unsigned long int, double fudge);
+	void run_tasks(unsigned long int);
+
+	// publicised to bridge with uncoupled code
 	void radio_recv(const char *recv_area, unsigned int plen, int rssi);
 	virtual unsigned long int task_callback(int, unsigned long int, Task*);
 
-	// publicized for testing
+	// publicised for testing purposes
 	TaskManager task_mgr;
 
+	friend Ptr<Network> net(const char *callsign);
+	virtual ~Network();
+
 private:
+	// client must call config_net() and net() to get the singleton
+	Network(const char *callsign);
+
+	void recv(Ptr<Packet> pkt);
 	void sendmsg(const Ptr<Packet> pkt);
 	unsigned long int forward(unsigned long int, Task*);
 	unsigned long int clean_recv_log(unsigned long int, Task*);
 	unsigned long int clean_adjacent_stations(unsigned long int, Task*);
 	unsigned long int beacon(unsigned long int, Task*);
 	unsigned long int tx(unsigned long int, Task*);
+	unsigned int get_next_pkt_id();
 	unsigned long int reset_pkt_id(unsigned long int, Task*);
 
 	Buffer my_callsign;
@@ -57,9 +63,9 @@ private:
 	unsigned int last_pkt_id;
 	Vector< Ptr<Modifier> > modifiers;
 	Vector< Ptr<Handler> > handlers;
+
 };
 
-void config_net(const char *callsign);
-Ptr<Network> net(); // returns singleton
+Ptr<Network> net(const char *callsign);
 
 #endif

@@ -18,6 +18,12 @@ static const unsigned int AVG_BEACON_TIME = 600 * 1000; /* 10 minutes */
 static const unsigned int AVG_FIRST_BEACON_TIME = 10 * 1000; /* 30 seconds */
 static const char* BEACON_MSG = "73";
 
+static unsigned long int fudge(unsigned long int avg, double fudge)
+{
+	return arduino_random(avg * (1.0 - fudge), avg * (1.0 + fudge));
+}
+
+
 // Task IDs
 
 static const int TASK_ID_TX = 1;
@@ -68,15 +74,11 @@ public:
 
 static Ptr<Network> network_singleton = 0;
 
-void config_net(const char *callsign) 
+Ptr<Network> net(const char *callsign) 
 {
 	if (! network_singleton) {
 		network_singleton = new Network(callsign);
 	}
-}
-
-Ptr<Network> net()
-{
 	return network_singleton;
 }
 
@@ -112,7 +114,7 @@ Network::Network(const char *callsign)
 Network::~Network()
 {}
 
-unsigned int Network::get_pkt_id()
+unsigned int Network::get_next_pkt_id()
 {
 	return ++last_pkt_id;
 }
@@ -122,7 +124,7 @@ void Network::send(const char *to, const Params& params, const Buffer& msg)
 	if (strlen(to) < 2 || strlen(to) > 7) {
 		return;
 	}
-	Ptr<Packet> pkt = new Packet(to, my_callsign.cold(), get_pkt_id(), params, msg);
+	Ptr<Packet> pkt = new Packet(to, my_callsign.cold(), get_next_pkt_id(), params, msg);
 	sendmsg(pkt);
 }
 
@@ -142,7 +144,7 @@ void Network::recv(Ptr<Packet> pkt)
 			return;
 		}
 	}
-	// FIXME send to application level
+	app_recv(pkt);
 }
 
 void radio_recv_trampoline(const char *recv_area, unsigned int plen, int rssi)
@@ -316,11 +318,6 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 	return 0;
 }
 
-unsigned long int Network::fudge(unsigned long int avg, double fudge)
-{
-	return arduino_random(avg * (1.0 - fudge), avg * (1.0 + fudge));
-}
-
 unsigned long int Network::task_callback(int id, unsigned long int now, Task* task)
 {
 	switch (id) {
@@ -340,4 +337,9 @@ unsigned long int Network::task_callback(int id, unsigned long int now, Task* ta
 			logi("invalid task id ", id);
 	}
 	return 0;
+}
+
+void Network::run_tasks(unsigned long int millis)
+{
+	task_mgr.run(millis);
 }

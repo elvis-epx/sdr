@@ -13,7 +13,7 @@
 
 // Radio emulation hooks in FakeArduino.cpp
 int lora_emu_socket();
-void _lora_rx();
+void lora_emu_rx();
 
 int main(int argc, char* argv[])
 {
@@ -21,7 +21,7 @@ int main(int argc, char* argv[])
 		printf("Specify a callsign\n");
 		return 1;
 	}
-	config_net(argv[1]);
+	Ptr<Network> the_net = net(argv[1]);
 
 	// Main loop simulation (in Arduino, would be a busy loop)
 	int s = lora_emu_socket();
@@ -29,7 +29,7 @@ int main(int argc, char* argv[])
 
 	int x = 5000;
 	while (x-- > 0) {
-		Ptr<Task> tsk = net()->task_mgr.next_task();
+		Ptr<Task> tsk = the_net->task_mgr.next_task();
 
 		fd_set set;
 		FD_ZERO(&set);
@@ -61,9 +61,9 @@ int main(int argc, char* argv[])
 		}
 
 		if (FD_ISSET(s, &set)) {
-			_lora_rx();
+			lora_emu_rx();
 		} else {
-			net()->task_mgr.run(arduino_millis());
+			the_net->run_tasks(arduino_millis());
 		}
 	}
 }

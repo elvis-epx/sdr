@@ -9,6 +9,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "Buffer.h"
+#include "Pointer.h"
+#include "Packet.h"
 
 // Emulation of millis() and random()
 
@@ -48,6 +50,11 @@ void logs(const char* s1, const char* s2)
 void logi(const char* s1, long int s2)
 {
 	printf("%s %ld\n", s1, s2);
+}
+
+void app_recv(Ptr<Packet> pkt)
+{
+	printf("### app level Received packet\n");
 }
 
 // Emulation of LoRa APIs, network and radio
@@ -145,7 +152,7 @@ void lora_rx(void (*new_cb)(char const*, unsigned int, int))
 	rx_callback = new_cb;
 }
 
-void _lora_rx()
+void lora_emu_rx()
 {
 	char message[256];
 	struct sockaddr_in from;
