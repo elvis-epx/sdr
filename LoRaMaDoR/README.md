@@ -20,7 +20,7 @@ actual transmitted packet (minus the FEC suffix) is something like:
 QC<PP5UUU:33 Chat tonight 22:00 at repeater 147.000
 ```
 
-And the forwared packet will be like like
+And the forwarded packet will be like like
 
 ```
 QC<PP5UUU:33,R Chat tonight 22:00 at repeater 147.000
@@ -53,6 +53,8 @@ PP5CRE-11:RREQ teste123
 
 Actual traffic:
 ```
+PP5CRE-11<PU5EPX-11:RREQ teste123
+
 PU5EPX-11<PP5CRE-11:RRSP teste123
 PP5ABC rssi=-50
 PU5XYZ rssi=-86
