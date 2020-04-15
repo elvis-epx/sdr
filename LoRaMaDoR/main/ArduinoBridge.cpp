@@ -1,3 +1,6 @@
+#include<Arduino.h>
+#include <stdlib.h>
+
 unsigned long int arduino_millis()
 {
 	return millis();
