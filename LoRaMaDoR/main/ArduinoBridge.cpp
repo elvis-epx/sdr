@@ -34,7 +34,7 @@ void logi(const char* a, long int b) {
 
 unsigned int arduino_nvram_id_load()
 {
-	prefs.begin("lora");
+	prefs.begin("LoRaMaDoR");
 	unsigned int id = prefs.getUInt("lastid");
 	prefs.end();
 
@@ -47,7 +47,7 @@ unsigned int arduino_nvram_id_load()
 
 void arduino_nvram_id_save(unsigned int id)
 {
-	prefs.begin("lora", false);
+	prefs.begin("LoRaMaDoR", false);
 	prefs.putUInt("lastid", id);
 	prefs.end();
 
@@ -56,7 +56,7 @@ void arduino_nvram_id_save(unsigned int id)
 char *arduino_nvram_callsign_load()
 {
 	char *callsign = malloc(11);
-	prefs.begin("lora");
+	prefs.begin("LoRaMaDoR");
 	size_t len = prefs.getString("callsign", callsign, 10);
 	callsign[len] = 0;
 	prefs.end();
@@ -70,7 +70,7 @@ char *arduino_nvram_callsign_load()
 
 void arduino_nvram_callsign_save(const char* new_callsign)
 {
-	prefs.begin("lora", false);
+	prefs.begin("LoRaMaDoR", false);
 	prefs.putString("callsign", new_callsign);
 	prefs.end();
 }
