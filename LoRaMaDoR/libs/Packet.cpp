@@ -503,6 +503,6 @@ int Packet::rssi() const
 
 int Packet::get_decode_error()
 {
-  return decode_error;
+	return decode_error;
 }
 
