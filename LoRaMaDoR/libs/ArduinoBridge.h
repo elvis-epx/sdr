@@ -10,4 +10,7 @@ long int arduino_random(long int min, long int max);
 void logs(const char*, const char*);
 void logi(const char*, long int);
 void app_recv(Ptr<Packet>);
+unsigned int arduino_nvram_id_load();
+void arduino_nvram_id_save(unsigned int);
+
 #endif

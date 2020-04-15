@@ -55,7 +55,6 @@ private:
 	unsigned long int beacon(unsigned long int, Task*);
 	unsigned long int tx(unsigned long int, Task*);
 	unsigned int get_next_pkt_id();
-	unsigned long int reset_pkt_id(unsigned long int, Task*);
 
 	Buffer my_callsign;
 	Dict<RecvLogItem> recv_log;

@@ -165,3 +165,12 @@ void lora_emu_rx()
 	printf("Received packet\n");
 	rx_callback(message, rec, -50);
 }
+
+unsigned int arduino_nvram_id_load()
+{
+	return 73;
+}
+
+void arduino_nvram_id_save(unsigned int)
+{
+}

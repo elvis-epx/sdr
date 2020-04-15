@@ -4,8 +4,6 @@
 #include "Network.h"
 #include "ArduinoBridge.h"
 
-static const unsigned int PKT_ID_RESET_TIME = 1200 * 1000; /* 20 minutes */
-
 static const unsigned int TX_BUSY_RETRY_TIME = 1000;        /* 1 second */
 
 static const unsigned int ADJ_STATIONS_PERSIST = 3600 * 1000; /* 60 minutes */
@@ -30,7 +28,6 @@ static const int TASK_ID_TX = 1;
 static const int TASK_ID_FWD = 2;
 static const int TASK_ID_BEACON = 3;
 static const int TASK_ID_ADJ_STATIONS = 4;
-static const int TASK_ID_PKT_ID = 5;
 static const int TASK_ID_RECV_LOG = 6;
 
 // Task who calls back Network::tx_task() 
@@ -88,17 +85,15 @@ void radio_recv_trampoline(const char *recv_area, unsigned int plen, int rssi);
 Network::Network(const char *callsign)
 {
 	my_callsign = Buffer(callsign);
-	last_pkt_id = 0;
+	last_pkt_id = arduino_nvram_id_load();
 
 	Task *beacon = new Task(TASK_ID_BEACON, "beacon", fudge(AVG_FIRST_BEACON_TIME, 0.5), this);
 	Task *clean_recv = new Task(TASK_ID_RECV_LOG, "recv_log", RECV_LOG_PERSIST, this);
 	Task *clean_adj = new Task(TASK_ID_ADJ_STATIONS, "adj_list", ADJ_STATIONS_PERSIST, this);
-	Task *id_reset = new Task(TASK_ID_PKT_ID, "pkt_id", PKT_ID_RESET_TIME, this);
 
 	task_mgr.schedule(beacon);
 	task_mgr.schedule(clean_recv);
 	task_mgr.schedule(clean_adj);
-	task_mgr.schedule(id_reset);
 
 	modifiers.push_back(new Rreqi());
 	modifiers.push_back(new RetransBeacon());
@@ -114,7 +109,11 @@ Network::~Network()
 
 unsigned int Network::get_next_pkt_id()
 {
-	return ++last_pkt_id;
+	if (++last_pkt_id > 9999) {
+		last_pkt_id = 0;
+	}
+	arduino_nvram_id_save(last_pkt_id);
+	return last_pkt_id;
 }
 
 void Network::send(const char *to, const Params& params, const Buffer& msg)
@@ -215,12 +214,6 @@ unsigned long int Network::clean_adjacent_stations(unsigned long int now, Task*)
 	}
 
 	return ADJ_STATIONS_CLEAN;
-}
-
-unsigned long int Network::reset_pkt_id(unsigned long int, Task*)
-{
-	last_pkt_id = 0;
-	return PKT_ID_RESET_TIME;
 }
 
 unsigned long int Network::tx(unsigned long int now, Task* task)
@@ -329,8 +322,6 @@ unsigned long int Network::task_callback(int id, unsigned long int now, Task* ta
 			return forward(now, task);
 		case TASK_ID_ADJ_STATIONS:
 			return clean_adjacent_stations(now, task);
-		case TASK_ID_PKT_ID:
-			return reset_pkt_id(now, task);
 		case TASK_ID_RECV_LOG:
 			return clean_recv_log(now, task);
 		default:
