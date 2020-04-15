@@ -12,5 +12,7 @@ void logi(const char*, long int);
 void app_recv(Ptr<Packet>);
 unsigned int arduino_nvram_id_load();
 void arduino_nvram_id_save(unsigned int);
+char *arduino_nvram_callsign_load();
+void arduino_nvram_callsign_save(const char*, unsigned int);
 
 #endif

@@ -110,7 +110,7 @@ Network::~Network()
 unsigned int Network::get_next_pkt_id()
 {
 	if (++last_pkt_id > 9999) {
-		last_pkt_id = 0;
+		last_pkt_id = 1;
 	}
 	arduino_nvram_id_save(last_pkt_id);
 	return last_pkt_id;

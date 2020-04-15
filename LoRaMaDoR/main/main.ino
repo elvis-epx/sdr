@@ -1,8 +1,8 @@
 #include "Packet.h"
 #include "Network.h"
 #include "Display.h"
+#include "ArduinoBridge.h"
 
-const char *my_prefix = "PU5EPX-1";
 const long int AVG_BEACON_TIME = 30000;
 
 Ptr<Network> Net;
@@ -12,8 +12,13 @@ void setup()
 	Serial.begin(115200);
 	oled_init();
 	oled_show("setup", "", "", "");
-	Net = net(my_prefix);
-	oled_show("net ok", "", "", "");
+	char *callsign = arduino_nvram_callsign_load();
+	Net = net(callsign);
+	oled_show("net ok", callsign, "", "");
+	Serial.print(callsign);
+	Serial.println(" ready");
+	Serial.println();
+	free(callsign);
 }
 
 long nextSendTime = millis() + 5000;
@@ -85,8 +90,9 @@ void cli_enter() {
 	if (cli_buffer_len == 0) {
 		return;
 	}
-	Serial.print("Typed: ");
-	Serial.println(cli_buffer);
+	// Serial.print("Typed: ");
+	// Serial.println(cli_buffer);
+	cli_parse(cli_buffer);
 	cli_buffer_len = 0;
 	cli_buffer[cli_buffer_len] = 0;
 }
@@ -95,4 +101,41 @@ void cli_showpkt(const char *msg) {
 	Serial.println();
 	Serial.println(msg);
 	Serial.print(cli_buffer);
+}
+
+void cli_parse(const char *b)
+{
+	while (*b == ' ') {
+		++b;
+	}
+
+	if (*b == '!') {
+		cli_parse_meta(b);
+	} else {
+		Serial.println("FIXME parse packet");
+	}
+}
+
+void cli_parse_meta(const char *b)
+{
+	if (strncmp(b, "!callsign ", 10)) {
+		cli_parse_callsign(b + 10);
+	} else {
+		Serial.println("Unknown cmd");
+	}
+}
+
+void cli_parse_callsign(const char *b)
+{
+	if (! Packet::check_callsign(b, strlen(b))) {
+		Serial.println("Invalid callsign");
+		return;
+	}
+	if (b[0] == 'Q') {
+		Serial.println("Invalid Q callsign");
+		return;
+	}
+	arduino_nvram_callsign_save(b);
+	Serial.println("Callsign saved, restarting...");
+	ESP.restart();
 }

@@ -1,5 +1,8 @@
-#include<Arduino.h>
+#include <Arduino.h>
 #include <stdlib.h>
+#include <Preferences.h>
+
+Preferences prefs;
 
 unsigned long int arduino_millis()
 {
@@ -27,4 +30,47 @@ void logi(const char* a, long int b) {
 	Serial.println(msg);
 	delete msg;
 	// show_diag(msg);
+}
+
+unsigned int arduino_nvram_id_load()
+{
+	prefs.begin("lora");
+	unsigned int id = prefs.getUInt("lastid");
+	prefs.end();
+
+	if (id <= 0 || id > 9999) {
+		id = 1;
+	}
+
+	return id;
+}
+
+void arduino_nvram_id_save(unsigned int id)
+{
+	prefs.begin("lora", false);
+	prefs.putUInt("lastid", id);
+	prefs.end();
+
+}
+
+char *arduino_nvram_callsign_load()
+{
+	char *callsign = malloc(11);
+	prefs.begin("lora");
+	size_t len = prefs.getString("callsign", callsign, 10);
+	callsign[len] = 0;
+	prefs.end();
+
+	if (!len) {
+		strcpy(callsign, "FIXMEE-1");
+	}
+
+	return callsign;
+}
+
+void arduino_nvram_callsign_save(const char* new_callsign)
+{
+	prefs.begin("lora", false);
+	prefs.putString("callsign", new_callsign);
+	prefs.end();
 }
