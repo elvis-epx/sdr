@@ -25,11 +25,7 @@ bool Packet::check_callsign(const Buffer &sbuf)
 {
 	unsigned int length = sbuf.length();
 	const char *s = sbuf.cold();
-	return check_callsign(s, length);
-}
 
-bool Packet::check_callsign(const char *s, unsigned int length)
-{
 	if (length < 2) {
 		return false;
 	} else if (length == 2) {

@@ -32,9 +32,11 @@ void loop()
 		nextSendTime = millis() + next;
 		return;
 	}
+	/*
 	while (Serial.available() > 0) {
 		cli_type(Serial.read());
 	}
+	*/
 	Net->run_tasks(millis());
 }
 
@@ -47,95 +49,96 @@ void send_message()
 
 void app_recv(Ptr<Packet> pkt)
 {
-	char *msg = new char[400];
-	char *msga = new char[80];
-	char *msgb = new char[80];
-	char *msgc = new char[80];
-	snprintf(msg, 400, "RSSI %d %s < %s id %ld params %s msg %s",
+	Buffer msg = Buffer::sprintf("RSSI %d %s < %s id %ld params %s msg %s",
 				pkt->rssi(), pkt->to(), pkt->from(),
 				pkt->ident(), pkt->sparams(),
 				pkt->msg().cold());
 	cli_showpkt(msg);
-	snprintf(msga, 80, "%s < %s", pkt->to(), pkt->from());
-	snprintf(msgb, 80, "id %ld rssi %d", pkt->ident(), pkt->rssi());
-	snprintf(msgc, 80, "p %s", pkt->sparams());
-	oled_show(msga, msgb, msgc, pkt->msg().cold());
-	delete msg, msga, msgb, msgc;
+	Buffer msga = Buffer::sprintf("%s < %s", pkt->to(), pkt->from());
+	Buffer msgb = Buffer::sprintf("id %ld rssi %d", pkt->ident(), pkt->rssi());
+	Buffer msgc = Buffer::sprintf("p %s", pkt->sparams());
+	oled_show(msga.cold(), msgb.cold(), msgc.cold(), pkt->msg().cold());
 }
 
-char cli_buffer[400];
-unsigned int cli_buffer_len = 0;
+Buffer cli_buf;
 
 void cli_type(char c) {
 	if (c == 13) {
 		cli_enter();
 	} else if (c == 8 || c == 127) {
-		if (cli_buffer_len > 0) {
-			cli_buffer[--cli_buffer_len] = 0;
+		if (! cli_buf.empty()) {
+			cli_buf.cut(-1);
 			Serial.print((char) 8);
 			Serial.print(' ');
 			Serial.print((char) 8);
 		}
-	} else if (cli_buffer_len >= (sizeof(cli_buffer) - 1)) {
+	} else if (cli_buf.length() > 500) {
 		return;
 	} else {
-		cli_buffer[cli_buffer_len++] = c;
-		cli_buffer[cli_buffer_len] = 0;
+		cli_buf.append(c);
 		Serial.print(c);
 	}
 }
 
 void cli_enter() {
 	Serial.println();
-	if (cli_buffer_len == 0) {
+	if (cli_buf.empty()) {
 		return;
 	}
 	// Serial.print("Typed: ");
 	// Serial.println(cli_buffer);
-	cli_parse(cli_buffer);
-	cli_buffer_len = 0;
-	cli_buffer[cli_buffer_len] = 0;
+	cli_parse(cli_buf);
+	cli_buf = "";
 }
 
-void cli_showpkt(const char *msg) {
+void cli_showpkt(const Buffer &msg) {
 	Serial.println();
-	Serial.println(msg);
-	Serial.print(cli_buffer);
+	Serial.println(msg.cold());
+	Serial.print(cli_buf.cold());
 }
 
-void cli_parse(const char *b)
+void cli_parse(Buffer cmd)
 {
-	while (*b == ' ') {
-		++b;
+	int sp = cmd.indexOf(' ');
+	if (sp >= 0) {
+		cmd.cut(sp);
 	}
-
-	if (*b == '!') {
-		cli_parse_meta(b);
+	
+	if (cmd.charAt(0) == '!') {
+		cmd.cut(1);
+		cli_parse_meta(cmd);
 	} else {
 		Serial.println("FIXME parse packet");
 	}
 }
 
-void cli_parse_meta(const char *b)
+void cli_parse_meta(Buffer cmd)
 {
-	if (strncmp(b, "!callsign ", 10)) {
-		cli_parse_callsign(b + 10);
+	if (cmd.strncmp("!callsign ", 10) == 0) {
+		cmd.cut(10);
+		cli_parse_callsign(cmd);
 	} else {
 		Serial.println("Unknown cmd");
 	}
 }
 
-void cli_parse_callsign(const char *b)
+void cli_parse_callsign(Buffer callsign)
 {
-	if (! Packet::check_callsign(b, strlen(b))) {
+	callsign.uppercase();
+	while (callsign.charAt(-1) == ' ') {
+		callsign.cut(-1);
+	}
+	
+	if (! Packet::check_callsign(callsign)) {
 		Serial.println("Invalid callsign");
 		return;
 	}
-	if (b[0] == 'Q') {
+	if (callsign.charAt(0) == 'Q') {
 		Serial.println("Invalid Q callsign");
 		return;
 	}
-	arduino_nvram_callsign_save(b);
+	
+	arduino_nvram_callsign_save(callsign);
 	Serial.println("Callsign saved, restarting...");
 	ESP.restart();
 }

@@ -4,7 +4,10 @@
  */
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
+#include <cstring>
+#include <stdarg.h>
 #include "Buffer.h"
 
 Buffer::Buffer()
@@ -78,6 +81,18 @@ void Buffer::append(const char *s, unsigned int add_length)
 	this->len += add_length;
 }
 
+void Buffer::append(const char c)
+{
+	char *oldbuf = this->buf;
+	this->buf = new char[this->len + 2];
+	memcpy(this->buf, oldbuf, this->len);
+	delete [] oldbuf;
+
+	this->buf[this->len] = c;
+	this->buf[this->len + 1] = 0;
+	this->len += 1;
+}
+
 Buffer::~Buffer()
 {
 	if (this->buf) {
@@ -107,17 +122,56 @@ Buffer::Buffer(const char *s)
 
 const char* Buffer::cold() const
 {
-	return buf;
+	return this->buf;
 }
 
 char* Buffer::hot()
 {
-	return buf;
+	return this->buf;
 }
 
 unsigned int Buffer::length() const
 {
-	return len;
+	return this->len;
+}
+
+int Buffer::charAt(int i) const
+{
+	if (i < 0) {
+		i = this->len + i;
+	}
+	if (i >= this->len) {
+		return -1;
+	}
+	return this->buf[i];
+}
+
+
+int Buffer::indexOf(char c) const
+{
+	for (unsigned int i = 0; i < this->len; ++i) {
+		if (this->buf[i] == c) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+void Buffer::cut(int i)
+{
+	unsigned int ai = i > 0 ? i : -i;
+	unsigned int hi = i > 0 ? i : 0;
+	char *oldbuf = this->buf;
+	this->buf = new char[this->len - ai + 1];
+	memcpy(this->buf, oldbuf + hi, this->len - ai);
+	delete [] oldbuf;
+
+	this->len -= ai;
+	this->buf[this->len + 1] = 0;
+}
+
+bool Buffer::empty() const {
+	return this->len == 0;
 }
 
 void Buffer::uppercase()
@@ -131,10 +185,34 @@ void Buffer::uppercase()
 
 bool Buffer::str_equal(const char *cmp) const
 {
-	return strncmp(cmp, buf, len) == 0;
+	return strcmp(cmp) == 0;
 }
 
 int Buffer::strcmp(const char *cmp) const
 {
-	return strncmp(cmp, buf, len);
+	return std::strcmp(cmp, buf);
 }
+
+int Buffer::strncmp(const char *cmp, unsigned int len) const
+{
+	return std::strncmp(cmp, buf, len);
+}
+
+Buffer Buffer::sprintf(const char *mask, ...)
+{
+	va_list args;
+	va_start(args, mask);
+	int tot = strlen(mask) * 2;
+	while (1) {
+		Buffer tgt(tot);
+		int written = snprintf(tgt.hot(), tgt.length() - 1, mask, args);
+		if (written <= 0) {
+			return "";
+		} else if (written >= tot) {
+			return tgt;
+		}
+		tot *= 2;
+	}
+	va_end(args);
+}
+

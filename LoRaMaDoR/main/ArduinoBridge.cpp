@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <stdlib.h>
 #include <Preferences.h>
+#include "Buffer.h"
 
 Preferences prefs;
 
@@ -16,20 +17,10 @@ long int arduino_random(long int min, long int max)
 
 void logs(const char* a, const char* b) {
 	return;
-	char *msg = new char[300];
-	snprintf(msg, 300, "%s %s", a, b);
-	Serial.println(msg);
-	delete msg;
-	// show_diag(msg);
 }
 
 void logi(const char* a, long int b) {
 	return;
-	char *msg = new char[300];
-	snprintf(msg, 300, "%s %ld", a, b);
-	Serial.println(msg);
-	delete msg;
-	// show_diag(msg);
 }
 
 unsigned int arduino_nvram_id_load()
@@ -53,24 +44,24 @@ void arduino_nvram_id_save(unsigned int id)
 
 }
 
-char *arduino_nvram_callsign_load()
+Buffer arduino_nvram_callsign_load()
 {
-	char *callsign = malloc(11);
+	Buffer callsign = "          ";
 	prefs.begin("LoRaMaDoR");
-	size_t len = prefs.getString("callsign", callsign, 10);
-	callsign[len] = 0;
+	size_t len = prefs.getString("callsign", callsign.hot(), 10);
 	prefs.end();
 
 	if (!len) {
-		strcpy(callsign, "FIXMEE-1");
+		callsign = "FIXMEE-1";
 	}
 
+	callsign.uppercase();
 	return callsign;
 }
 
-void arduino_nvram_callsign_save(const char* new_callsign)
+void arduino_nvram_callsign_save(const Buffer &new_callsign)
 {
 	prefs.begin("LoRaMaDoR", false);
-	prefs.putString("callsign", new_callsign);
+	prefs.putString("callsign", new_callsign.cold());
 	prefs.end();
 }

@@ -18,13 +18,21 @@ public:
 	Buffer& operator=(Buffer&&);
 	~Buffer();
 
+	static Buffer sprintf(const char*, ...);
+
+	bool empty() const;
 	unsigned int length() const;
 	const char* cold() const;
 	char* hot();
 	void uppercase();
 	bool str_equal(const char *cmp) const;
 	int strcmp(const char *cmp) const;
+	int strncmp(const char *, unsigned int) const;
 	void append(const char *s, unsigned int length);
+	void append(const char s);
+	void cut(int);
+	int indexOf(const char) const;
+	int charAt(int) const;
 
 private:
 	char *buf;
