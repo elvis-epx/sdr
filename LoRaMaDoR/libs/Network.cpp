@@ -69,7 +69,7 @@ public:
 
 static Ptr<Network> network_singleton = 0;
 
-Ptr<Network> net(const char *callsign) 
+Ptr<Network> net(const Buffer &callsign) 
 {
 	if (! network_singleton) {
 		network_singleton = new Network(callsign);
@@ -82,9 +82,9 @@ void radio_recv_trampoline(const char *recv_area, unsigned int plen, int rssi);
 
 //////////////////////////// Network class proper
 
-Network::Network(const char *callsign)
+Network::Network(const Buffer &callsign)
 {
-	my_callsign = Buffer(callsign);
+	my_callsign = callsign;
 	last_pkt_id = arduino_nvram_id_load();
 
 	Task *beacon = new Task(TASK_ID_BEACON, "beacon", fudge(AVG_FIRST_BEACON_TIME, 0.5), this);

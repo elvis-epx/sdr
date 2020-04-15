@@ -40,12 +40,12 @@ public:
 	// publicised for testing purposes
 	TaskManager task_mgr;
 
-	friend Ptr<Network> net(const char *callsign);
+	friend Ptr<Network> net(const Buffer&);
 	virtual ~Network();
 
 private:
 	// client must call config_net() and net() to get the singleton
-	Network(const char *callsign);
+	Network(const Buffer &callsign);
 
 	void recv(Ptr<Packet> pkt);
 	void sendmsg(const Ptr<Packet> pkt);
@@ -65,6 +65,6 @@ private:
 
 };
 
-Ptr<Network> net(const char *callsign);
+Ptr<Network> net(const Buffer&);
 
 #endif

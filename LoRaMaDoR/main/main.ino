@@ -12,13 +12,12 @@ void setup()
 	Serial.begin(115200);
 	oled_init();
 	oled_show("setup", "", "", "");
-	char *callsign = arduino_nvram_callsign_load();
+	Buffer callsign = arduino_nvram_callsign_load();
 	Net = net(callsign);
-	oled_show("net ok", callsign, "", "");
-	Serial.print(callsign);
+	oled_show("net ok", callsign.cold(), "", "");
+	Serial.print(callsign.cold());
 	Serial.println(" ready");
 	Serial.println();
-	free(callsign);
 }
 
 long nextSendTime = millis() + 5000;
@@ -32,11 +31,9 @@ void loop()
 		nextSendTime = millis() + next;
 		return;
 	}
-	/*
 	while (Serial.available() > 0) {
 		cli_type(Serial.read());
 	}
-	*/
 	Net->run_tasks(millis());
 }
 
