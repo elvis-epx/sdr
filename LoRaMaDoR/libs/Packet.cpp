@@ -85,15 +85,16 @@ static bool parse_ident_param(const char* s, unsigned int len, unsigned long int
 	if (ident <= 0) {
 		decode_error = 4;
 		return false;
-	}
-	if (len != (stop - s)) {
+	} else if (ident > 999999) {
+		decode_error = 7;
+		return false;
+	} else if (len != (stop - s)) {
 		decode_error = 5;
 		return false;
 	}
 
-	char n[20];
-	// FIXME use Buffer::sprintf
-	sprintf(n, "%ld", ident);
+	char n[10];
+	snprintf(n, 10, "%ld", ident);
 	if (strlen(n) != len) {
 		decode_error = 6;
 		return false;
