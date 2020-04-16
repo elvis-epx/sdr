@@ -138,7 +138,7 @@ void Network::sendmsg(const Ptr<Packet> pkt)
 
 void Network::recv(Ptr<Packet> pkt)
 {
-	logs("Received pkt", pkt->encode_l3().cold());
+	// logs("Received pkt", pkt->encode_l3().cold());
 	for (unsigned int i = 0; i < handlers.size(); ++i) {
 		Ptr<Packet> response = handlers[i]->handle(*pkt, my_callsign.cold());
 		if (response) {
@@ -162,7 +162,7 @@ void Network::radio_recv(const char *recv_area, unsigned int plen, int rssi)
 		logi("Invalid packet received, error =", Packet::get_decode_error());
 		return;
 	}
-	logi("Good packet, RSSI =", rssi);
+	// logi("Good packet, RSSI =", rssi);
 	Task *fwd_task = new PacketFwd(pkt, false, TASK_ID_FWD, this);
 	task_mgr.schedule(fwd_task);
 }
@@ -175,7 +175,7 @@ unsigned long int Network::beacon(unsigned long int, Task*)
 #else
 	unsigned long int next = fudge(AVG_BEACON_TIME, 0.5);
 #endif
-	logi("Next beacon in ", next);
+	// logi("Next beacon in ", next);
 	return next;
 }
 
@@ -194,7 +194,7 @@ unsigned long int Network::clean_recv_log(unsigned long int now, Task*)
 
 	for (unsigned int i = 0; i < remove_list.size(); ++i) {
 		recv_log.remove(remove_list[i]);
-		logs("Forgotten packet", remove_list[i].cold());
+		// logs("Forgotten packet", remove_list[i].cold());
 	}
 
 	return RECV_LOG_CLEAN;
@@ -215,7 +215,7 @@ unsigned long int Network::clean_adjacent_stations(unsigned long int now, Task*)
 
 	for (unsigned int i = 0; i < remove_list.size(); ++i) {
 		adjacent_stations.remove(remove_list[i]);
-		logs("Forgotten station", remove_list[i].cold());
+		// logs("Forgotten station", remove_list[i].cold());
 	}
 
 	return ADJ_STATIONS_CLEAN;
@@ -258,13 +258,13 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 
 	// Packet originated from us but received via radio = loop
 	if (my_callsign.str_equal(pkt->from())) {
-		logs("pkt loop", pkt->signature());
+		// logs("pkt loop", pkt->signature());
 		return 0;
 	}
 
 	// Discard received duplicates
 	if (recv_log.has(pkt->signature())) {
-		logs("pkt dup", pkt->signature());
+		// logs("pkt dup", pkt->signature());
 		return 0;
 	}
 	recv_log.put(pkt->signature(), RecvLogItem(rssi, now)); 
@@ -279,7 +279,7 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 		// We are just one of the destinations
 		if (! pkt->params().has("R")) {
 			if (! adjacent_stations.has(pkt->from())) {
-				logs("discovered neighbour", pkt->from());
+				// logs("discovered neighbour", pkt->from());
 			}
 			adjacent_stations[pkt->from()] = AdjacentStation(rssi, now);
 		}
@@ -308,7 +308,7 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 	// e.g. 900 bits @ 600 bps = 1500 ms
 	unsigned long int delay = bit_delay * 1000 / lora_speed_bps();
 
-	logi("relaying w/ delay", delay);
+	// logi("relaying w/ delay", delay);
 
 	Task *tx_task = new PacketTx(encoded_pkt, delay, this);
 	task_mgr.schedule(tx_task);
@@ -330,7 +330,7 @@ unsigned long int Network::task_callback(int id, unsigned long int now, Task* ta
 		case TASK_ID_RECV_LOG:
 			return clean_recv_log(now, task);
 		default:
-			logi("invalid task id ", id);
+			// logi("invalid task id ", id);
 	}
 	return 0;
 }
