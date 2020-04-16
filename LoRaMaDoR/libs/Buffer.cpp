@@ -253,7 +253,8 @@ Buffer Buffer::substr(unsigned int start) const
 Buffer Buffer::substr(unsigned int start, unsigned int count) const
 {
 	if (start >= this->len) {
-		return "";
+		start = 0;
+		count = 0;
 	}
 
 	if ((start + count) > this->len) {

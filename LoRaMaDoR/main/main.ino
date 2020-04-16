@@ -23,25 +23,8 @@ void setup()
 	Serial.println();
 }
 
-long nextSendTime = millis() + 5000;
-
-void send_message()
-{
-	Net->send("QC", Params(), "LoRaMaDoR 73!");
-	Buffer msg = Buffer::sprintf("sent msg %d", Net->get_last_pkt_id());
-	cli_print(msg);
-}
-
 void loop()
 {
-	if (millis() > nextSendTime) {
-		send_message();
-		long int next = random(AVG_BEACON_TIME / 2,
-				AVG_BEACON_TIME * 3 / 2);
-		nextSendTime = millis() + next;
-		return;
-	}
-
 	while (Serial.available() > 0) {
 		cli_type(Serial.read());
 	}

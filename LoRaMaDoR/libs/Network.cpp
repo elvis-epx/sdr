@@ -123,7 +123,9 @@ unsigned int Network::get_last_pkt_id() const
 
 void Network::send(const char *to, const Params& params, const Buffer& msg)
 {
-	if (strlen(to) < 2 || strlen(to) > 7) {
+	// fast callsign check
+	// TODO make callsign a type
+	if (strlen(to) < 2 || strlen(to) > 10) {
 		return;
 	}
 	Ptr<Packet> pkt = new Packet(to, my_callsign.cold(), get_next_pkt_id(), params, msg);
