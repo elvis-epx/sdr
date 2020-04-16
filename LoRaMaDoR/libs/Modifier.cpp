@@ -10,7 +10,7 @@ Ptr<Packet> Rreqi::modify(const Packet &pkt, const char* callsign)
 		// not QB, QC, etc.
 		if (pkt.params().has("RREQ") || pkt.params().has("RRSP")) {
 			Buffer new_msg = pkt.msg();
-			new_msg.append("\r\n", 2);
+			new_msg.append("|", 1);
 			new_msg.append(callsign, strlen(callsign));
 			return pkt.change_msg(new_msg);
 		}

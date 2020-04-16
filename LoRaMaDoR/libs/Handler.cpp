@@ -6,7 +6,7 @@
 
 Ptr<Packet> Ping::handle(const Packet &pkt, const char* callsign)
 {
-	if (strlen(pkt.to()) > 2 && pkt.params().has("PING")) {
+	if ((strlen(pkt.to()) > 2 || strcmp(pkt.to(), "QL") == 0) && pkt.params().has("PING")) {
 		Params pong = Params();
 		pong.put("PONG", None);
 		return new Packet(pkt.from(), callsign, pkt.ident(), pong, pkt.msg());
@@ -16,9 +16,9 @@ Ptr<Packet> Ping::handle(const Packet &pkt, const char* callsign)
 
 Ptr<Packet> Rreq::handle(const Packet &pkt, const char* callsign)
 {
-	if (strlen(pkt.to()) > 2 && pkt.params().has("RREQ")) {
+	if ((strlen(pkt.to()) > 2 || strcmp(pkt.to(), "QL") == 0) && pkt.params().has("RREQ")) {
 		Buffer msg = pkt.msg();
-		msg.append("\r\n", 2);
+		msg.append("|", 1);
 		Params rrsp = Params();
 		rrsp.put("RRSP", None);
 		return new Packet(pkt.from(), callsign, pkt.ident(), rrsp, msg);

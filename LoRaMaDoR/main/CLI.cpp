@@ -19,9 +19,9 @@ void logi(const char* a, long int b) {
 
 void app_recv(Ptr<Packet> pkt)
 {
-	Buffer msg = Buffer::sprintf("%s < %s %s\r\n (id %ld params %s rssi %d)",
+	Buffer msg = Buffer::sprintf("%s < %s %s\n\r(%s rssi %d)",
 				pkt->to(), pkt->from(), pkt->msg().cold(),
-				pkt->ident(), pkt->sparams(), pkt->rssi());
+				pkt->sparams(), pkt->rssi());
 	cli_print(msg);
 	Buffer msga = Buffer::sprintf("%s < %s", pkt->to(), pkt->from());
 	Buffer msgb = Buffer::sprintf("id %ld rssi %d", pkt->ident(), pkt->rssi());
@@ -72,7 +72,6 @@ void cli_parse_meta(Buffer cmd)
 
 void cli_parse_packet(Buffer cmd)
 {
-	Serial.println("### parsing packet");
 	Buffer preamble;
 	Buffer payload = "";
 	int sp = cmd.indexOf(' ');
@@ -83,7 +82,6 @@ void cli_parse_packet(Buffer cmd)
 		payload = cmd.substr(sp + 1);
 	}
 
-	Serial.println("### parsing packet b");
 	Buffer dest;
 	Buffer sparams = "";
 	int sep = preamble.indexOf(':');
@@ -96,14 +94,12 @@ void cli_parse_packet(Buffer cmd)
 	dest.strip();
 	dest.uppercase();
 
-	Serial.println("### parsing packet c");
 	if (! Packet::check_callsign(dest)) {
 		Serial.print("Invalid destination: ");
 		Serial.println(dest.cold());
 		return;
 	}
 
-	Serial.println("### parsing packet d");
 	unsigned long int dummy;
 	Params params;
 	if (! Packet::parse_params_cli(sparams, params)) {
