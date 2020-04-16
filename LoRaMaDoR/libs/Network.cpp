@@ -70,7 +70,7 @@ void radio_recv_trampoline(const char *recv_area, unsigned int plen, int rssi);
 
 //////////////////////////// Network class proper
 
-Ptr<Network> trampoline_target = 0;
+Network* trampoline_target = 0;
 
 Network::Network(const Callsign &callsign)
 {
@@ -81,18 +81,18 @@ Network::Network(const Callsign &callsign)
 	my_callsign = callsign;
 	last_pkt_id = arduino_nvram_id_load();
 
-	Task *beacon = new Task(TASK_ID_BEACON, "beacon", fudge(AVG_FIRST_BEACON_TIME, 0.5), this);
-	Task *clean_recv = new Task(TASK_ID_RECV_LOG, "recv_log", RECV_LOG_PERSIST, this);
-	Task *clean_adj = new Task(TASK_ID_ADJ_STATIONS, "adj_list", ADJ_STATIONS_PERSIST, this);
+	Ptr<Task> beacon(new Task(TASK_ID_BEACON, "beacon", fudge(AVG_FIRST_BEACON_TIME, 0.5), this));
+	Ptr<Task> clean_recv(new Task(TASK_ID_RECV_LOG, "recv_log", RECV_LOG_PERSIST, this));
+	Ptr<Task> clean_adj(new Task(TASK_ID_ADJ_STATIONS, "adj_list", ADJ_STATIONS_PERSIST, this));
 
 	task_mgr.schedule(beacon);
 	task_mgr.schedule(clean_recv);
 	task_mgr.schedule(clean_adj);
 
-	modifiers.push_back(new Rreqi());
-	modifiers.push_back(new RetransMark());
-	handlers.push_back(new Ping());
-	handlers.push_back(new Rreq());
+	modifiers.push_back(Ptr<Modifier>(new Rreqi()));
+	modifiers.push_back(Ptr<Modifier>(new RetransMark()));
+	handlers.push_back(Ptr<Handler>(new Ping()));
+	handlers.push_back(Ptr<Handler>(new Rreq()));
 
 	setup_lora();
 	trampoline_target = this;
@@ -119,21 +119,21 @@ unsigned int Network::get_last_pkt_id() const
 void Network::send(const Callsign &to, Params params, const Buffer& msg)
 {
 	params.set_ident(get_next_pkt_id());
-	Ptr<Packet> pkt = new Packet(to, me(), params, msg);
+	Ptr<Packet> pkt(new Packet(to, me(), params, msg));
 	sendmsg(pkt);
 }
 
 void Network::sendmsg(const Ptr<Packet> pkt)
 {
 	Task *fwd_task = new PacketFwd(pkt, true, TASK_ID_FWD, this);
-	task_mgr.schedule(fwd_task);
+	task_mgr.schedule(Ptr<Task>(fwd_task));
 }
 
 void Network::recv(Ptr<Packet> pkt)
 {
 	// logs("Received pkt", pkt->encode_l3().cold());
 	for (unsigned int i = 0; i < handlers.size(); ++i) {
-		Ptr<Packet> response = handlers[i]->handle(*pkt, me());
+		Ptr<Packet> response = handlers[i]->handle(*pkt, *this);
 		if (response) {
 			sendmsg(response);
 			return;
@@ -157,7 +157,7 @@ void Network::radio_recv(const char *recv_area, unsigned int plen, int rssi)
 	}
 	// logi("Good packet, RSSI =", rssi);
 	Task *fwd_task = new PacketFwd(pkt, false, TASK_ID_FWD, this);
-	task_mgr.schedule(fwd_task);
+	task_mgr.schedule(Ptr<Task>(fwd_task));
 }
 
 unsigned long int Network::beacon(unsigned long int, Task*)
@@ -244,7 +244,7 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 		recv_log.put(pkt->signature(), RecvLogItem(rssi, now));
 		// Transmit
 		Task *tx_task = new PacketTx(pkt->encode_l2(), 50, this);
-		task_mgr.schedule(tx_task);
+		task_mgr.schedule(Ptr<Task>(tx_task));
 		logs("tx ", pkt->encode_l3().cold());
 		return 0;
 	}
@@ -306,7 +306,7 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 
 	Task *tx_task = new PacketTx(encoded_pkt, delay, this);
 	logs("relay ", pkt->encode_l3().cold());
-	task_mgr.schedule(tx_task);
+	task_mgr.schedule(Ptr<Task>(tx_task));
 
 	return 0;
 }

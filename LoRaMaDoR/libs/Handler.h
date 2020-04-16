@@ -3,28 +3,30 @@
 
 // Automatic handlers for certain application protocols
 
-#ifndef _HANDLER_H
-#define _HANDLER_H
+#ifndef __HANDLER_H
+#define __HANDLER_H
 
 #include "Packet.h"
 #include "Pointer.h"
 #include "Callsign.h"
 
+class Network;
+
 class Handler {
 public:
-	virtual Ptr<Packet> handle(const Packet &, const Callsign &) = 0;
+	virtual Ptr<Packet> handle(const Packet&, Network&) = 0;
 	virtual ~Handler() {}
 };
 
 class Ping: public Handler {
 public:
-	virtual Ptr<Packet> handle(const Packet &, const Callsign &);
+	virtual Ptr<Packet> handle(const Packet&, Network&);
 	virtual ~Ping() {}
 };
 
 class Rreq: public Handler {
 public:
-	virtual Ptr<Packet> handle(const Packet &, const Callsign &);
+	virtual Ptr<Packet> handle(const Packet&, Network&);
 	virtual ~Rreq() {}
 };
 

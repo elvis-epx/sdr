@@ -11,7 +11,7 @@ public:
 		payload = new PtrRef<T>(0);
 	}
 
-	inline Ptr(T* parg)
+	explicit inline Ptr(T* parg)
 	{
 		payload = new PtrRef<T>(parg);
 	}

@@ -41,6 +41,7 @@ public:
 	void radio_recv(const char *recv_area, unsigned int plen, int rssi);
 	virtual unsigned long int task_callback(int, unsigned long int, Task*);
 	unsigned int get_last_pkt_id() const;
+	unsigned int get_next_pkt_id();
 	Callsign me() const;
 
 	// publicised for testing purposes
@@ -54,7 +55,6 @@ private:
 	unsigned long int clean_adjacent_stations(unsigned long int, Task*);
 	unsigned long int beacon(unsigned long int, Task*);
 	unsigned long int tx(unsigned long int, Task*);
-	unsigned int get_next_pkt_id();
 
 	Callsign my_callsign;
 	Dict<RecvLogItem> recv_log;

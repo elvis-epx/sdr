@@ -84,7 +84,7 @@ Ptr<Packet> Packet::decode_l2(const char *data, unsigned int len, int rssi)
 	decode_error = 0;
 	if (len <= REDUNDANCY || len > (MSGSIZE_LONG + REDUNDANCY)) {
 		decode_error = 999;
-		return 0;
+		return Ptr<Packet>(0);
 	}
 
 	memset(rs_encoded, 0, sizeof(rs_encoded));
@@ -93,7 +93,7 @@ Ptr<Packet> Packet::decode_l2(const char *data, unsigned int len, int rssi)
 		memcpy(rs_encoded + MSGSIZE_SHORT, data + len - REDUNDANCY, REDUNDANCY);
 		if (rs_short.Decode(rs_encoded, rs_decoded)) {
 			decode_error = 998;
-			return 0;
+			return Ptr<Packet>(0);
 		}
 		return decode_l3(rs_decoded, len - REDUNDANCY, rssi);
 	} else {
@@ -101,7 +101,7 @@ Ptr<Packet> Packet::decode_l2(const char *data, unsigned int len, int rssi)
 		memcpy(rs_encoded + MSGSIZE_LONG, data + len - REDUNDANCY, REDUNDANCY);
 		if (rs_long.Decode(rs_encoded, rs_decoded)) {
 			decode_error = 997;
-			return 0;
+			return Ptr<Packet>(0);
 		}
 		return decode_l3(rs_decoded, len - REDUNDANCY, rssi);
 	}
@@ -138,20 +138,20 @@ Ptr<Packet> Packet::decode_l3(const char* data, unsigned int len, int rssi)
 	Params params;
 
 	if (! decode_preamble(preamble, preamble_len, to, from, params)) {
-		return 0;
+		return Ptr<Packet>(0);
 	}
 
-	return new Packet(to, from, params, Buffer(msg, msg_len), rssi);
+	return Ptr<Packet>(new Packet(to, from, params, Buffer(msg, msg_len), rssi));
 }
 
 Ptr<Packet> Packet::change_msg(const Buffer& msg) const
 {
-	return new Packet(this->to(), this->from(), this->params(), msg);
+	return Ptr<Packet>(new Packet(this->to(), this->from(), this->params(), msg));
 }
 
 Ptr<Packet> Packet::change_params(const Params&new_params) const
 {
-	return new Packet(this->to(), this->from(), new_params, this->msg());
+	return Ptr<Packet>(new Packet(this->to(), this->from(), new_params, this->msg()));
 }
 
 Buffer Packet::encode_l3() const

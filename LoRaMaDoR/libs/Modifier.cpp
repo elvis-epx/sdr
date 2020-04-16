@@ -15,7 +15,7 @@ Ptr<Packet> Rreqi::modify(const Packet &pkt, const Callsign &me)
 			return pkt.change_msg(new_msg);
 		}
 	}
-	return 0;
+	return Ptr<Packet>(0);
 }
 
 Ptr<Packet> RetransMark::modify(const Packet &pkt, const Callsign &me)
@@ -25,5 +25,5 @@ Ptr<Packet> RetransMark::modify(const Packet &pkt, const Callsign &me)
 		new_params.put_naked("R");
 		return pkt.change_params(new_params);
 	}
-	return 0;
+	return Ptr<Packet>(0);
 }

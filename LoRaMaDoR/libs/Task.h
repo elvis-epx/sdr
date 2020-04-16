@@ -55,7 +55,7 @@ public:
 	TaskManager();
 	~TaskManager();
 	void run(unsigned long int);
-	void schedule(Task* task);
+	void schedule(Ptr<Task> task);
 	void cancel(const Task* task);
 	// for testing purposes
 	Ptr<Task> next_task() const;

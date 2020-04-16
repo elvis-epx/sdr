@@ -52,7 +52,7 @@ TaskManager::TaskManager() {}
 
 TaskManager::~TaskManager() {}
 
-void TaskManager::schedule(Task* task)
+void TaskManager::schedule(Ptr<Task> task)
 {
 	Ptr<Task> etask = task;
 	tasks.push_back(etask);
@@ -61,7 +61,7 @@ void TaskManager::schedule(Task* task)
 
 Ptr<Task> TaskManager::next_task() const
 {
-	Ptr<Task> ret = 0;
+	Ptr<Task> ret(0);
 	unsigned long int task_time = 999999999999;
 	for (unsigned int i = 0 ; i < tasks.size(); ++i) {
 		Ptr<Task> t = tasks[i];
@@ -76,7 +76,7 @@ Ptr<Task> TaskManager::next_task() const
 	return ret;
 }
 
-void TaskManager::cancel(const Task *task)
+void TaskManager::cancel(const Task* task)
 {
 	for (unsigned int i = 0 ; i < tasks.size(); ++i) {
 		if (tasks[i].id() == task) {
