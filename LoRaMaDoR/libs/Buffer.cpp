@@ -250,7 +250,7 @@ Buffer Buffer::substr(unsigned int start) const
 	return substr(start, this->len - start);
 }
 
-Buffer substr(unsigned int start, unsigned int count) const
+Buffer Buffer::substr(unsigned int start, unsigned int count) const
 {
 	if (start >= this->len) {
 		return "";
