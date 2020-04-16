@@ -39,19 +39,20 @@ void arduino_nvram_id_save(unsigned int id)
 
 Callsign arduino_nvram_callsign_load()
 {
-	Buffer candidate(11);
+	char candidate[12];
 	prefs.begin("LoRaMaDoR");
-	size_t len = prefs.getString("callsign", candidate.hot(), 10);
+	// len includes \0
+	size_t len = prefs.getString("callsign", candidate, 11);
 	prefs.end();
 
 	Callsign cs;
 
-	if (!len) {
-		cs = "FIXMEE-1";
+	if (len <= 1) {
+		cs = Callsign("FIXMEE-1");
 	} else {
-		cs = candidate;
+		cs = Callsign(Buffer(candidate, len - 1));
 		if (!cs.is_valid()) {
-			cs = "FIXMEE-2";
+			cs = Callsign("FIXMEE-2");
 		}
 	}
 

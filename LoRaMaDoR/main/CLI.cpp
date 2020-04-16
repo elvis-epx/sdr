@@ -23,34 +23,34 @@ void logi(const char* a, long int b) {
 void app_recv(Ptr<Packet> pkt)
 {
 	Buffer msg = Buffer::sprintf("%s < %s %s\n\r(%s rssi %d)",
-				pkt->to(), pkt->from(), pkt->msg().cold(),
+				pkt->to().buf().cold(), pkt->from().buf().cold(), pkt->msg().cold(),
 				pkt->sparams(), pkt->rssi());
 	cli_print(msg);
-	Buffer msga = Buffer::sprintf("%s < %s", pkt->to(), pkt->from());
+	Buffer msga = Buffer::sprintf("%s < %s", pkt->to().buf().cold(), pkt->from().buf().cold());
 	Buffer msgb = Buffer::sprintf("id %ld rssi %d", pkt->ident(), pkt->rssi());
 	Buffer msgc = Buffer::sprintf("p %s", pkt->sparams());
 	oled_show(msga.cold(), pkt->msg().cold(), msgb.cold(), msgc.cold());
 }
 
-void cli_parse_callsign(Buffer callsign)
+void cli_parse_callsign(const Buffer &candidate)
 {
-	callsign.strip();
-	callsign.uppercase();
-
-	if (callsign.empty()) {
+	if (candidate.empty()) {
 		Serial.print("Callsign is ");
-		Serial.println(Net->callsign().cold());
+		Serial.println(Net->me().buf().cold());
+		return;
+	}
+	
+	if (candidate.charAt(0) == 'Q') {
+		Serial.print("Invalid Q callsign: ");
+		Serial.println(candidate.cold());
 		return;
 	}
 
-	if (! Packet::check_callsign(callsign)) {
+	Callsign callsign(candidate);
+
+	if (! callsign.is_valid()) {
 		Serial.print("Invalid callsign: ");
-		Serial.println(callsign.cold());
-		return;
-	}
-	if (callsign.charAt(0) == 'Q') {
-		Serial.print("Invalid Q callsign: ");
-		Serial.println(callsign.cold());
+		Serial.println(candidate.cold());
 		return;
 	}
 	
@@ -91,21 +91,21 @@ void cli_parse_packet(Buffer cmd)
 		payload = cmd.substr(sp + 1);
 	}
 
-	Buffer dest;
+	Buffer cdest;
 	Buffer sparams = "";
 	int sep = preamble.indexOf(':');
 	if (sep < 0) {
-		dest = preamble;
+		cdest = preamble;
 	} else {
-		dest = preamble.substr(0, sep);
+		cdest = preamble.substr(0, sep);
 		sparams = preamble.substr(sep + 1);
 	}
-	dest.strip();
-	dest.uppercase();
 
-	if (! Packet::check_callsign(dest)) {
+	Callsign dest(cdest);
+
+	if (! dest.is_valid()) {
 		Serial.print("Invalid destination: ");
-		Serial.println(dest.cold());
+		Serial.println(cdest.cold());
 		return;
 	}
 
@@ -117,7 +117,7 @@ void cli_parse_packet(Buffer cmd)
 		return;
 	}
 
-	Net->send(dest.cold(), params, payload);
+	Net->send(dest, params, payload);
 }
 
 void cli_parse(Buffer cmd)
