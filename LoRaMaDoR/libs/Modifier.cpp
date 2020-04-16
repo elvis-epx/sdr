@@ -18,14 +18,12 @@ Ptr<Packet> Rreqi::modify(const Packet &pkt, const Callsign &me)
 	return 0;
 }
 
-Ptr<Packet> RetransBeacon::modify(const Packet &pkt, const Callsign &me)
+Ptr<Packet> RetransMark::modify(const Packet &pkt, const Callsign &me)
 {
-	if (pkt.to().equal("QB") || pkt.to().equal("QC")) {
-		if (! pkt.params().has("R")) {
-			Params new_params = pkt.params();
-			new_params.put("R", None);
-			return pkt.change_params(new_params);
-		}
+	if (! pkt.params().has("R")) {
+		Params new_params = pkt.params();
+		new_params.put("R", None);
+		return pkt.change_params(new_params);
 	}
 	return 0;
 }

@@ -19,7 +19,7 @@ public:
 	virtual Ptr<Packet> modify(const Packet &, const Callsign &);
 };
 
-class RetransBeacon: public Modifier {
+class RetransMark: public Modifier {
 public:
 	virtual Ptr<Packet> modify(const Packet &, const Callsign &);
 };

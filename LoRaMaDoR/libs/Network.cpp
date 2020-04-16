@@ -90,7 +90,7 @@ Network::Network(const Callsign &callsign)
 	task_mgr.schedule(clean_adj);
 
 	modifiers.push_back(new Rreqi());
-	modifiers.push_back(new RetransBeacon());
+	modifiers.push_back(new RetransMark());
 	handlers.push_back(new Ping());
 	handlers.push_back(new Rreq());
 
@@ -278,6 +278,8 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 		recv(pkt);
 	}
 
+	// Diffusion routing from this point on
+
 	// Forward packet modifiers
 	// They can add params and/or change msg
 	for (unsigned int i = 0; i < modifiers.size(); ++i) {
@@ -289,7 +291,6 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 		}
 	}
 
-	// Diffusion routing
 	Buffer encoded_pkt = pkt->encode_l2();
 
 	// TX delay in bits: packet size x stations nearby
