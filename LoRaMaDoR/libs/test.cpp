@@ -167,7 +167,7 @@ int main()
 	Buffer spl3 = p.encode_l3();
 	Buffer spl2 = p.encode_l2();
 
-	printf("'%s'\n", spl3.cold());
+	printf("spl3 '%s'\n", spl3.cold());
 	assert (strcmp(spl3.cold(), "AAAA<BBBB:123,X,Y=456 bla ble") == 0);
 	printf("---\n");
 	Ptr<Packet> q = Packet::decode_l2(spl2.cold(), spl2.length(), -50);

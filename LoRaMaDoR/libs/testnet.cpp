@@ -22,7 +22,12 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
-	Ptr<Network> the_net = new Network(Callsign(argv[1]));
+	Callsign cs(argv[1]);
+	if (!cs.is_valid()) {
+		printf("Callsign invalid.\n");
+		return 2;
+	}
+	Ptr<Network> the_net = new Network(cs);
 
 	// Main loop simulation (in Arduino, would be a busy loop)
 	int s = lora_emu_socket();

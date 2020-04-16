@@ -18,7 +18,7 @@ Ptr<Packet> Rreq::handle(const Packet &pkt, const Callsign &me)
 {
 	if ((!pkt.to().isQ() || pkt.to().is_localhost()) && pkt.params().has("RREQ")) {
 		Buffer msg = pkt.msg();
-		msg.append("|");
+		msg.append('|');
 		Params rrsp = Params();
 		rrsp.put("RRSP", None);
 		return new Packet(pkt.from(), me, pkt.ident(), rrsp, msg);

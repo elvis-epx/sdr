@@ -33,7 +33,7 @@ public:
 	int strncmp(const char *, unsigned int) const;
 	void append(const char *s, unsigned int length);
 	void append(const char s);
-	void append(const Buffer&);
+	void append_str(const Buffer&);
 	void cut(int);
 	void lstrip();
 	void rstrip();

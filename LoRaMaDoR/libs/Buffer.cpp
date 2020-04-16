@@ -65,9 +65,10 @@ Buffer& Buffer::operator=(const Buffer& model)
 	return *this;
 }
 
-void Buffer::append(const Buffer &b)
+// Appends Buffer as string (stopping at \0, not at length)
+void Buffer::append_str(const Buffer &b)
 {
-	append(b.cold(), b.length());
+	append(b.cold(), strlen(b.cold()));
 }
 
 void Buffer::append(const char *s, unsigned int add_length)
@@ -251,7 +252,9 @@ Buffer Buffer::sprintf(const char *mask, ...)
 		}
 	}
 	va_end(args);
-	return tgt;
+
+	// makes sure result has length = strlen()
+	return Buffer(tgt.cold(), strlen(tgt.cold()));
 }
 
 

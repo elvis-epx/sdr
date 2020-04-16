@@ -235,11 +235,7 @@ Packet::Packet(const Callsign &to, const Callsign &from, unsigned long int ident
 			_to(to), _from(from), _ident(ident), _params(params), _msg(msg), _rssi(rssi)
 {
 	_sparams = encode_params(_ident, _params);
-
-	// FIXME use Buffer::sprintf
-	char scratchpad[32];
-	snprintf(scratchpad, 31, "%s:%ld", _from.buf().cold(), _ident);
-	_signature = Buffer(scratchpad);
+	_signature = Buffer::sprintf("%s:%ld", _from.buf().cold(), _ident);
 }
 
 Packet::Packet(Packet &&model): _to(model._to), _from(model._from),
@@ -332,23 +328,18 @@ Ptr<Packet> Packet::change_params(const Params&new_params) const
 
 Buffer Packet::encode_params(unsigned long int ident, const Params &params)
 {
-	// FIXME use Buffer::sprintf
-	char scratchpad[255];
-	snprintf(scratchpad, sizeof(scratchpad) - 1, "%ld", ident);
-	Buffer buf(scratchpad);
+	Buffer buf = Buffer::sprintf("%ld", ident);
 
 	const Vector<Buffer>& keys = params.keys();
 	for (unsigned int i = 0; i < keys.size(); ++i) {
 		const Buffer& key = keys[i];
 		const Buffer& value = params[key];
+		buf.append(',');
+		buf.append_str(key);
 		if (! value.str_equal(None)) {
-			snprintf(scratchpad, sizeof(scratchpad) - 1, ",%s=%s",
-				key.cold(), value.cold());
-		} else {
-			snprintf(scratchpad, sizeof(scratchpad) - 1, ",%s",
-				key.cold());
+			buf.append('=');
+			buf.append_str(value);
 		}
-		buf.append(scratchpad, strlen(scratchpad));
 	}
 
 	return buf;
@@ -356,24 +347,14 @@ Buffer Packet::encode_params(unsigned long int ident, const Params &params)
 
 Buffer Packet::encode_l3() const
 {
-	// FIXME use higher-level Buffer functions
-	unsigned int len = _to.buf().length() + 1 + _from.buf().length() + 1 + _sparams.length() + 1 + _msg.length();
-	Buffer b(len);
-	char *w = b.hot();
+	Buffer b(_to.buf());
 
-	for (unsigned int i = 0; i < _to.buf().length(); ++i) {
-		*w++ = _to.buf().cold()[i];
-	}
-	*w++ = '<';
-	for (unsigned int i = 0; i < _from.buf().length(); ++i) {
-		*w++ = _from.buf().cold()[i];
-	}
-	*w++ = ':';
-	for (unsigned int i = 0; i < _sparams.length(); ++i) {
-		*w++ = _sparams.cold()[i];
-	}
-	*w++ = ' ';
-	memcpy(w, _msg.cold(), _msg.length());
+	b.append('<');
+	b.append_str(_from.buf());
+	b.append(':');
+	b.append_str(_sparams);
+	b.append(' ');
+	b.append_str(_msg);
 
 	return b;
 }
@@ -407,12 +388,11 @@ bool Packet::is_dup(const Packet& other) const
 
 Buffer Packet::repr() const
 {
-	// FIXME use Buffer::sprintf
-	char scratchpad[255];
-	snprintf(scratchpad, 254, "pkt %s < %s : %s msg %s",
-		_to.buf().cold(), _from.buf().cold(), _sparams.cold(), _msg.cold());
-	return Buffer(scratchpad);
+	return Buffer::sprintf("pkt %s < %s : %s msg %s",
+				_to.buf().cold(), _from.buf().cold(),
+				_sparams.cold(), _msg.cold());
 }
+
 Callsign Packet::to() const
 {
 	return _to;
