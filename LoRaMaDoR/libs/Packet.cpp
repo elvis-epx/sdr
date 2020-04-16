@@ -21,72 +21,6 @@ RS::ReedSolomon<MSGSIZE_SHORT, REDUNDANCY> rs_short;
 
 static int decode_error;
 
-bool Packet::check_callsign(const Buffer &sbuf)
-{
-	unsigned int length = sbuf.length();
-	const char *s = sbuf.cold();
-
-	if (length < 2) {
-		return false;
-	} else if (length == 2) {
-		char c0 = s[0];
-		char c1 = s[1];
-		if (c0 != 'Q') {
-			return false;
-		}
-		if (c1 < 'A' || c1 > 'Z') {
-			return false;
-		}
-	} else {
-		char c0 = s[0];
-		if (c0 == 'Q'|| c0 < 'A' || c0 > 'Z') {
-			return false;
-		}
-
-		const char *ssid_delim = strchr(s, '-');
-		unsigned int prefix_length;
-
-		if (ssid_delim) {
-			const char *ssid = ssid_delim + 1;
-			prefix_length = ssid_delim - s;
-			int ssid_length = length - 1 - prefix_length;
-			if (ssid_length <= 0 || ssid_length > 2) {
-				return false;
-			}
-			bool sig = false;
-			for (int i = 0; i < ssid_length; ++i) {
-				char c = ssid[i];
-				if (c < '0' || c > '9') {
-					return false;
-				}
-				if (c != '0') {
-					// found significant digit
-					sig = true;
-				} else if (! sig) {
-					// non-significant 0
-					return false;
-				}
-			}
-		} else {
-			prefix_length = length;
-		}
-
-		if (prefix_length > 7 || prefix_length < 4) {
-			return false;
-		}
-		for (unsigned int i = 1; i < prefix_length; ++i) {
-			char c = s[i];
-			if (c >= '0' && c <= '9') {
-			} else if (c >= 'A' && c <= 'Z') {
-			} else {
-				return false;
-			}
-		}
-	}
-
-	return true;
-}
-
 static bool parse_symbol_param(const char *data, unsigned int len, Buffer& key, Buffer& value)
 {
 	if (! len) {
@@ -158,6 +92,7 @@ static bool parse_ident_param(const char* s, unsigned int len, unsigned long int
 	}
 
 	char n[20];
+	// FIXME use Buffer::sprintf
 	sprintf(n, "%ld", ident);
 	if (strlen(n) != len) {
 		decode_error = 6;
@@ -258,7 +193,7 @@ bool Packet::parse_params(const char *data, unsigned int len,
 }
 
 static bool decode_preamble(const char* data, unsigned int len,
-		Buffer &to, Buffer &from, unsigned long int& ident, Params& params)
+		Callsign &to, Callsign &from, unsigned long int& ident, Params& params)
 {
 	const char *d1 = (const char*) memchr(data, '<', len);
 	const char *d2 = (const char*) memchr(data, ':', len);
@@ -277,13 +212,10 @@ static bool decode_preamble(const char* data, unsigned int len,
 		return false;
 	}
 
-	to = Buffer(data, d1 - data);
-	from = Buffer(d1 + 1, d2 - d1 - 1);
+	to = Callsign(Buffer(data, d1 - data));
+	from = Callsign(Buffer(d1 + 1, d2 - d1 - 1));
 
-	to.uppercase();
-	from.uppercase();
-
-	if (!Packet::check_callsign(to) || !Packet::check_callsign(from)) {
+	if (!to.is_valid() || !from.is_valid()) {
 		decode_error = 104;
 		return false;
 	}
@@ -297,16 +229,15 @@ static bool decode_preamble(const char* data, unsigned int len,
 	return true;
 }
 
-Packet::Packet(const char* to, const char* from, unsigned long int ident, 
+Packet::Packet(const Callsign &to, const Callsign &from, unsigned long int ident, 
 			const Params& params, const Buffer& msg, int rssi): 
 			_to(to), _from(from), _ident(ident), _params(params), _msg(msg), _rssi(rssi)
 {
 	_sparams = encode_params(_ident, _params);
-	_to.uppercase();
-	_from.uppercase();
 
+	// FIXME use Buffer::sprintf
 	char scratchpad[32];
-	snprintf(scratchpad, 31, "%s:%ld", _from.cold(), _ident);
+	snprintf(scratchpad, 31, "%s:%ld", _from.buf().cold(), _ident);
 	_signature = Buffer(scratchpad);
 }
 
@@ -376,8 +307,8 @@ Ptr<Packet> Packet::decode_l3(const char* data, unsigned int len, int rssi)
 		preamble_len = len;
 	}
 
-	Buffer to;
-	Buffer from;
+	Callsign to;
+	Callsign from;
 	Params params;
 	unsigned long int ident = 0;
 
@@ -385,7 +316,7 @@ Ptr<Packet> Packet::decode_l3(const char* data, unsigned int len, int rssi)
 		return 0;
 	}
 
-	return new Packet(to.cold(), from.cold(), ident, params, Buffer(msg, msg_len), rssi);
+	return new Packet(to, from, ident, params, Buffer(msg, msg_len), rssi);
 }
 
 Ptr<Packet> Packet::change_msg(const Buffer& msg) const
@@ -400,6 +331,7 @@ Ptr<Packet> Packet::change_params(const Params&new_params) const
 
 Buffer Packet::encode_params(unsigned long int ident, const Params &params)
 {
+	// FIXME use Buffer::sprintf
 	char scratchpad[255];
 	snprintf(scratchpad, sizeof(scratchpad) - 1, "%ld", ident);
 	Buffer buf(scratchpad);
@@ -423,16 +355,17 @@ Buffer Packet::encode_params(unsigned long int ident, const Params &params)
 
 Buffer Packet::encode_l3() const
 {
-	unsigned int len = _to.length() + 1 + _from.length() + 1 + _sparams.length() + 1 + _msg.length();
+	// FIXME use higher-level Buffer functions
+	unsigned int len = _to.buf().length() + 1 + _from.buf().length() + 1 + _sparams.length() + 1 + _msg.length();
 	Buffer b(len);
 	char *w = b.hot();
 
-	for (unsigned int i = 0; i < _to.length(); ++i) {
-		*w++ = _to.cold()[i];
+	for (unsigned int i = 0; i < _to.buf().length(); ++i) {
+		*w++ = _to.buf().cold()[i];
 	}
 	*w++ = '<';
-	for (unsigned int i = 0; i < _from.length(); ++i) {
-		*w++ = _from.cold()[i];
+	for (unsigned int i = 0; i < _from.buf().length(); ++i) {
+		*w++ = _from.buf().cold()[i];
 	}
 	*w++ = ':';
 	for (unsigned int i = 0; i < _sparams.length(); ++i) {
@@ -473,19 +406,20 @@ bool Packet::is_dup(const Packet& other) const
 
 Buffer Packet::repr() const
 {
+	// FIXME use Buffer::sprintf
 	char scratchpad[255];
 	snprintf(scratchpad, 254, "pkt %s < %s : %s msg %s",
-		_to.cold(), _from.cold(), _sparams.cold(), _msg.cold());
+		_to.buf().cold(), _from.buf().cold(), _sparams.cold(), _msg.cold());
 	return Buffer(scratchpad);
 }
-const char* Packet::to() const
+Callsign Packet::to() const
 {
-	return _to.cold();
+	return _to;
 }
 
-const char* Packet::from() const
+Callsign Packet::from() const
 {
-	return _from.cold();
+	return _from;
 }
 
 const char* Packet::sparams() const

@@ -10,13 +10,14 @@
 #include "Dict.h"
 #include "Buffer.h"
 #include "Pointer.h"
+#include "Callsign.h"
 
 typedef Dict<Buffer> Params;
 // value of a naked Params key
 #define None "@, NONE, @"
 
 struct Packet {
-	Packet(const char *to, const char *from, unsigned long int ident, 
+	Packet(const Callsign &to, const Callsign &from, unsigned long int ident, 
 		const Params& params, const Buffer& msg, int rssi=0);
 	~Packet();
 
@@ -43,8 +44,8 @@ struct Packet {
 	bool is_dup(const Packet& other) const;
 	Buffer repr() const;
 	const char *signature() const;
-	const char *to() const;
-	const char *from() const;
+	Callsign to() const;
+	Callsign from() const;
 	unsigned long int ident() const;
 	const Params& params() const;
 	const char *sparams() const;
@@ -64,8 +65,8 @@ private:
 	static bool parse_params(const char *data, unsigned int len,
 		unsigned long int &ident, Params &params, bool);
 
-	Buffer _to;
-	Buffer _from;
+	Callsign _to;
+	Callsign _from;
 	const unsigned long int _ident;
 	const Params _params;
 	Buffer _sparams;

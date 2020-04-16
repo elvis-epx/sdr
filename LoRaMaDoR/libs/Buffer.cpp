@@ -65,6 +65,11 @@ Buffer& Buffer::operator=(const Buffer& model)
 	return *this;
 }
 
+void Buffer::append(const Buffer &b)
+{
+	append(b.cold(), b.length());
+}
+
 void Buffer::append(const char *s, unsigned int add_length)
 {
 	if (!s) {
@@ -210,6 +215,11 @@ void Buffer::uppercase()
 bool Buffer::str_equal(const char *cmp) const
 {
 	return strcmp(cmp) == 0;
+}
+
+bool Buffer::str_equal(const Buffer& cmp) const
+{
+	return strcmp(cmp.cold()) == 0;
 }
 
 int Buffer::strcmp(const char *cmp) const

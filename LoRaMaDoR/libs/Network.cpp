@@ -65,25 +65,19 @@ public:
 	const bool we_are_origin;
 };
 
-/////////////////////// Network object singleton
-
-static Ptr<Network> network_singleton = 0;
-
-Ptr<Network> net(const Buffer &callsign) 
-{
-	if (! network_singleton) {
-		network_singleton = new Network(callsign);
-	}
-	return network_singleton;
-}
-
 // bridges C-style callback from LoRa/Radio module to network object
 void radio_recv_trampoline(const char *recv_area, unsigned int plen, int rssi);
 
 //////////////////////////// Network class proper
 
-Network::Network(const Buffer &callsign)
+Ptr<Network> trampoline_target = 0;
+
+Network::Network(const Callsign &callsign)
 {
+	if (! callsign.is_valid()) {
+		return;
+	}
+
 	my_callsign = callsign;
 	last_pkt_id = arduino_nvram_id_load();
 
@@ -101,6 +95,7 @@ Network::Network(const Buffer &callsign)
 	handlers.push_back(new Rreq());
 
 	setup_lora();
+	trampoline_target = this;
 	lora_rx(radio_recv_trampoline);
 }
 
@@ -121,14 +116,9 @@ unsigned int Network::get_last_pkt_id() const
 	return last_pkt_id;
 }
 
-void Network::send(const char *to, const Params& params, const Buffer& msg)
+void Network::send(const Callsign &to, const Params& params, const Buffer& msg)
 {
-	// fast callsign check
-	// TODO make callsign a type
-	if (strlen(to) < 2 || strlen(to) > 10) {
-		return;
-	}
-	Ptr<Packet> pkt = new Packet(to, my_callsign.cold(), get_next_pkt_id(), params, msg);
+	Ptr<Packet> pkt = new Packet(to, me(), get_next_pkt_id(), params, msg);
 	sendmsg(pkt);
 }
 
@@ -142,7 +132,7 @@ void Network::recv(Ptr<Packet> pkt)
 {
 	// logs("Received pkt", pkt->encode_l3().cold());
 	for (unsigned int i = 0; i < handlers.size(); ++i) {
-		Ptr<Packet> response = handlers[i]->handle(*pkt, my_callsign.cold());
+		Ptr<Packet> response = handlers[i]->handle(*pkt, me());
 		if (response) {
 			sendmsg(response);
 			return;
@@ -154,7 +144,7 @@ void Network::recv(Ptr<Packet> pkt)
 void radio_recv_trampoline(const char *recv_area, unsigned int plen, int rssi)
 {
 	// ugly, but...
-	network_singleton->radio_recv(recv_area, plen, rssi);
+	trampoline_target->radio_recv(recv_area, plen, rssi);
 }
 
 void Network::radio_recv(const char *recv_area, unsigned int plen, int rssi)
@@ -171,13 +161,13 @@ void Network::radio_recv(const char *recv_area, unsigned int plen, int rssi)
 
 unsigned long int Network::beacon(unsigned long int, Task*)
 {
-	send("QB", Params(), Buffer(BEACON_MSG));
+	send(Callsign("QB"), Params(), Buffer(BEACON_MSG));
 #ifdef UNDER_TEST
 	unsigned long int next = fudge(10000, 0.5);
 #else
 	unsigned long int next = fudge(AVG_BEACON_TIME, 0.5);
 #endif
-	// logi("Next beacon in ", next);
+	logi("Next beacon in ", next);
 	return next;
 }
 
@@ -217,7 +207,7 @@ unsigned long int Network::clean_adjacent_stations(unsigned long int now, Task*)
 
 	for (unsigned int i = 0; i < remove_list.size(); ++i) {
 		adjacent_stations.remove(remove_list[i]);
-		// logs("Forgotten station", remove_list[i].cold());
+		logs("Forgotten station", remove_list[i].cold());
 	}
 
 	return ADJ_STATIONS_CLEAN;
@@ -244,8 +234,7 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 
 	if (we_are_origin) {
 		// Loopback handling
-		if (my_callsign.str_equal(pkt->to()) ||
-				strcmp("QL", pkt->to()) == 0) {
+		if (me().equal(pkt->to()) || pkt->to().is_localhost()) {
 			recv(pkt);
 			return 0;
 		}
@@ -260,7 +249,7 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 	}
 
 	// Packet originated from us but received via radio = loop
-	if (my_callsign.str_equal(pkt->from())) {
+	if (me().equal(pkt->from())) {
 		// logs("pkt loop", pkt->signature());
 		return 0;
 	}
@@ -272,19 +261,19 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 	}
 	recv_log.put(pkt->signature(), RecvLogItem(rssi, now)); 
 
-	if (my_callsign.str_equal(pkt->to())) {
+	if (me().equal(pkt->to())) {
 		// We are the final destination
 		recv(pkt);
 		return 0;
 	}
 
-	if (strcmp(pkt->to(), "QB") == 0 || strcmp(pkt->to(), "QC") == 0) {
+	if (pkt->to().equal("QB") || pkt->to().equal("QC")) {
 		// We are just one of the destinations
 		if (! pkt->params().has("R")) {
-			if (! adjacent_stations.has(pkt->from())) {
-				// logs("discovered neighbour", pkt->from());
+			if (! adjacent_stations.has(pkt->from().buf())) {
+				logs("discovered neighbour", pkt->from().buf().cold());
 			}
-			adjacent_stations[pkt->from()] = AdjacentStation(rssi, now);
+			adjacent_stations[pkt->from().buf()] = AdjacentStation(rssi, now);
 		}
 		recv(pkt);
 	}
@@ -292,7 +281,7 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 	// Forward packet modifiers
 	// They can add params and/or change msg
 	for (unsigned int i = 0; i < modifiers.size(); ++i) {
-		Ptr<Packet> modified_pkt = modifiers[i]->modify(*pkt, my_callsign.cold());
+		Ptr<Packet> modified_pkt = modifiers[i]->modify(*pkt, me());
 		if (modified_pkt) {
 			// replace packet by modified vesion
 			pkt = modified_pkt;
@@ -311,7 +300,7 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 	// e.g. 900 bits @ 600 bps = 1500 ms
 	unsigned long int delay = bit_delay * 1000 / lora_speed_bps();
 
-	// logi("relaying w/ delay", delay);
+	logi("relaying w/ delay", delay);
 
 	Task *tx_task = new PacketTx(encoded_pkt, delay, this);
 	logs("relay ", pkt->encode_l3().cold());
@@ -333,8 +322,8 @@ unsigned long int Network::task_callback(int id, unsigned long int now, Task* ta
 			return clean_adjacent_stations(now, task);
 		case TASK_ID_RECV_LOG:
 			return clean_recv_log(now, task);
-		// default:
-			// logi("invalid task id ", id);
+		default:
+			logi("invalid task id ", id);
 	}
 	return 0;
 }
@@ -344,7 +333,6 @@ void Network::run_tasks(unsigned long int millis)
 	task_mgr.run(millis);
 }
 
-Buffer Network::callsign() const {
+Callsign Network::me() const {
 	return my_callsign;
 }
-

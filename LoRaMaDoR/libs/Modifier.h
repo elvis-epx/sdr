@@ -10,18 +10,18 @@
 
 class Modifier {
 public:
-	virtual Ptr<Packet> modify(const Packet &, const char *) = 0;
+	virtual Ptr<Packet> modify(const Packet &, const Callsign &) = 0;
 	virtual ~Modifier() {}
 };
 
 class Rreqi: public Modifier {
 public:
-	virtual Ptr<Packet> modify(const Packet &, const char *);
+	virtual Ptr<Packet> modify(const Packet &, const Callsign &);
 };
 
 class RetransBeacon: public Modifier {
 public:
-	virtual Ptr<Packet> modify(const Packet &, const char *);
+	virtual Ptr<Packet> modify(const Packet &, const Callsign &);
 };
 
 #endif

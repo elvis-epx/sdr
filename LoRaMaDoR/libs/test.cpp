@@ -14,7 +14,7 @@ void test2()
 	assert (!!p);
 	assert (strcmp("ee", p->msg().cold()) == 0);
 	assert (p->msg().str_equal("ee"));
-	assert (strcmp(p->to(), "AAAA-12") == 0);
+	assert (strcmp(p->to().buf().cold(), "AAAA-12") == 0);
 	
 	assert (!Packet::decode_l3("AAAA:BBBB<133"));
 	p = Packet::decode_l3("AAAA<BBBB:133,aaa,bbb=ccc,ddd=eee,fff bla");
@@ -138,21 +138,21 @@ void test5()
 
 int main()
 {
-	assert (!Packet::check_callsign("Q"));
-	assert (Packet::check_callsign("QB"));
-	assert (Packet::check_callsign("QC"));
-	assert (!Packet::check_callsign("Q1"));
-	assert (!Packet::check_callsign("Q-"));
-	assert (!Packet::check_callsign("qcc"));
-	assert (!Packet::check_callsign("xc"));
-	assert (!Packet::check_callsign("1cccc"));
-	assert (!Packet::check_callsign("aaaaa-1a"));
-	assert (!Packet::check_callsign("aaaaa-01"));
-	assert (!Packet::check_callsign("a#jskd"));
-	assert (!Packet::check_callsign("-1"));
-	assert (!Packet::check_callsign("aaa-1"));
-	assert (!Packet::check_callsign("aaaa-1-2"));;
-	assert (!Packet::check_callsign("aaaa-123"));
+	assert (!Callsign("Q").is_valid());
+	assert (Callsign("QB").is_valid());
+	assert (Callsign("QC").is_valid());
+	assert (!Callsign("Q1").is_valid());
+	assert (!Callsign("Q-").is_valid());
+	assert (!Callsign("qcc").is_valid());
+	assert (!Callsign("xc").is_valid());
+	assert (!Callsign("1cccc").is_valid());
+	assert (!Callsign("aaaaa-1a").is_valid());
+	assert (!Callsign("aaaaa-01").is_valid());
+	assert (!Callsign("a#jskd").is_valid());
+	assert (!Callsign("-1").is_valid());
+	assert (!Callsign("aaa-1").is_valid());
+	assert (!Callsign("aaaa-1-2").is_valid());;
+	assert (!Callsign("aaaa-123").is_valid());
 
 	test3();
 
@@ -163,7 +163,7 @@ int main()
 	Params d;
 	d.put("x", None);
 	d.put("y", "456");
-	Packet p = Packet("aaAA", "BBbB", 123, d, Buffer("bla ble"));
+	Packet p = Packet(Callsign(Buffer("aaAA")), Callsign(Buffer("BBbB")), 123, d, Buffer("bla ble"));
 	Buffer spl3 = p.encode_l3();
 	Buffer spl2 = p.encode_l2();
 
@@ -198,8 +198,8 @@ int main()
 
 	assert (p.is_dup(*q));
 	assert (q->is_dup(p));
-	assert (strcmp(q->to(), "AAAA") == 0);
-	assert (strcmp(q->from(), "BBBB") == 0);
+	assert (strcmp(q->to().buf().cold(), "AAAA") == 0);
+	assert (strcmp(q->from().buf().cold(), "BBBB") == 0);
 	assert (q->ident() == 123);
 	assert (q->params().has("X"));
 	assert (q->params().has("Y"));

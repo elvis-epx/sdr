@@ -4,24 +4,24 @@
 #include <string.h>
 #include "Handler.h"
 
-Ptr<Packet> Ping::handle(const Packet &pkt, const char* callsign)
+Ptr<Packet> Ping::handle(const Packet &pkt, const Callsign &me)
 {
-	if ((strlen(pkt.to()) > 2 || strcmp(pkt.to(), "QL") == 0) && pkt.params().has("PING")) {
+	if ((!pkt.to().isQ() || pkt.to().is_localhost()) && pkt.params().has("PING")) {
 		Params pong = Params();
 		pong.put("PONG", None);
-		return new Packet(pkt.from(), callsign, pkt.ident(), pong, pkt.msg());
+		return new Packet(pkt.from(), me, pkt.ident(), pong, pkt.msg());
 	}
 	return 0;
 }
 
-Ptr<Packet> Rreq::handle(const Packet &pkt, const char* callsign)
+Ptr<Packet> Rreq::handle(const Packet &pkt, const Callsign &me)
 {
-	if ((strlen(pkt.to()) > 2 || strcmp(pkt.to(), "QL") == 0) && pkt.params().has("RREQ")) {
+	if ((!pkt.to().isQ() || pkt.to().is_localhost()) && pkt.params().has("RREQ")) {
 		Buffer msg = pkt.msg();
-		msg.append("|", 1);
+		msg.append("|");
 		Params rrsp = Params();
 		rrsp.put("RRSP", None);
-		return new Packet(pkt.from(), callsign, pkt.ident(), rrsp, msg);
+		return new Packet(pkt.from(), me, pkt.ident(), rrsp, msg);
 	}
 	return 0;
 }

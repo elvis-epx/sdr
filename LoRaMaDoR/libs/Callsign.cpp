@@ -1,19 +1,42 @@
 #include "Callsign.h"
+#include <string.h>
 
 Callsign::Callsign()
 {
 	valid = false;
 }
 
-Callsign::Callsign(Buffer& c)
+Callsign::Callsign(Buffer c)
 {
 	c.uppercase();
 	c.strip();
-	if (! check_callsign(c)) {
+	if (! check(c)) {
 		valid = false;
 		return;
 	}
 	buffer = c;
+	valid = true;
+}
+
+bool Callsign::equal(const Buffer& other) const
+{
+	return valid && buffer.str_equal(other);
+}
+
+bool Callsign::equal(const Callsign& other) const
+{
+	
+	return valid && other.valid && buffer.str_equal(other.buffer);
+}
+
+bool Callsign::is_localhost() const
+{
+	return buffer.str_equal("QL");
+}
+
+bool Callsign::isQ() const
+{
+	return buffer.charAt(0) == 'Q';
 }
 
 Buffer Callsign::buf() const
@@ -26,9 +49,7 @@ bool Callsign::is_valid() const
 	return valid;
 }
 
-static bool Callsign::check_callsign(const Buffer&);
-
-bool Callsign::check_callsign(const Buffer &sbuf)
+bool Callsign::check(const Buffer &sbuf)
 {
 	unsigned int length = sbuf.length();
 	const char *s = sbuf.cold();

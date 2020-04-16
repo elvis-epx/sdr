@@ -28,10 +28,12 @@ public:
 	char* hot();
 	void uppercase();
 	bool str_equal(const char *cmp) const;
+	bool str_equal(const Buffer &) const;
 	int strcmp(const char *cmp) const;
 	int strncmp(const char *, unsigned int) const;
 	void append(const char *s, unsigned int length);
 	void append(const char s);
+	void append(const Buffer&);
 	void cut(int);
 	void lstrip();
 	void rstrip();

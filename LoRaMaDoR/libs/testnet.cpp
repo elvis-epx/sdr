@@ -21,7 +21,8 @@ int main(int argc, char* argv[])
 		printf("Specify a callsign\n");
 		return 1;
 	}
-	Ptr<Network> the_net = net(argv[1]);
+
+	Ptr<Network> the_net = new Network(Callsign(argv[1]));
 
 	// Main loop simulation (in Arduino, would be a busy loop)
 	int s = lora_emu_socket();

@@ -28,27 +28,25 @@ struct RecvLogItem {
 	unsigned long int timestamp;
 };
 
-class Network: public TaskCallable {
+class Network: public TaskCallable
+{
 public:
-	void send(const char *to, const Params &params, const Buffer& msg);
+	Network(const Callsign &callsign);
+	virtual ~Network();
+
+	void send(const Callsign &to, const Params &params, const Buffer& msg);
 	void run_tasks(unsigned long int);
 
 	// publicised to bridge with uncoupled code
 	void radio_recv(const char *recv_area, unsigned int plen, int rssi);
 	virtual unsigned long int task_callback(int, unsigned long int, Task*);
 	unsigned int get_last_pkt_id() const;
-	Buffer callsign() const;
+	Callsign me() const;
 
 	// publicised for testing purposes
 	TaskManager task_mgr;
 
-	friend Ptr<Network> net(const Buffer&);
-	virtual ~Network();
-
 private:
-	// client must call config_net() and net() to get the singleton
-	Network(const Buffer &callsign);
-
 	void recv(Ptr<Packet> pkt);
 	void sendmsg(const Ptr<Packet> pkt);
 	unsigned long int forward(unsigned long int, Task*);
@@ -58,7 +56,7 @@ private:
 	unsigned long int tx(unsigned long int, Task*);
 	unsigned int get_next_pkt_id();
 
-	Buffer my_callsign;
+	Callsign my_callsign;
 	Dict<RecvLogItem> recv_log;
 	Dict<AdjacentStation> adjacent_stations;
 	unsigned int last_pkt_id;
@@ -66,7 +64,5 @@ private:
 	Vector< Ptr<Handler> > handlers;
 
 };
-
-Ptr<Network> net(const Buffer&);
 
 #endif

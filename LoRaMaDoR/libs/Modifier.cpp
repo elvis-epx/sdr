@@ -4,23 +4,23 @@
 #include <string.h>
 #include "Modifier.h"
 
-Ptr<Packet> Rreqi::modify(const Packet &pkt, const char* callsign)
+Ptr<Packet> Rreqi::modify(const Packet &pkt, const Callsign &me)
 {
-	if (strlen(pkt.to()) > 2) {
+	if (! pkt.to().isQ()) {
 		// not QB, QC, etc.
 		if (pkt.params().has("RREQ") || pkt.params().has("RRSP")) {
 			Buffer new_msg = pkt.msg();
-			new_msg.append("|", 1);
-			new_msg.append(callsign, strlen(callsign));
+			new_msg.append("|");
+			new_msg.append(me.buf());
 			return pkt.change_msg(new_msg);
 		}
 	}
 	return 0;
 }
 
-Ptr<Packet> RetransBeacon::modify(const Packet &pkt, const char* callsign)
+Ptr<Packet> RetransBeacon::modify(const Packet &pkt, const Callsign &me)
 {
-	if ((strcmp(pkt.to(), "QB") == 0) || (strcmp(pkt.to(), "QC") == 0)) {
+	if (pkt.to().equal("QB") || pkt.to().equal("QC")) {
 		if (! pkt.params().has("R")) {
 			Params new_params = pkt.params();
 			new_params.put("R", None);

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <Preferences.h>
 #include "Buffer.h"
+#include "Callsign.h"
 
 Preferences prefs;
 
@@ -36,24 +37,30 @@ void arduino_nvram_id_save(unsigned int id)
 
 }
 
-Buffer arduino_nvram_callsign_load()
+Callsign arduino_nvram_callsign_load()
 {
-	Buffer callsign(11);
+	Buffer candidate(11);
 	prefs.begin("LoRaMaDoR");
-	size_t len = prefs.getString("callsign", callsign.hot(), 10);
+	size_t len = prefs.getString("callsign", candidate.hot(), 10);
 	prefs.end();
 
+	Callsign cs;
+
 	if (!len) {
-		callsign = "FIXMEE-1";
+		cs = "FIXMEE-1";
+	} else {
+		cs = candidate;
+		if (!cs.is_valid()) {
+			cs = "FIXMEE-2";
+		}
 	}
 
-	callsign.uppercase();
-	return callsign;
+	return cs;
 }
 
-void arduino_nvram_callsign_save(const Buffer &new_callsign)
+void arduino_nvram_callsign_save(const Callsign &new_callsign)
 {
 	prefs.begin("LoRaMaDoR", false);
-	prefs.putString("callsign", new_callsign.cold());
+	prefs.putString("callsign", new_callsign.buf().cold());
 	prefs.end();
 }

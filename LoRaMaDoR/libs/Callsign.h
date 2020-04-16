@@ -7,11 +7,15 @@ class Callsign
 {
 public:
 	Callsign();
-	Callsign(const Buffer&);
+	Callsign(Buffer);
 	Buffer buf() const;
 	bool is_valid() const;
-	static bool check_callsign(const Buffer&);
+	bool isQ() const;
+	bool is_localhost() const;
+	bool equal(const Buffer&) const;
+	bool equal(const Callsign&) const;
 private:
+	static bool check(const Buffer&);
 	Buffer buffer;
 	bool valid;
 };

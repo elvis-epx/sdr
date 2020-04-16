@@ -8,22 +8,23 @@
 
 #include "Packet.h"
 #include "Pointer.h"
+#include "Callsign.h"
 
 class Handler {
 public:
-	virtual Ptr<Packet> handle(const Packet &, const char *) = 0;
+	virtual Ptr<Packet> handle(const Packet &, const Callsign &) = 0;
 	virtual ~Handler() {}
 };
 
 class Ping: public Handler {
 public:
-	virtual Ptr<Packet> handle(const Packet &, const char *);
+	virtual Ptr<Packet> handle(const Packet &, const Callsign &);
 	virtual ~Ping() {}
 };
 
 class Rreq: public Handler {
 public:
-	virtual Ptr<Packet> handle(const Packet &, const char *);
+	virtual Ptr<Packet> handle(const Packet &, const Callsign &);
 	virtual ~Rreq() {}
 };
 

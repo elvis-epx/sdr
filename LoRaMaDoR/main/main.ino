@@ -14,11 +14,10 @@ void setup()
 	oled_init();
 
 	oled_show("Starting...", "", "", "");
-	Buffer callsign = arduino_nvram_callsign_load();
-	Net = net(callsign);
-
-	oled_show("Net configured", callsign.cold(), "", "");
-	Serial.print(callsign.cold());
+	Callsign cs = arduino_nvram_callsign_load();
+	Net = net(cs);
+	oled_show("Net configured", cs.cold(), "", "");
+	Serial.print(cs.cold());
 	Serial.println(" ready");
 	Serial.println();
 }
