@@ -5,8 +5,14 @@ which is more powerful and more extensible, allowing for true network formation.
 The implementation is a work in
 progress, and more documentation will be added as time permits.
 
+# Terminal (CLI) usage
+
+Set the speed to 115200bps, connect to Arduino's serial port
+using the terminal software of your choice (screen, minicom, etc.),
+and start chatting!
+
 Users can use the protocol almost directly, with a "hands on" sensation,
-the implementation fills in some information to compose a valid packet.
+the implementation fills in the red tape to generate a valid packet.
 For example, a user types:
 
 ```
@@ -20,11 +26,18 @@ actual transmitted packet (minus the FEC suffix) is something like:
 QC<PP5UUU:33 Chat tonight 22:00 at repeater 147.000
 ```
 
-And the forwarded packet will be like like
+There are some commands, all start with ! (exclamation point):
 
 ```
-QC<PP5UUU:33,R Chat tonight 22:00 at repeater 147.000
+!callsign ABCDEF-1
+!debug
+!nodebug
 ```
+
+To show the currently configured callsign, call !callsign without a parameter.
+By default is FIXMEE-1.
+
+# More examples
 
 Example of beacon packet, sent automatically every 10 minutes by
 every station:
@@ -36,26 +49,26 @@ QB<PU5EPX-11:2 bat=7.93V temp=25.4C wind=25.4kmh
 How to ping another station:
 
 ```
-PP5CRE-11:PING teste123
+PP5CRE-11:PING test123
 ```
 
 Actual traffic:
 ```
-PP5CRE-11<PU5EPX-11:21,PING teste123
-PU5EPX-11<PP5CRE-11:54,PONG teste123
+PP5CRE-11<PU5EPX-11:21,PING test123
+PU5EPX-11<PP5CRE-11:54,PONG test123
 ```
 
 Route request:
 
 ```
-PP5CRE-11:RREQ teste123
+PP5CRE-11:RREQ test123
 ```
 
 Actual traffic:
 ```
-PP5CRE-11<PU5EPX-11:RREQ teste123
+PP5CRE-11<PU5EPX-11:RREQ test123
 
-PU5EPX-11<PP5CRE-11:RRSP teste123
+PU5EPX-11<PP5CRE-11:RRSP test123
 PP5ABC rssi=-50
 PU5XYZ rssi=-86
 PP5CRE-11 rssi=-70  # routes added upstream
