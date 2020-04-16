@@ -23,7 +23,7 @@ QC Chat tonight 22:00 at repeater 147.000
 actual transmitted packet (minus the FEC suffix) is something like:
 
 ```
-QC<PP5UUU:33 Chat tonight 22:00 at repeater 147.000
+QC<PU5EPX-11:33 Chat tonight 22:00 at repeater 147.000
 ```
 
 There are some commands, all start with ! (exclamation point):
@@ -66,14 +66,12 @@ PP5CRE-11:RREQ test123
 
 Actual traffic:
 ```
-PP5CRE-11<PU5EPX-11:RREQ test123
+PP5CRE-11<PU5EPX-11:RREQ
+```
 
-PU5EPX-11<PP5CRE-11:RRSP test123
-PP5ABC rssi=-50
-PU5XYZ rssi=-86
-PP5CRE-11 rssi=-70  # routes added upstream
-PU5ABC rssi=-34
-PU5EPX-11 rssi=-62  # routes added downstream
+Possible response:
+```
+PU5EPX-11<PP5CRE-11:RRSP PP5ABC|PU5XYZ|PP5CRE-11|PU5ABC|
 ```
 
 ## Packet format
@@ -105,7 +103,8 @@ The parameters can be in three formats: naked number, naked key, and key=value.
 
 There shall be one and only one naked number in the parameter list: it is the
 packet ID. Together with the source callsign, it uniquely identifies the packet
-within the network in a 20-minute time window.
+within the network in a 20-minute time window. This is used to e.g. avoid 
+forwarding the same packet twice.
 
 Keys (naked or not) must be composed of capital letters and numbers only, and must start
 with a letter. Values may be composed of any characters except those used as delimiters
@@ -129,6 +128,10 @@ annotated in the message payload.
 can have decimal places.
 
 `S=chars` is an optional digital signature of the payload.
+
+## Routing and forwarding
+
+Currently, diffusion routing is the only implemented strategy.
 
 ## FEC code
 
