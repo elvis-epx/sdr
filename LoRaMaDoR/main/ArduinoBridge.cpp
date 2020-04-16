@@ -15,14 +15,6 @@ long int arduino_random(long int min, long int max)
 	return random(min, max);
 }
 
-void logs(const char* a, const char* b) {
-	return;
-}
-
-void logi(const char* a, long int b) {
-	return;
-}
-
 unsigned int arduino_nvram_id_load()
 {
 	prefs.begin("LoRaMaDoR");

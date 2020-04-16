@@ -253,6 +253,7 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 		// Transmit
 		Task *tx_task = new PacketTx(pkt->encode_l2(), 50, this);
 		task_mgr.schedule(tx_task);
+		logs("tx ", pkt->encode_l3());
 		return 0;
 	}
 
@@ -311,6 +312,7 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 	// logi("relaying w/ delay", delay);
 
 	Task *tx_task = new PacketTx(encoded_pkt, delay, this);
+	logs("relay ", pkt->encode_l3());
 	task_mgr.schedule(tx_task);
 
 	return 0;

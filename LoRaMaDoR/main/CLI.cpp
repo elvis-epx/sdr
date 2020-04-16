@@ -2,6 +2,16 @@
 #include "Buffer.h"
 #include "ArduinoBridge.h"
 
+void logs(const char* a, const char* b) {
+	Buffer msg = Buffer::sprintf("%s %s", a, b);
+	cli_showpkt(msg);
+}
+
+void logi(const char* a, long int b) {
+	Buffer msg = Buffer::sprintf("%s %ld", a, b);
+	cli_showpkt(msg);
+}
+
 void app_recv(Ptr<Packet> pkt)
 {
 	Buffer msg = Buffer::sprintf("%s < %s %s\nid %ld params %s RSSI %d",
