@@ -116,9 +116,10 @@ unsigned int Network::get_last_pkt_id() const
 	return last_pkt_id;
 }
 
-void Network::send(const Callsign &to, const Params& params, const Buffer& msg)
+void Network::send(const Callsign &to, Params params, const Buffer& msg)
 {
-	Ptr<Packet> pkt = new Packet(to, me(), get_next_pkt_id(), params, msg);
+	params.set_ident(get_next_pkt_id());
+	Ptr<Packet> pkt = new Packet(to, me(), params, msg);
 	sendmsg(pkt);
 }
 

@@ -8,8 +8,9 @@ Ptr<Packet> Ping::handle(const Packet &pkt, const Callsign &me)
 {
 	if ((!pkt.to().isQ() || pkt.to().is_localhost()) && pkt.params().has("PING")) {
 		Params pong = Params();
-		pong.put("PONG", None);
-		return new Packet(pkt.from(), me, pkt.ident(), pong, pkt.msg());
+		pong.set_ident(pkt.params().ident());
+		pong.put_naked("PONG");
+		return new Packet(pkt.from(), me, pong, pkt.msg());
 	}
 	return 0;
 }
@@ -20,8 +21,9 @@ Ptr<Packet> Rreq::handle(const Packet &pkt, const Callsign &me)
 		Buffer msg = pkt.msg();
 		msg.append('|');
 		Params rrsp = Params();
-		rrsp.put("RRSP", None);
-		return new Packet(pkt.from(), me, pkt.ident(), rrsp, msg);
+		rrsp.set_ident(pkt.params().ident());
+		rrsp.put_naked("RRSP");
+		return new Packet(pkt.from(), me, rrsp, msg);
 	}
 	return 0;
 }

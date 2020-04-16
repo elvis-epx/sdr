@@ -24,11 +24,11 @@ void app_recv(Ptr<Packet> pkt)
 {
 	Buffer msg = Buffer::sprintf("%s < %s %s\n\r(%s rssi %d)",
 				pkt->to().buf().cold(), pkt->from().buf().cold(), pkt->msg().cold(),
-				pkt->sparams(), pkt->rssi());
+				pkt->params().serialized().cold(), pkt->rssi());
 	cli_print(msg);
 	Buffer msga = Buffer::sprintf("%s < %s", pkt->to().buf().cold(), pkt->from().buf().cold());
-	Buffer msgb = Buffer::sprintf("id %ld rssi %d", pkt->ident(), pkt->rssi());
-	Buffer msgc = Buffer::sprintf("p %s", pkt->sparams());
+	Buffer msgb = Buffer::sprintf("id %ld rssi %d", pkt->params().ident(), pkt->rssi());
+	Buffer msgc = Buffer::sprintf("p %s", pkt->params().serialized().cold());
 	oled_show(msga.cold(), pkt->msg().cold(), msgb.cold(), msgc.cold());
 }
 
@@ -110,8 +110,8 @@ void cli_parse_packet(Buffer cmd)
 	}
 
 	unsigned long int dummy;
-	Params params;
-	if (! Packet::parse_params_cli(sparams, params)) {
+	Params params(sparams);
+	if (! params.is_valid_without_ident()) {
 		Serial.print("Invalid params: ");
 		Serial.println(sparams.cold());
 		return;

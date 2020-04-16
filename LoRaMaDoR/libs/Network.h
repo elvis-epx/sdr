@@ -34,7 +34,7 @@ public:
 	Network(const Callsign &callsign);
 	virtual ~Network();
 
-	void send(const Callsign &to, const Params &params, const Buffer& msg);
+	void send(const Callsign &to, Params params, const Buffer& msg);
 	void run_tasks(unsigned long int);
 
 	// publicised to bridge with uncoupled code

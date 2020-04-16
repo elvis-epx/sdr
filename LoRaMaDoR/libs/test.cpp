@@ -28,22 +28,22 @@ void test2()
 	assert (!!p);
 	Ptr<Packet> q = p->change_msg("bla ble");
 	Params d = q->params();
-	d.put("E", None);
+	d.put_naked("E");
 	d.put("F", "G");
 	Ptr<Packet> r = p->change_params(d);
 	assert(r->params().has("A"));
 	assert(r->params().has("B"));
-	assert(r->params().get("A").str_equal(None));
-	assert(! r->params().get("B").str_equal(None));
+	assert(r->params().is_key_naked("A"));
+	assert(! r->params().is_key_naked("B"));
 	assert(r->params().get("B").str_equal("C"));
 
 	assert(!q->params().has("E"));
 	assert(!q->params().has("F"));
 
 	assert(r->params().has("E"));
-	assert(r->params().get("E").str_equal(None));
+	assert(r->params().is_key_naked("E"));
 	assert(r->params().has("F"));
-	assert(! r->params().get("F").str_equal(None));
+	assert(! r->params().is_key_naked("F"));
 	assert(strcmp(r->params().get("F").cold(), "G") == 0);
 
 	assert(strcmp(q->msg().cold(), "bla ble") == 0);
@@ -52,47 +52,52 @@ void test2()
 
 void test3()
 {
-	unsigned long int ident;
 	Params params;
 
-	assert(Packet::parse_params("1234", ident, params));
-	assert (ident == 1234);
-	assert(Packet::parse_params("1235,abc", ident, params));
-	assert (ident == 1235);
+	params = Params("1234");
+	assert (params.is_valid_with_ident());
+	assert (params.ident() == 1234);
+	params = Params("1235,abc");
+	assert (params.is_valid_with_ident());
+	assert (params.ident() == 1235);
 	assert(params.has("ABC"));
 	printf("ABC=%s\n", params.get("ABC").cold());
-	assert(params.get("ABC").str_equal(None));
+	assert(params.is_key_naked("ABC"));
 
-	assert(Packet::parse_params("1236,abc,def=ghi", ident, params));
-	assert (ident == 1236);
+	params = Params("1236,abc,def=ghi");
+	assert (params.is_valid_with_ident());
+	assert (params.ident() == 1236);
 	assert(params.has("ABC"));
 	assert(params.has("DEF"));
 	assert(strcmp(params.get("DEF").cold(), "ghi") == 0);
 	assert(params.count() == 2);
 
-	assert(Packet::parse_params("def=ghi,1239", ident, params));
-	assert (ident == 1239);
+	params = Params("def=ghi,1239");
+	assert (params.is_valid_with_ident());
+	assert (params.ident() == 1239);
 	assert (params.count() == 1);
 	assert (params.has("DEF"));
 	assert (strcmp(params.get("DEF").cold(), "ghi") == 0);
 
-	assert (!Packet::parse_params("123a", ident, params));
-	assert (!Packet::parse_params("0123", ident, params));
-	assert (!Packet::parse_params("abc", ident, params));
-	assert (!Packet::parse_params("abc=def", ident, params));
-	assert (!Packet::parse_params("123,0bc=def", ident, params));
-	assert (!Packet::parse_params("123,0bc", ident, params));
-	assert (!Packet::parse_params("123,,bc", ident, params));
-	assert (Packet::parse_params("1,abc=def", ident, params));
-	assert (Packet::parse_params("1,2,abc=def", ident, params));
-	assert (ident == 2);
-	assert (!Packet::parse_params("1,,abc=def", ident, params));
-	assert (!Packet::parse_params("1,a#c=def", ident, params));
-	assert (!Packet::parse_params("1,a:c=d ef", ident, params));
-	assert (!Packet::parse_params("1,ac=d ef", ident, params));
-	assert (Packet::parse_params_cli(Buffer("ac=d,e,f="), params));
-	assert (Packet::parse_params_cli(Buffer("3,ac=d,e,f="), params));
-	assert (!Packet::parse_params_cli(Buffer("3,ac=d,e, f="), params));
+	assert (!Params("123a").is_valid_with_ident());
+	assert (!Params("0123").is_valid_with_ident());
+	assert (!Params("abc").is_valid_with_ident());
+	assert (!Params("abc=def").is_valid_with_ident());
+	assert (Params("abc=def").is_valid_without_ident());
+	assert (!Params("123,0bc=def").is_valid_with_ident());
+	assert (!Params("123,0bc").is_valid_with_ident());
+	assert (!Params("123,,bc").is_valid_with_ident());
+	assert (Params("1,abc=def").is_valid_with_ident());
+	params = Params("1,2,abc=def");
+	assert (params.is_valid_with_ident());
+	assert (params.ident() == 2);
+	assert (!Params("1,,abc=def").is_valid_with_ident());
+	assert (!Params("1,a#c=def").is_valid_with_ident());
+	assert (!Params("1,a:c=d ef").is_valid_with_ident());
+	assert (!Params("1,ac=d ef").is_valid_with_ident());
+	assert (Params("ac=d,e,f=").is_valid_without_ident());
+	assert (Params("3,ac=d,e,f=").is_valid_without_ident());
+	assert (!Params("3,ac=d,e, f=").is_valid_without_ident());
 }
 
 void test4()
@@ -161,9 +166,10 @@ int main()
 	assert (strcmp(bb.cold(), "abcde") == 0);
 
 	Params d;
-	d.put("x", None);
+	d.put_naked("x");
 	d.put("y", "456");
-	Packet p = Packet(Callsign(Buffer("aaAA")), Callsign(Buffer("BBbB")), 123, d, Buffer("bla ble"));
+	d.set_ident(123);
+	Packet p = Packet(Callsign(Buffer("aaAA")), Callsign(Buffer("BBbB")), d, Buffer("bla ble"));
 	Buffer spl3 = p.encode_l3();
 	Buffer spl2 = p.encode_l2();
 
@@ -200,12 +206,12 @@ int main()
 	assert (q->is_dup(p));
 	assert (strcmp(q->to().buf().cold(), "AAAA") == 0);
 	assert (strcmp(q->from().buf().cold(), "BBBB") == 0);
-	assert (q->ident() == 123);
+	assert (q->params().ident() == 123);
 	assert (q->params().has("X"));
 	assert (q->params().has("Y"));
 	assert (! q->params().has("Z"));
 	assert (strcmp(q->params().get("Y").cold(), "456") == 0);
-	assert (q->params().get("X").str_equal(None));
+	assert (q->params().is_key_naked("X"));
 
 	test2();
 	test4();

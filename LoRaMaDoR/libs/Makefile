@@ -8,10 +8,10 @@ clean:
 .cpp.o: *.h
 	gcc $(CFLAGS) -c $<
 
-test: test.cpp Packet.o Buffer.o Callsign.o *.h
+test: test.cpp Packet.o Buffer.o Callsign.o Params.o *.h
 	gcc $(CFLAGS) -o test test.cpp *.o -lstdc++
 
-testnet: testnet.cpp Handler.o Modifier.o Packet.o Buffer.o Task.o FakeArduino.o Network.o Callsign.o *.h
+testnet: testnet.cpp Handler.o Modifier.o Packet.o Buffer.o Task.o FakeArduino.o Network.o Callsign.o Params.o *.h
 	gcc $(CFLAGS) -o testnet testnet.cpp *.o -lstdc++
 
 coverage:

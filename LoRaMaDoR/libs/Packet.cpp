@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "Packet.h"
+#include "Params.h"
 #include "RS-FEC.h"
 
 static const int MSGSIZE_SHORT = 80;
@@ -21,180 +22,8 @@ RS::ReedSolomon<MSGSIZE_SHORT, REDUNDANCY> rs_short;
 
 static int decode_error;
 
-static bool parse_symbol_param(const char *data, unsigned int len, Buffer& key, Buffer& value)
-{
-	if (! len) {
-		decode_error = 1;
-		return false;
-	}
-
-	unsigned int skey_len = 0;
-	unsigned int svalue_len = 0;
-
-	// find '=' separator, if exists
-	const char *equal = (const char*) memchr(data, '=', len);
-
-	if (! equal) {
-		// naked key
-		skey_len = len;
-		svalue_len = 0;
-	} else {
-		// key=value, value may be empty
-		skey_len = equal - data;
-		svalue_len = len - skey_len - 1;
-	}
-
-	// check key name characters
-	for (unsigned int i = 0; i < skey_len; ++i) {
-		char c = data[i];
-		if (c >= 'a' && c <= 'z') {
-		} else if (c >= 'A' && c <= 'Z') {
-		} else if (c >= '0' && c <= '9') {
-		} else {
-			decode_error = 2;
-			return false;
-		}
-	}
-	
-	// check value characters, if there is a value
-	if (equal) {
-		for (unsigned int i = 0; i < svalue_len; ++i) {
-			char c = equal[1 + i];
-			if (strchr("= ,:<", c) || c == 0) {
-				decode_error = 3;
-				return false;
-			}
-		}
-	}
-
-	key = Buffer(data, skey_len);
-
-	if (equal) {
-		value = Buffer(equal + 1, svalue_len);
-	} else {
-		value = Buffer(None);
-	}
-
-	return true;
-}
-
-static bool parse_ident_param(const char* s, unsigned int len, unsigned long int &ident)
-{
-	char *stop;
-	ident = strtol(s, &stop, 10);
-	if (ident <= 0) {
-		decode_error = 4;
-		return false;
-	} else if (ident > 999999) {
-		decode_error = 7;
-		return false;
-	} else if (len != (stop - s)) {
-		decode_error = 5;
-		return false;
-	}
-
-	char n[10];
-	snprintf(n, 10, "%ld", ident);
-	if (strlen(n) != len) {
-		decode_error = 6;
-		return false;
-	}
-
-	return true;
-}
-
-static bool parse_param(const char* data, unsigned int len,
-		unsigned long int &ident, Buffer &key, Buffer &value)
-{
-	if (! len) {
-		decode_error = 50;
-		return false;
-	}
-
-	char c = data[0];
-
-	if (c >= '0' && c <= '9') {
-		return parse_ident_param(data, len, ident);
-	} else if (c >= 'a' && c <= 'z') {
-		ident = 0;
-		return parse_symbol_param(data, len, key, value);
-	} else if (c >= 'A' && c <= 'Z') {
-		ident = 0;
-		return parse_symbol_param(data, len, key, value);
-	}
-
-	decode_error = 7;
-	return false;
-}
-
-bool Packet::parse_params_cli(const Buffer &data, Params &params)
-{
-	unsigned long int dummy;
-	return parse_params(data.cold(), data.length(), dummy, params, true);
-}
-
-bool Packet::parse_params(const char* data,
-			unsigned long int &ident, Params &params)
-{
-	return parse_params(data, strlen(data), ident, params, false);
-}
-
-bool Packet::parse_params(const char *data, unsigned int len,
-		unsigned long int &ident, Params &params)
-{
-	return parse_params(data, len, ident, params, false);
-}
-
-bool Packet::parse_params(const char *data, unsigned int len,
-		unsigned long int &ident, Params &params,
-		bool waive_ident)
-{
-	ident = 0;
-	params = Params();
-
-	while (len > 0) {
-		unsigned int param_len;
-		unsigned int advance_len;
-
-		const char *comma = (const char*) memchr(data, ',', len);
-		if (! comma) {
-			// last, or only, param
-			param_len = len;
-			advance_len = len;
-		} else {
-			param_len = comma - data;
-			advance_len = param_len + 1;
-		}
-
-		if (! param_len) {
-			decode_error = 8;
-			return false;
-		}
-
-		unsigned long int tident = 0;
-		Buffer key;
-		Buffer value;
-
-		if (! parse_param(data, param_len, tident, key, value)) {
-			return false;
-		}
-		if (tident) {
-			// parameter is ident
-			ident = tident;
-		} else {
-			// parameter is key=value or naked key
-			params.put(key, value); // uppers key case for us
-		}
-
-		data += advance_len;
-		len -= advance_len;
-	}
-
-	return ident || waive_ident;
-}
-
 static bool decode_preamble(const char* data, unsigned int len,
-		Callsign &to, Callsign &from, unsigned long int& ident, Params& params)
+		Callsign &to, Callsign &from, Params& params)
 {
 	const char *d1 = (const char*) memchr(data, '<', len);
 	const char *d2 = (const char*) memchr(data, ':', len);
@@ -223,25 +52,25 @@ static bool decode_preamble(const char* data, unsigned int len,
 
 	const char *sparams = d2 + 1;
 	unsigned int sparams_len = len - (d2 - data) - 1;
-	if (! Packet::parse_params(sparams, sparams_len, ident, params)) {
+	params = Params(Buffer(sparams, sparams_len));
+
+	if (! params.is_valid_with_ident()) {
+		decode_error = 105;
 		return false;
 	}
 
 	return true;
 }
 
-Packet::Packet(const Callsign &to, const Callsign &from, unsigned long int ident, 
+Packet::Packet(const Callsign &to, const Callsign &from,
 			const Params& params, const Buffer& msg, int rssi): 
-			_to(to), _from(from), _ident(ident), _params(params), _msg(msg), _rssi(rssi)
+			_to(to), _from(from), _params(params), _msg(msg), _rssi(rssi)
 {
-	_sparams = encode_params(_ident, _params);
-	_signature = Buffer::sprintf("%s:%ld", _from.buf().cold(), _ident);
+	_signature = Buffer::sprintf("%s:%ld", _from.buf().cold(), params.ident());
 }
 
 Packet::Packet(Packet &&model): _to(model._to), _from(model._from),
-		_ident(model._ident),
 		_params(model._params),
-		_sparams(model._sparams),
 		_msg(model._msg)
 {
 }
@@ -307,42 +136,22 @@ Ptr<Packet> Packet::decode_l3(const char* data, unsigned int len, int rssi)
 	Callsign to;
 	Callsign from;
 	Params params;
-	unsigned long int ident = 0;
 
-	if (! decode_preamble(preamble, preamble_len, to, from, ident, params)) {
+	if (! decode_preamble(preamble, preamble_len, to, from, params)) {
 		return 0;
 	}
 
-	return new Packet(to, from, ident, params, Buffer(msg, msg_len), rssi);
+	return new Packet(to, from, params, Buffer(msg, msg_len), rssi);
 }
 
 Ptr<Packet> Packet::change_msg(const Buffer& msg) const
 {
-	return new Packet(this->to(), this->from(), this->ident(), this->params(), msg);
+	return new Packet(this->to(), this->from(), this->params(), msg);
 }
 
 Ptr<Packet> Packet::change_params(const Params&new_params) const
 {
-	return new Packet(this->to(), this->from(), this->ident(), new_params, this->msg());
-}
-
-Buffer Packet::encode_params(unsigned long int ident, const Params &params)
-{
-	Buffer buf = Buffer::sprintf("%ld", ident);
-
-	const Vector<Buffer>& keys = params.keys();
-	for (unsigned int i = 0; i < keys.size(); ++i) {
-		const Buffer& key = keys[i];
-		const Buffer& value = params[key];
-		buf.append(',');
-		buf.append_str(key);
-		if (! value.str_equal(None)) {
-			buf.append('=');
-			buf.append_str(value);
-		}
-	}
-
-	return buf;
+	return new Packet(this->to(), this->from(), new_params, this->msg());
 }
 
 Buffer Packet::encode_l3() const
@@ -352,7 +161,7 @@ Buffer Packet::encode_l3() const
 	b.append('<');
 	b.append_str(_from.buf());
 	b.append(':');
-	b.append_str(_sparams);
+	b.append_str(_params.serialized());
 	b.append(' ');
 	b.append_str(_msg);
 
@@ -390,7 +199,7 @@ Buffer Packet::repr() const
 {
 	return Buffer::sprintf("pkt %s < %s : %s msg %s",
 				_to.buf().cold(), _from.buf().cold(),
-				_sparams.cold(), _msg.cold());
+				_params.serialized().cold(), _msg.cold());
 }
 
 Callsign Packet::to() const
@@ -401,16 +210,6 @@ Callsign Packet::to() const
 Callsign Packet::from() const
 {
 	return _from;
-}
-
-const char* Packet::sparams() const
-{
-  return _sparams.cold();
-}
-
-unsigned long int Packet::ident() const
-{
-	return _ident;
 }
 
 const Params& Packet::params() const

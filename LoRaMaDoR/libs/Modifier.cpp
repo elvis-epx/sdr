@@ -22,7 +22,7 @@ Ptr<Packet> RetransMark::modify(const Packet &pkt, const Callsign &me)
 {
 	if (! pkt.params().has("R")) {
 		Params new_params = pkt.params();
-		new_params.put("R", None);
+		new_params.put_naked("R");
 		return pkt.change_params(new_params);
 	}
 	return 0;

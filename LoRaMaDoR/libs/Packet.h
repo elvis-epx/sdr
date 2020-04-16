@@ -7,17 +7,13 @@
 #define  __PACKET_H
 
 #include "Vector.h"
-#include "Dict.h"
 #include "Buffer.h"
 #include "Pointer.h"
 #include "Callsign.h"
-
-typedef Dict<Buffer> Params;
-// value of a naked Params key
-#define None "@, NONE, @"
+#include "Params.h"
 
 struct Packet {
-	Packet(const Callsign &to, const Callsign &from, unsigned long int ident, 
+	Packet(const Callsign &to, const Callsign &from, 
 		const Params& params, const Buffer& msg, int rssi=0);
 	~Packet();
 
@@ -46,30 +42,14 @@ struct Packet {
 	const char *signature() const;
 	Callsign to() const;
 	Callsign from() const;
-	unsigned long int ident() const;
 	const Params& params() const;
-	const char *sparams() const;
 	const Buffer& msg() const;
 	int rssi() const;
 
-	/* public for unit testing */
-	static bool check_callsign(const Buffer&);
-	static bool parse_params_cli(const Buffer&, Params&);
-	static bool parse_params(const char *data, unsigned int len,
-		unsigned long int &ident, Params &params);
-	static bool parse_params(const char *data,
-		unsigned long int &ident, Params &params);
-	static Buffer encode_params(unsigned long int ident, const Params&);
-
 private:
-	static bool parse_params(const char *data, unsigned int len,
-		unsigned long int &ident, Params &params, bool);
-
 	Callsign _to;
 	Callsign _from;
-	const unsigned long int _ident;
 	const Params _params;
-	Buffer _sparams;
 	Buffer _signature;
 	const Buffer _msg;
 	int _rssi;
