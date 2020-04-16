@@ -116,6 +116,11 @@ unsigned int Network::get_next_pkt_id()
 	return last_pkt_id;
 }
 
+unsigned int Network::get_last_pkt_id() const
+{
+	return last_pkt_id;
+}
+
 void Network::send(const char *to, const Params& params, const Buffer& msg)
 {
 	if (strlen(to) < 2 || strlen(to) > 7) {
@@ -334,3 +339,8 @@ void Network::run_tasks(unsigned long int millis)
 {
 	task_mgr.run(millis);
 }
+
+Buffer Network::callsign() const {
+	return my_callsign;
+}
+

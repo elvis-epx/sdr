@@ -36,6 +36,8 @@ public:
 	// publicised to bridge with uncoupled code
 	void radio_recv(const char *recv_area, unsigned int plen, int rssi);
 	virtual unsigned long int task_callback(int, unsigned long int, Task*);
+	unsigned int get_last_pkt_id() const;
+	Buffer callsign() const;
 
 	// publicised for testing purposes
 	TaskManager task_mgr;

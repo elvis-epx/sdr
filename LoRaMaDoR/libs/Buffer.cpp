@@ -159,15 +159,39 @@ int Buffer::indexOf(char c) const
 
 void Buffer::cut(int i)
 {
-	unsigned int ai = i > 0 ? i : -i;
-	unsigned int hi = i > 0 ? i : 0;
+	unsigned int ai = abs(i);
+	if (ai > this->len) {
+		ai = this->len;
+	}
+	unsigned int hi = (i >= 0) ? i : 0;
+	if (hi > this->len) {
+		hi = this->len;
+	}
+	
 	char *oldbuf = this->buf;
 	this->buf = new char[this->len - ai + 1];
 	memcpy(this->buf, oldbuf + hi, this->len - ai);
 	delete [] oldbuf;
 
 	this->len -= ai;
-	this->buf[this->len + 1] = 0;
+	this->buf[this->len] = 0;
+}
+
+void Buffer::lstrip() {
+	while (charAt(0) == ' ') {
+		cut(1);
+	}
+}
+
+void Buffer::rstrip() {
+	while (charAt(0) == ' ') {
+		cut(-1);
+	}
+}
+
+void Buffer::strip() {
+	lstrip();
+	rstrip();
 }
 
 bool Buffer::empty() const {
@@ -200,19 +224,23 @@ int Buffer::strncmp(const char *cmp, unsigned int len) const
 
 Buffer Buffer::sprintf(const char *mask, ...)
 {
+	int sz = strlen(mask) * 2;
+	Buffer tgt = Buffer(sz);
 	va_list args;
 	va_start(args, mask);
-	int tot = strlen(mask) * 2;
 	while (1) {
-		Buffer tgt(tot);
-		int written = snprintf(tgt.hot(), tgt.length() - 1, mask, args);
+		int written = vsnprintf(tgt.hot(), tgt.length(), mask, args);
 		if (written <= 0) {
-			return "";
-		} else if (written >= tot) {
-			return tgt;
+			tgt = "fail";
+			break;
+		} else if (written >= tgt.length()) {
+			sz *= 2;
+			tgt = Buffer(sz);
+		} else {
+			break;
 		}
-		tot *= 2;
 	}
 	va_end(args);
+	return tgt;
 }
 

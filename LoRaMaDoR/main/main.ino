@@ -31,17 +31,19 @@ void loop()
 		nextSendTime = millis() + next;
 		return;
 	}
+
 	while (Serial.available() > 0) {
 		cli_type(Serial.read());
 	}
+
 	Net->run_tasks(millis());
 }
 
 void send_message()
 {
-	// oled_show("send_message()");
 	Net->send("QC", Params(), "LoRaMaDoR 73!");
-	// oled_show("send_message() ok");
+	Buffer msg = Buffer::sprintf("sent msg %d", Net->get_last_pkt_id());
+	cli_showpkt(msg);
 }
 
 void app_recv(Ptr<Packet> pkt)
@@ -96,11 +98,7 @@ void cli_showpkt(const Buffer &msg) {
 
 void cli_parse(Buffer cmd)
 {
-	int sp = cmd.indexOf(' ');
-	if (sp >= 0) {
-		cmd.cut(sp);
-	}
-	
+	cmd.lstrip();
 	if (cmd.charAt(0) == '!') {
 		cmd.cut(1);
 		cli_parse_meta(cmd);
@@ -111,27 +109,37 @@ void cli_parse(Buffer cmd)
 
 void cli_parse_meta(Buffer cmd)
 {
-	if (cmd.strncmp("!callsign ", 10) == 0) {
-		cmd.cut(10);
+	cmd.strip();
+	if (cmd.strncmp("callsign ", 9) == 0) {
+		cmd.cut(9);
 		cli_parse_callsign(cmd);
+	} else if (cmd.strncmp("callsign", 8) == 0 && cmd.length() == 8) {
+		cli_parse_callsign("");
 	} else {
-		Serial.println("Unknown cmd");
+		Serial.print("Unknown cmd: ");
+		Serial.println(cmd.cold());
 	}
 }
 
 void cli_parse_callsign(Buffer callsign)
 {
+	callsign.strip();
 	callsign.uppercase();
-	while (callsign.charAt(-1) == ' ') {
-		callsign.cut(-1);
+
+	if (callsign.empty()) {
+		Serial.print("Callsign is ");
+		Serial.println(Net->callsign().cold());
+		return;
 	}
-	
+
 	if (! Packet::check_callsign(callsign)) {
-		Serial.println("Invalid callsign");
+		Serial.print("Invalid callsign: ");
+		Serial.println(callsign.cold());
 		return;
 	}
 	if (callsign.charAt(0) == 'Q') {
-		Serial.println("Invalid Q callsign");
+		Serial.print("Invalid Q callsign: ");
+		Serial.println(callsign.cold());
 		return;
 	}
 	

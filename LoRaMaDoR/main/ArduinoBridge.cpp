@@ -46,7 +46,7 @@ void arduino_nvram_id_save(unsigned int id)
 
 Buffer arduino_nvram_callsign_load()
 {
-	Buffer callsign = "          ";
+	Buffer callsign(11);
 	prefs.begin("LoRaMaDoR");
 	size_t len = prefs.getString("callsign", callsign.hot(), 10);
 	prefs.end();

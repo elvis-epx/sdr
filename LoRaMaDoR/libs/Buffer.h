@@ -31,6 +31,9 @@ public:
 	void append(const char *s, unsigned int length);
 	void append(const char s);
 	void cut(int);
+	void lstrip();
+	void rstrip();
+	void strip();
 	int indexOf(const char) const;
 	int charAt(int) const;
 
