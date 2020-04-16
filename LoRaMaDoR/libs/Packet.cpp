@@ -191,14 +191,27 @@ static bool parse_param(const char* data, unsigned int len,
 	return false;
 }
 
+bool Packet::parse_params_cli(const Buffer &data, Params &params)
+{
+	unsigned long int dummy;
+	return parse_params(data.cold(), data.length(), dummy, params, true);
+}
+
 bool Packet::parse_params(const char* data,
 			unsigned long int &ident, Params &params)
 {
-	return parse_params(data, strlen(data), ident, params);
+	return parse_params(data, strlen(data), ident, params, false);
 }
 
 bool Packet::parse_params(const char *data, unsigned int len,
 		unsigned long int &ident, Params &params)
+{
+	return parse_params(data, len, ident, params, false);
+}
+
+bool Packet::parse_params(const char *data, unsigned int len,
+		unsigned long int &ident, Params &params,
+		bool waive_ident)
 {
 	ident = 0;
 	params = Params();
@@ -241,8 +254,7 @@ bool Packet::parse_params(const char *data, unsigned int len,
 		len -= advance_len;
 	}
 
-	// valid only if there was an ident among params
-	return ident;
+	return ident || waive_ident;
 }
 
 static bool decode_preamble(const char* data, unsigned int len,

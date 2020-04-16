@@ -25,6 +25,13 @@ void setup()
 
 long nextSendTime = millis() + 5000;
 
+void send_message()
+{
+	Net->send("QC", Params(), "LoRaMaDoR 73!");
+	Buffer msg = Buffer::sprintf("sent msg %d", Net->get_last_pkt_id());
+	cli_showpkt(msg);
+}
+
 void loop()
 {
 	if (millis() > nextSendTime) {

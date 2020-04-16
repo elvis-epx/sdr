@@ -53,6 +53,7 @@ struct Packet {
 
 	/* public for unit testing */
 	static bool check_callsign(const Buffer&);
+	static bool parse_params_cli(const Buffer&, Params&);
 	static bool parse_params(const char *data, unsigned int len,
 		unsigned long int &ident, Params &params);
 	static bool parse_params(const char *data,
@@ -60,6 +61,9 @@ struct Packet {
 	static Buffer encode_params(unsigned long int ident, const Params&);
 
 private:
+	static bool parse_params(const char *data, unsigned int len,
+		unsigned long int &ident, Params &params, bool);
+
 	Buffer _to;
 	Buffer _from;
 	const unsigned long int _ident;

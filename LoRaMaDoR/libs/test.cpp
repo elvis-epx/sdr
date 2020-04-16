@@ -90,6 +90,9 @@ void test3()
 	assert (!Packet::parse_params("1,a#c=def", ident, params));
 	assert (!Packet::parse_params("1,a:c=d ef", ident, params));
 	assert (!Packet::parse_params("1,ac=d ef", ident, params));
+	assert (Packet::parse_params_cli(Buffer("ac=d,e,f="), params));
+	assert (Packet::parse_params_cli(Buffer("3,ac=d,e,f="), params));
+	assert (!Packet::parse_params_cli(Buffer("3,ac=d,e, f="), params));
 }
 
 void test4()

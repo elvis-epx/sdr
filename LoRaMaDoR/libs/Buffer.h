@@ -19,6 +19,8 @@ public:
 	~Buffer();
 
 	static Buffer sprintf(const char*, ...);
+	Buffer substr(unsigned int start) const;
+	Buffer substr(unsigned int start, unsigned int end) const;
 
 	bool empty() const;
 	unsigned int length() const;

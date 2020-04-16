@@ -69,7 +69,7 @@ void cli_parse(Buffer cmd)
 		cmd.cut(1);
 		cli_parse_meta(cmd);
 	} else {
-		Serial.println("FIXME parse packet");
+		cli_parse_packet(cmd);
 	}
 }
 
@@ -112,4 +112,45 @@ void cli_parse_callsign(Buffer callsign)
 	arduino_nvram_callsign_save(callsign);
 	Serial.println("Callsign saved, restarting...");
 	ESP.restart();
+}
+
+void cli_parse_packet(Buffer cmd)
+{
+	Buffer preamble;
+	Buffer payload = "";
+	int sp = cmd.indexOf(' ');
+	if (sp < 0) {
+		preamble = cmd;
+	} else {
+		preamble = cmd.substr(0, sp);
+		payload = cmd.substr(sp + 1);
+	}
+
+	Buffer dest;
+	Buffer sparams = "";
+	int sep = preamble.indexOf(':');
+	if (sep < 0) {
+		dest = preamble;
+	} else {
+		dest = preamble.substr(0, sep);
+		sparams = preamble.substr(sep + 1);
+	}
+	dest.strip();
+	dest.uppercase();
+
+	if (! Packet::check_callsign(dest)) {
+		Serial.print("Invalid destination: ");
+		Serial.println(dest.cold());
+		return;
+	}
+
+	unsigned long int dummy;
+	Params params;
+	if (! Packet::parse_params_cli(sparams, params)) {
+		Serial.print("Invalid params: ");
+		Serial.println(sparams.cold());
+		return;
+	}
+
+	Net->send(dest, params, payload);
 }

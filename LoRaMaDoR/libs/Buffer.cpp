@@ -244,3 +244,23 @@ Buffer Buffer::sprintf(const char *mask, ...)
 	return tgt;
 }
 
+
+Buffer Buffer::substr(unsigned int start) const
+{
+	return substr(start, this->len - start);
+}
+
+Buffer substr(unsigned int start, unsigned int count) const
+{
+	if (start >= this->len) {
+		return "";
+	}
+
+	if ((start + count) > this->len) {
+		count = this->len - start;
+	}
+
+	Buffer copy(count);
+	memcpy(copy.hot(), this->buf + start, count);
+	return copy;
+}

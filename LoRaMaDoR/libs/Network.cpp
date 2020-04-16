@@ -253,7 +253,7 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 		// Transmit
 		Task *tx_task = new PacketTx(pkt->encode_l2(), 50, this);
 		task_mgr.schedule(tx_task);
-		logs("tx ", pkt->encode_l3());
+		logs("tx ", pkt->encode_l3().cold());
 		return 0;
 	}
 
@@ -312,7 +312,7 @@ unsigned long int Network::forward(unsigned long int now, Task* task)
 	// logi("relaying w/ delay", delay);
 
 	Task *tx_task = new PacketTx(encoded_pkt, delay, this);
-	logs("relay ", pkt->encode_l3());
+	logs("relay ", pkt->encode_l3().cold());
 	task_mgr.schedule(tx_task);
 
 	return 0;
@@ -331,7 +331,7 @@ unsigned long int Network::task_callback(int id, unsigned long int now, Task* ta
 			return clean_adjacent_stations(now, task);
 		case TASK_ID_RECV_LOG:
 			return clean_recv_log(now, task);
-		default:
+		// default:
 			// logi("invalid task id ", id);
 	}
 	return 0;
