@@ -6,13 +6,16 @@
 #include "CLI.h"
 
 extern Ptr<Network> Net;
+bool debug = false;
 
 void logs(const char* a, const char* b) {
+	if (!debug) return;
 	Buffer msg = Buffer::sprintf("%s %s", a, b);
 	cli_print(msg);
 }
 
 void logi(const char* a, long int b) {
+	if (!debug) return;
 	Buffer msg = Buffer::sprintf("%s %ld", a, b);
 	cli_print(msg);
 }
@@ -62,6 +65,12 @@ void cli_parse_meta(Buffer cmd)
 	if (cmd.strncmp("callsign ", 9) == 0) {
 		cmd.cut(9);
 		cli_parse_callsign(cmd);
+	} else if (cmd.strncmp("debug", 5) == 0 && cmd.length() == 5) {
+		Serial.println("Debug on.");
+		debug = true;
+	} else if (cmd.strncmp("nodebug", 7) == 0 && cmd.length() == 7) {
+		Serial.println("Debug off.");
+		debug = false;
 	} else if (cmd.strncmp("callsign", 8) == 0 && cmd.length() == 8) {
 		cli_parse_callsign("");
 	} else {
