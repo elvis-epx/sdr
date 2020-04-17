@@ -146,7 +146,7 @@ int Buffer::charAt(int i) const
 	if (i < 0) {
 		i = this->len + i;
 	}
-	if (i >= this->len) {
+	if (i >= (signed) this->len) {
 		return -1;
 	}
 	return this->buf[i];
@@ -244,7 +244,7 @@ Buffer Buffer::sprintf(const char *mask, ...)
 		if (written <= 0) {
 			tgt = "fail";
 			break;
-		} else if (written >= tgt.length()) {
+		} else if (written >= (signed) tgt.length()) {
 			sz *= 2;
 			tgt = Buffer(sz);
 		} else {
