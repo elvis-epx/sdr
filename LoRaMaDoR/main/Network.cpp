@@ -94,9 +94,8 @@ Network::Network(const Callsign &callsign)
 	handlers.push_back(Ptr<Handler>(new Ping()));
 	handlers.push_back(Ptr<Handler>(new Rreq()));
 
-	setup_lora();
 	trampoline_target = this;
-	lora_rx(radio_recv_trampoline);
+	lora_start(radio_recv_trampoline);
 }
 
 Network::~Network()
@@ -216,13 +215,10 @@ unsigned long int Network::clean_adjacent_stations(unsigned long int now, Task*)
 
 unsigned long int Network::tx(unsigned long int now, Task* task)
 {
-	/*
-	if (lora_tx_busy()) {
+	const PacketTx* packet_task = static_cast<PacketTx*>(task);
+	if (! lora_tx(packet_task->encoded_packet)) {
 		return TX_BUSY_RETRY_TIME;
 	}
-	*/
-	const PacketTx* packet_task = static_cast<PacketTx*>(task);
-	lora_tx(packet_task->encoded_packet);
 	return 0;
 }
 

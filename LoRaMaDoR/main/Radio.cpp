@@ -42,22 +42,22 @@ unsigned long int lora_speed_bps()
 	return bps;
 }
 
-bool setup_lora_common();
+static bool setup_lora_common();
 
 #ifndef __AVR__
-bool setup_lora()
+static bool setup_lora()
 {
 	SPI.begin(SCK, MISO, MOSI, SS);
 	return setup_lora_common();
 }
 #else
-bool setup_lora()
+static bool setup_lora()
 {
 	return setup_lora_common();
 }
 #endif
 
-bool setup_lora_common()
+static bool setup_lora_common()
 {
 	LoRa.setPins(SS, RST, DIO0);
 
@@ -74,7 +74,12 @@ bool setup_lora_common()
 	return true;
 }
 
-static bool rx_enabled = false;
+#define ST_IDLE 0
+#define ST_RX 1
+#define ST_TX 2
+
+static int status = ST_IDLE;
+
 static char recv_area[255];
 static void (*rx_callback)(const char *, unsigned int, int) = 0;
 
@@ -91,31 +96,40 @@ static void on_receive(int plen)
 
 void lora_resume_rx()
 {
-	if (!rx_enabled) {
-		rx_enabled = true;
-		if (rx_callback) {
-			LoRa.onReceive(on_receive);
-			LoRa.receive();
-		} else {
-			LoRa.idle();
-		}
+	if (status != ST_RX) {
+		status = ST_RX;
+		LoRa.receive();
 	}
 }
 
-void lora_rx(void (*cb)(const char *buf, unsigned int plen, int rssi))
+bool lora_tx(const Buffer& packet)
 {
-	rx_callback = cb;
+	if (status == ST_TX) {
+		return false;
+	}
+
+	if (! LoRa.beginPacket()) {
+		// can only fail if in tx mode, don't touch anything
+		return false;
+	}
+
+	status = ST_TX;
+	LoRa.write((uint8_t*) packet.cold(), packet.length());
+	LoRa.endPacket(true);
+	return true;
+}
+
+void lora_tx_done()
+{
+	status = ST_IDLE;
 	lora_resume_rx();
 }
 
-int lora_tx(const Buffer& packet)
+void lora_start(void (*cb)(const char *buf, unsigned int plen, int rssi))
 {
-	rx_enabled = false;
-	LoRa.beginPacket();        
-	LoRa.write((uint8_t*) packet.cold(), packet.length());      
-	long int t0 = millis();
-	LoRa.endPacket();
-	long int t1 = millis();
+	rx_callback = cb;
+	setup_lora();
+	LoRa.onReceive(on_receive);
+	LoRa.onTxDone(lora_tx_done);
 	lora_resume_rx();
-	return t1 - t0;
 }

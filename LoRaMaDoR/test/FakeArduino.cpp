@@ -69,7 +69,7 @@ int lora_emu_socket()
 	return sock;
 }
 
-void setup_lora()
+static void setup_lora()
 {
 	// from https://web.cs.wpi.edu/~claypool/courses/4514-B99/samples/multicast.c
 	struct ip_mreq mreq;
@@ -122,8 +122,13 @@ unsigned long int lora_speed_bps()
 	return 1200;
 }
 
-int lora_tx(const Buffer& b)
+bool lora_tx(const Buffer& b)
 {
+	if ((random() % 10) == 0) {
+		printf("Simulate send pkt fail\n");
+		return false;
+	}
+
 	// Send to multicast group & port
 	struct sockaddr_in addr;
 	memset((char *)&addr, 0, sizeof(addr));
@@ -140,15 +145,11 @@ int lora_tx(const Buffer& b)
 	return 1;
 }
 
-bool lora_tx_busy()
-{
-	return false;
-}
-
 static void (*rx_callback)(char const*, unsigned int, int) = 0;
 
-void lora_rx(void (*new_cb)(char const*, unsigned int, int))
+void lora_start(void (*new_cb)(char const*, unsigned int, int))
 {
+	setup_lora();
 	rx_callback = new_cb;
 }
 
