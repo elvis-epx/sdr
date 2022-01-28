@@ -20,4 +20,4 @@ CENTR=$(($CENTR * $STEP))
 BW=1250000
 CHANNEL_BW=10000
 
-rtl_sdr -f $CENTR -g 25 -s $BW - | ./nfm.py $CENTR $BW $STEP $CHANNEL_BW $FREQS . -a -e
+rtl_sdr -f $CENTR -p 2 -g 49 -s $BW - | ./nfm.py $CENTR $BW $STEP $CHANNEL_BW $FREQS . -a -e
