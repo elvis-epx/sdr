@@ -1,0 +1,5 @@
+#!/bin/sh -x
+
+# Estimate signal strengh for 433MHz remote control band
+GAIN=40
+rtl_sdr -f 433920000 -g $GAIN -s 250000 - | ./power_433.py $GAIN
