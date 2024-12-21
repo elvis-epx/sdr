@@ -1,7 +1,7 @@
 #!/bin/bash -x
 
 # Airband channel SBJV ATIS
-FREQS="127850000"
+FREQS="127800000"
 CHANNEL_BW=10000
 
 # Determine center automatically
@@ -15,7 +15,7 @@ STEP=2500
 CENTR=$(($s / $n))
 CENTR=$(($CENTR / $STEP))
 CENTR=$(($CENTR * $STEP))
-CENTR=127850000
+CENTR=127800000
 
 BW=250000
 # Note: AM does not work well with autocorrelation squelch
