@@ -2,4 +2,4 @@
 
 # Decode ACARS messages using acarsdec.
 
-acarsdec -v  -p -1 -g 300 -r 0 -f 131.550 | tee acars.log
+acarsdec -v  -p 0 -r 0 131.550 131.825 -o 2 | tee acars.log
