@@ -27,7 +27,7 @@ while True:
         continue
 
     iqdata = numpy.frombuffer(data, dtype=numpy.uint8)
-    iqdata = iqdata - 127.5
+    iqdata = iqdata - 127.4
     iqdata = iqdata / 128.0
     iqdata = iqdata.view(complex)
 
