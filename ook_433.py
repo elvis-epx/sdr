@@ -56,7 +56,8 @@ while True:
     totenergy = numpy.sum(iqdata)
     counter = len(iqdata)
     avg = totenergy / counter
-    bgnoise = bgnoise * 0.999 + avg * 0.001
+    weight = 0.02 / FPS
+    bgnoise = bgnoise * (1.0 - weight) + avg * weight
     ook_threshold_up = bgnoise * ook_threshold_mul_up
     ook_threshold_down = bgnoise * ook_threshold_mul_down
     print("bgnoise %f %f" % (bgnoise, avg))
@@ -64,12 +65,12 @@ while True:
     for sample in iqdata:
         if state == 0:
             if sample > ook_threshold_up:
-                print("-%d", int(length * SAMPLE_US))
+                print("-%d" % int(length * SAMPLE_US))
                 length = 0
                 state = 1
         else:
             if sample < ook_threshold_down:
-                print("+%d", int(length * SAMPLE_US))
+                print("+%d" % int(length * SAMPLE_US))
                 length = 0
                 state = 0
         length += 1
