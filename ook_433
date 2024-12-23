@@ -1,4 +1,4 @@
 #!/bin/sh -x
 
-GAIN=49
+GAIN=40
 rtl_sdr -f 433920000 -g $GAIN -s 960k - | ./ook_433.py $GAIN
