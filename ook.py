@@ -99,6 +99,6 @@ def parse(data):
         if parser.parse():
             res = parser.res()
             print(res)
-            break
-    else:
-        print("... failed to parse")
+            return res
+    print("... failed to parse")
+    return None

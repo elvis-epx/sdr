@@ -2,9 +2,39 @@
 
 # Estimate signal strengh
 
-import struct, numpy, sys, math, filters, ook
+import struct, numpy, sys, math, filters, ook, random
+import paho.mqtt as pahomqtt
+import paho.mqtt.client as mqtt
+
+MQTT_PORT = 1883
+MY_MQTT_PREFIX = 'Testooksdr%d' % random.randint(0, 1000000)
+MQTT_CLIENT_ID = "%s" % MY_MQTT_PREFIX
+MQTT_SERVER = None
+MQTT_TOPIC = "stat/Test433/Keyfob"
+mqtt_impl = None
 
 gain = float(sys.argv[1])
+if len(sys.argv) > 2:
+    MQTT_SERVER = sys.argv[2]
+
+if MQTT_SERVER:
+    # Called on thread context
+    def on_connect(_, __, flags, conn_result):
+        print("MQTT connected", flags, conn_result)
+
+    # Called on thread context
+    def on_disconnect(_, userdata, rc):
+        print("MQTT disconnected")
+
+    if pahomqtt.__version__[0] > '1':
+        mqtt_impl = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, MQTT_CLIENT_ID)
+    else:
+        mqtt_impl = mqtt.Client(MQTT_CLIENT_ID)
+
+    mqtt_impl.on_connect = on_connect
+    mqtt_impl.on_disconnect = on_disconnect
+    mqtt_impl.connect_async(MQTT_SERVER, MQTT_PORT)
+    mqtt_impl.loop_start() # starts thread
 
 INPUT_RATE = 960000
 FPS = 5
@@ -132,8 +162,13 @@ while True:
             # Signal = samples between two preambles
             start = preambles[0] + 1
             stop = preambles[1]
-            ook.parse(samples[start:stop])
+            result = ook.parse(samples[start:stop])
             samples = samples[stop:]
+
+            if result and mqtt_impl:
+                mqtt_impl.publish(MQTT_TOPIC, result)
+                print("Published MQTT topic")
+
         elif len(preambles) == 1:
             stop = preambles[0]
             samples = samples[stop:]
