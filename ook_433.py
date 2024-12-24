@@ -113,7 +113,7 @@ while True:
     bgnoise = bgnoise * (1.0 - weight) + avg * weight
     ook_threshold_up = bgnoise * ook_threshold_mul_up
     ook_threshold_down = bgnoise * ook_threshold_mul_down
-    print("bgnoise avg=%f now=%f" % (bgnoise, avg))
+    print("bgnoise (bits) avg=%f now=%f" % (bgnoise * 128 / len(conv_mask), avg * 128 / len(conv_mask)))
 
     # Detect transitions
     for sample in iqdata:
