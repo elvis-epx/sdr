@@ -23,9 +23,10 @@ class OOKParser:
     def __init__(self, sequence):
         self.sequence = sequence
         self.code = 0
+        self.note = ""
 
     def res(self):
-        return "%s:%d" % (self.name, self.code)
+        return "%s:%d%s" % (self.name, self.code, self.note)
 
     # Calculate average timing of each bit
     def bit_timing(self, bitcount, lh):
@@ -81,7 +82,7 @@ class HT6P20(OOKParser):
             return False
         if (self.code & 0xf) != 0b0101:
             print(self.name, "> suffix 0101 not found")
-            return False
+            self.note = "(e)"
         return True
 
 class EV1527(OOKParser):
@@ -91,8 +92,12 @@ class EV1527(OOKParser):
     bit1 = "LS" # long then short (1110)
 
 parsers = [EV1527, HT6P20]
+min_length = min([ parser.exp_sequence_len for parser in parsers ])
 
 def parse(data):
+    if len(data) < min_length:
+        return None
+
     print("--- received data, length %d" % len(data))
     for parser_class in parsers:
         parser = parser_class(data)
