@@ -52,16 +52,22 @@ PREAMBLE_MIN_US = 5000
 # Maximum
 PREAMBLE_MAX_US = 20000
 # Transitions less than this are considered glitches
+# We cannot filter everything below PREAMBLE_MIN_US because white noise would look like data.
+# We need to let some noise to pass (GLITCH_US < x PREAMBLE_MIN_US) to be able to differentiate
+# noise (likely when AGC is on) from signal
 GLITCH_US = min(TRANS_MIN_US, PREAMBLE_MIN_US) / 4
+
+# Convolution mask to make a moving average
+conv_mask = [1.0 for _ in range(0, int(GLITCH_US / SAMPLE_US)) ]
 
 remaining_data = b''
 
 if_filter = filters.low_pass(INPUT_RATE, BANDWIDTH / 2, 48)
 if_decimator = filters.decimator(INPUT_RATE // IF_RATE)
 
-bgnoise = 0.66 / 128 # 2/3 of one bit
-ook_threshold_db_up = 10 # dB above background noise
-ook_threshold_db_down = 8
+bgnoise = 0.66 / 128 * len(conv_mask) # 2/3 of one bit x length of moving average
+ook_threshold_db_up = 6 # dB above background noise
+ook_threshold_db_down = 5
 ook_threshold_mul_up = 10 ** (ook_threshold_db_up / 10)
 ook_threshold_mul_down = 10 ** (ook_threshold_db_down / 10)
 
@@ -96,6 +102,8 @@ while True:
 
     # We are only interested in absolute amplitude
     iqdata = numpy.absolute(iqdata)
+    # Moving average to detect envelope
+    iqdata = numpy.convolve(iqdata, conv_mask, 'same')
 
     # Calculate background noise & moving average
     totenergy = numpy.sum(iqdata)
@@ -105,7 +113,7 @@ while True:
     bgnoise = bgnoise * (1.0 - weight) + avg * weight
     ook_threshold_up = bgnoise * ook_threshold_mul_up
     ook_threshold_down = bgnoise * ook_threshold_mul_down
-    # print("bgnoise %f %f" % (bgnoise, avg))
+    print("bgnoise avg=%f now=%f" % (bgnoise, avg))
 
     # Detect transitions
     for sample in iqdata:
