@@ -38,11 +38,10 @@ if MQTT_SERVER:
 
 INPUT_RATE = 960000
 FPS = 5
-BANDWIDTH = 240000
-IF_RATE = BANDWIDTH
+BANDWIDTH = 200000
 
 # Length in µs per sample
-SAMPLE_US = 1000000 / IF_RATE
+SAMPLE_US = 1000000 / INPUT_RATE
 # Minimum transition length to be considered part of a signal
 TRANS_MIN_US = 150
 # Maximum
@@ -57,15 +56,12 @@ PREAMBLE_MAX_US = 20000
 # noise (likely when AGC is on) from signal
 GLITCH_US = min(TRANS_MIN_US, PREAMBLE_MIN_US) / 4
 
-# Convolution mask to make a moving average
-conv_mask = [1.0 for _ in range(0, int(GLITCH_US / SAMPLE_US)) ]
-
 remaining_data = b''
 
 if_filter = filters.low_pass(INPUT_RATE, BANDWIDTH / 2, 48)
-if_decimator = filters.decimator(INPUT_RATE // IF_RATE)
+envelope_filter = filters.low_pass(INPUT_RATE, 1000000 / GLITCH_US, 48)
 
-bgnoise = 0.66 / 128 * len(conv_mask) # 2/3 of one bit x length of moving average
+bgnoise = 0.66 / 128 # 2/3 of one bit x length of moving average
 ook_threshold_db_up = 6 # dB above background noise
 ook_threshold_db_down = 5
 ook_threshold_mul_up = 10 ** (ook_threshold_db_up / 10)
@@ -96,14 +92,12 @@ while True:
     iqdata = iqdata / 128.0
     iqdata = iqdata.view(complex)
 
-    # Filter and downsample to bandwidth of interest
+    # Filter to bandwidth of interest
     iqdata = if_filter.feed(iqdata)
-    iqdata = if_decimator.feed(iqdata)
-
     # We are only interested in absolute amplitude
     iqdata = numpy.absolute(iqdata)
-    # Moving average to detect envelope
-    iqdata = numpy.convolve(iqdata, conv_mask, 'same')
+    # Detect envelope using a low-pass filter
+    iqdata = envelope_filter.feed(iqdata)
 
     # Calculate background noise & moving average
     totenergy = numpy.sum(iqdata)
@@ -113,7 +107,7 @@ while True:
     bgnoise = bgnoise * (1.0 - weight) + avg * weight
     ook_threshold_up = bgnoise * ook_threshold_mul_up
     ook_threshold_down = bgnoise * ook_threshold_mul_down
-    print("bgnoise (bits) avg=%f now=%f" % (bgnoise * 128 / len(conv_mask), avg * 128 / len(conv_mask)))
+    print("bgnoise (bits) avg=%f now=%f" % (bgnoise * 128, avg * 128))
 
     # Detect transitions
     for sample in iqdata:
@@ -142,22 +136,6 @@ while True:
                 state = 0
         length += 1
 
-    # Filter out short transitions that must be glitches
-    i = 0
-    while i < len(samples):
-        if abs(samples[i]) <= GLITCH_US:
-            if i > 0:
-                # Add time to previous sample
-                samples[i - 1] += samples[i] * sgn(samples[i - 1])
-            del samples[i]
-            continue
-        elif i > 0 and sgn(samples[i]) == sgn(samples[i - 1]):
-            # Two samples with same sign, possibly because of glitch removal, consolidate
-            samples[i - 1] += samples[i]
-            del samples[i]
-            continue
-        i += 1
-
     # Cut signals and send to processing
     while True:
         # Detect preambles
@@ -170,8 +148,16 @@ while True:
             # Signal = samples between two preambles
             start = preambles[0] + 1
             stop = preambles[1]
-            result = ook.parse(samples[start:stop])
+            signal = samples[start:stop]
             samples = samples[stop:]
+
+            bad1 = [i for i, val in enumerate(signal) if abs(val) < TRANS_MIN_US]
+            bad2 = [i for i, val in enumerate(signal) if abs(val) > TRANS_MAX_US]
+            if bad1 or bad2:
+                # noise within signal
+                continue
+
+            result = ook.parse(signal)
 
             if result and mqtt_impl:
                 mqtt_impl.publish(MQTT_TOPIC, result)
