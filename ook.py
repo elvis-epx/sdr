@@ -82,7 +82,7 @@ class HT6P20(OOKParser):
             return False
         if (self.code & 0xf) != 0b0101:
             print(self.name, "> suffix 0101 not found")
-            self.note = "(e)"
+            return False
         return True
 
 class EV1527(OOKParser):
