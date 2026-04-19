@@ -1,0 +1,11 @@
+#!/bin/sh -x
+
+# Record and decode 10 seconds of broadcast FM.
+# Outputs mono, unfiltered audio.
+
+rtl_sdr -f 91.5M -s 256k -n 25600000 teste.iq
+cat teste.iq | ./fm1.py > teste_sdr.raw
+# Play just to make sure the sample is good
+sox -t raw -r 256000 -b 16 -c 1 -L -e signed-integer teste_sdr.raw -d rate 32000
+# Save to wav
+sox -t raw -r 256000 -b 16 -c 1 -L -e signed-integer teste_sdr.raw teste_sdr.wav
