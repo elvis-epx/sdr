@@ -1,0 +1,5 @@
+#!/bin/sh -x
+
+# Decode and play FM broadcast SDR in realtime.
+
+rtl_sdr -f 93.1M -s 256k - | ./fm1.py | ./fm_sdr.py
