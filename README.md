@@ -17,6 +17,12 @@ fastfm.pyx: FM stereo decoder with PLL written in Cython. Used by fm1s.py in
 fast mode. Compile the module with 'make' and run fm1s.py with -o if your
 machine can't decode stereo FM in realtime.
 
+fm\_rds.py: FM RDS decoder. Reads the FM baseband produced by fm1.py and prints
+the decoded RDS data: station ID (PI), program type (PTY), station name (PS),
+RadioText and clock time. Use -d for debug output. Client scripts are
+'python\_fm\_rt\_rds' (realtime) and 'python\_fm\_rds' (records a sample,
+saves the baseband to teste\_rds.raw and decodes it).
+
 filters.py: Pure Python implementations of common filters: low-band, high-band,
 passband, FM stereo deemphasis, and decimator.
 
