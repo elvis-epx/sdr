@@ -1,0 +1,5 @@
+#!/bin/bash -x
+
+# Decode and play FM broadcast RDS in realtime.
+
+rtl_sdr -f 91.5M -s 256k - | ./fm1.py | tee >(./fm_stereo.py | sox -t raw -r 32000 -b 16 -c 2 -L -e signed-integer -q - -d) | ./fm_rds.py
