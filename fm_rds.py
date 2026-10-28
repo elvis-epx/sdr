@@ -141,18 +141,23 @@ def handle_group(a, b, c, d):
 
     # Block A always contains PI (station ID)
     # Block B has group type, version, and program type (PTY)
-    if a is not None and a != pi_code:
+    if a is not None and (a != pi_code or debug_mode):
         pi_code = a
         report("PI: %04X" % pi_code)
 
     if b is None:
+        if debug_mode:
+            report("\tB is null")
         return
 
     group_type = b >> 12
     version_b = (b >> 11) & 1
     if (b >> 5) & 0x1f != pty:
         pty = (b >> 5) & 0x1f
-        report("PTY: %d (%s)" % (pty, PTY_NAMES[pty]))
+        report("\tPTY: %d (%s)" % (pty, PTY_NAMES[pty]))
+
+    if debug_mode:
+        report("\tgroup_type is %d" % group_type)
 
     if group_type == 0 and d is not None:
         # Group 0A/0B: basic info. Block D contains 2 chars of station name
@@ -161,9 +166,9 @@ def handle_group(a, b, c, d):
         station_name[segment * 2 + 1] = to_char(d & 0xff)
         if None not in station_name:
             name = ''.join(station_name)
-            if name != last_station_name:
+            if name != last_station_name or debug_mode:
                 last_station_name = name
-                report("PS: '%s'" % name)
+                report("\tPS: '%s'" % name)
 
     elif group_type == 2:
         # Group 2A: radio text, 4 chars per group (blocks C and D)
@@ -187,9 +192,9 @@ def handle_group(a, b, c, d):
         text = ''.join(radio_text).rstrip()
         if 0x0d in chars or segment == 15:
             # End of text: print it
-            if text and text != last_radio_text:
+            if text and (text != last_radio_text or debug_mode):
                 last_radio_text = text
-                report("RT: '%s'" % text)
+                report("\tRT: '%s'" % text)
 
     elif group_type == 4 and not version_b and c is not None and d is not None:
         # Group 4A: clock time and date (UTC)
@@ -206,7 +211,7 @@ def handle_group(a, b, c, d):
         k = (m == 14 or m == 15) and 1 or 0
         year = 1900 + y + k
         month = m - 1 - k * 12
-        report("CT: %04d-%02d-%02d %02d:%02d UTC, local offset %+.1fh" %
+        report("\tCT: %04d-%02d-%02d %02d:%02d UTC, local offset %+.1fh" %
             (year, month, day, hour, minute, offset / 60))
 
 
@@ -226,7 +231,7 @@ def handle_bit(bit):
         synced = True
         expected_block = BLOCK_INDEX[block_type]
         if debug_mode:
-            print("Block sync acquired", file=sys.stderr)
+            print("Block sync acquired")
     elif bits_in_block < 26:
         return
 
@@ -247,7 +252,7 @@ def handle_bit(bit):
             # Too many errors in sequence, sync probably lost
             synced = False
             if debug_mode:
-                print("Block sync lost", file=sys.stderr)
+                print("Block sync lost")
 
     if expected_block == 3:
         handle_group(*group)
@@ -294,8 +299,7 @@ def handle_chip(chip):
     if debug_mode and chip_count % (CHIPS_PER_BIT * 1000) == best_offset:
         print("pilot=%.2fHz rds_phase=%.1fº bit_offset=%d blocks=%d/%d" %
             (pll_step * INPUT_RATE / tau, rds_phase * 180 / math.pi,
-            best_offset, good_block_count, total_block_count),
-            file=sys.stderr)
+            best_offset, good_block_count, total_block_count))
 
 
 remaining_data = b''
@@ -357,5 +361,4 @@ while True:
             handle_chip(chip_sum)
             chip_sum = 0j
 
-print("RDS blocks: %d good of %d" % (good_block_count, total_block_count),
-    file=sys.stderr)
+print("RDS blocks: %d good of %d" % (good_block_count, total_block_count))
