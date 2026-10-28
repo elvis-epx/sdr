@@ -2,4 +2,4 @@
 
 # Decode and play FM broadcast RDS in realtime.
 
-rtl_sdr -f 90.3M -s 256k - | ./fm1.py | ./fm_rds.py 
+rtl_sdr -f 91.5M -s 256k - | ./fm1.py | ./fm_rds.py
