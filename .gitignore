@@ -3,7 +3,6 @@ __pycache__/
 *.c
 *.so
 build/
-fastfm.cy
 *.wav
 *.gcda
 *.gcno

@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
 # FM demodulator based on I/Q (quadrature) samples
 
-import struct, math, random, sys, numpy, filters, time
+import struct, math, sys, numpy, filters
 
-optimized = "-o" in sys.argv
 debug_mode = "-d" in sys.argv
 disable_pll = "--disable-pll" in sys.argv
-if disable_pll:
-	optimized = False
-
-if optimized:
-	import fastfm # Cython
 
 MAX_DEVIATION = 200000.0 # Hz
 INPUT_RATE = 256000
@@ -23,14 +17,25 @@ DECIMATION = INPUT_RATE / OUTPUT_RATE
 assert DECIMATION == math.floor(DECIMATION)
 
 FM_BANDWIDTH = 15000 # Hz
-STEREO_CARRIER = 38000 # Hz
+PILOT_TONE = 19000 # Hz
+STEREO_CARRIER = 2 * PILOT_TONE # 38000 Hz
 DEVIATION_X_SIGNAL = 0.999 / (math.pi * MAX_DEVIATION / (INPUT_RATE / 2))
 
-pll = math.pi - random.random() * 2 * math.pi
-last_pilot = 0.0
-deviation_avg = math.pi - random.random() * 2 * math.pi
-last_deviation_avg = deviation_avg
 tau = 2 * math.pi
+
+############ Pilot PLL state #################
+
+# Phase of our local oscillator, that should follow cos() of the pilot.
+# The 38kHz carrier is derived from twice this phase.
+pll = 0.0
+# Phase advance per sample. It is tuned by the PLL, in case the pilot
+# frequency is not exactly 19kHz (e.g. inaccuracy of SDR clock)
+pll_step = tau * PILOT_TONE / INPUT_RATE
+# PLL gains: how much a phase error corrects phase and frequency.
+# Small values = slow but stable lock.
+PLL_KP = 0.02
+PLL_KI = 0.00002
+last_pilot = 0.0
 
 # Downsample mono audio
 decimate1 = filters.decimator(DECIMATION)
@@ -50,9 +55,25 @@ hi = filters.band_pass(INPUT_RATE,
 
 # Filter to extract pilot signal
 pilot = filters.band_pass(INPUT_RATE,
-	STEREO_CARRIER / 2 - 100, STEREO_CARRIER / 2 + 100, 120)
+	PILOT_TONE - 100, PILOT_TONE + 100, 120)
 
-last_angle = 0.0
+# Each FIR filter delays the signal by half its length. The pilot filter
+# is longer than the L-R band-pass filter, so the pilot we lock onto lags
+# the L-R signal. Compensate that by advancing the carrier phase.
+# (Without this, the carrier is ~280º off, and L-R comes out very weak.)
+pilot_delay = len(pilot.coefs) // 2
+jstereo_delay = len(hi.coefs) // 2
+carrier_advance = 2 * (pilot_delay - jstereo_delay) * pll_step
+
+# Per the standard, pilot is sin(t) and the stereo carrier is sin(2t):
+# both cross zero at the same time. Our PLL follows cos() of the pilot,
+# so pll = t - 90º, and sin(2t) = sin(2.pll + 180º) = cos(2.pll + 90º)
+carrier_advance += math.pi / 2
+
+# L-R goes through the band-pass filter, L+R does not. Delay L+R by the
+# same amount, so both are aligned when we add/subtract them.
+mono_delay = numpy.zeros(jstereo_delay)
+
 remaining_data = b''
 
 while True:
@@ -100,8 +121,10 @@ while True:
 	# L+R (mono-compatible) and L-R (joint-stereo) modulated in AM-SC,
 	# carrier 38kHz
 	
-	# Downsample and low-pass L+R (mono) signal
-	output_mono = lo.feed(output_raw)
+	# Delay, downsample and low-pass L+R (mono) signal
+	delayed = numpy.concatenate((mono_delay, output_raw))
+	mono_delay = delayed[len(output_raw):]
+	output_mono = lo.feed(delayed[:len(output_raw)])
 	output_mono = decimate1.feed(output_mono)
 
 	# Filter pilot tone
@@ -110,82 +133,42 @@ while True:
 	# Separate ultrasonic L-R signal by high-pass filtering
 	output_jstereo_mod = hi.feed(output_raw)
 
-	# Demodulate L-R, which is AM-SC with 53kHz carrier
+	# Demodulate L-R, which is AM-SC with 38kHz carrier
 
-	if optimized:
-		output_jstereo, pll, STEREO_CARRIER, \
-		last_pilot, deviation_avg, last_deviation_avg = \
-			fastfm.demod_stereo(output_jstereo_mod,
-						pll,
-						STEREO_CARRIER,
-						INPUT_RATE,
-						detected_pilot,
-						last_pilot,
-						deviation_avg,
-						last_deviation_avg)
-	else:
-		output_jstereo = []
+	output_jstereo = numpy.empty(len(output_jstereo_mod))
 
-		for n in range(0, len(output_jstereo_mod)):
-			# Advance carrier
-			pll = (pll + tau * STEREO_CARRIER / INPUT_RATE) % tau
+	for n in range(0, len(output_jstereo_mod)):
+		############ Pilot PLL #################
 
-			# Standard demodulation
-			output_jstereo.append(math.cos(pll) * output_jstereo_mod[n])
+		# Detect pilot zero-crossing
+		cur_pilot = detected_pilot[n]
+		if not disable_pll and cur_pilot * last_pilot < 0:
+			# Find where, between samples, the crossing happened
+			# (linear interpolation), and our phase at that moment
+			fraction = cur_pilot / (cur_pilot - last_pilot)
+			pll_at_crossing = pll - fraction * pll_step
 
-			if disable_pll:
-				continue
-	
-			############ Carrier PLL #################
+			# cos() crosses down at 90º and crosses up at 270º (-90º)
+			ideal = cur_pilot < 0 and (math.pi / 2) or (-math.pi / 2)
 
-			# Detect pilot zero-crossing
-			cur_pilot = detected_pilot[n]
-			zero_crossed = (cur_pilot * last_pilot) <= 0
-			last_pilot = cur_pilot
-			if not zero_crossed:
-				continue
-	
-			# When pilot is at 90º or 270º, carrier should be around 180º
-			# t=0    => cos(t) = 1,  cos(2t) = 1
-			# t=π/2  => cos(t) = 0,  cos(2t) = -1
-			# t=π    => cos(t) = -1, cos(2t) = 1
-			# t=-π/2 => cos(t) = 0,  cos(2t) = -1
-			ideal = math.pi
-			deviation = pll - ideal
-			if deviation > math.pi:
-				# 350º => -10º
-				deviation -= tau
-			deviation_avg = 0.99 * deviation_avg + 0.01 * deviation
-			rotation = deviation_avg - last_deviation_avg
-			last_deviation_avg = deviation_avg
-	
-			if abs(deviation_avg) > math.pi / 8:
-				# big phase deviation, reset PLL
-				# print("Resetting PLL", file=sys.stderr)
-				pll = ideal
-				pll = (pll + tau * STEREO_CARRIER / INPUT_RATE) % tau
-				deviation_avg = 0.0
-				last_deviation_avg = 0.0
+			# Phase error, wrapped to -180º..+180º
+			error = (pll_at_crossing - ideal + math.pi) % tau - math.pi
 
-			# Translate rotation to frequency deviation e.g.
-			# cos(tau + 3.6º) = cos(1.01 * tau)
-			# cos(tau - 9º) = cos(tau * 0.975)
-                        #
-			# Overcorrect by 5% to (try to) sync phase,
-                        # otherwise only the frequency would be synced.
+			# Correct phase and frequency
+			pll -= PLL_KP * error
+			pll_step -= PLL_KI * error
+		last_pilot = cur_pilot
 
-			STEREO_CARRIER /= (1 + (rotation * 1.05) / tau)
+		############ L-R demodulation #################
 
-			'''
-			print("%d deviationavg=%f rotation=%f freq=%f" %
-				(n,
-				deviation_avg * 180 / math.pi,
-				rotation * 180 / math.pi,
-				STEREO_CARRIER),
-				file=sys.stderr)
-			time.sleep(0.05)
-			'''
-	
+		# Carrier is twice the pilot phase. Multiply by 2 because
+		# cos(x) * cos(x) = 1/2 + cos(2x)/2, so we get (L-R)/2 otherwise.
+		output_jstereo[n] = 2 * math.cos(2 * pll + carrier_advance) \
+			* output_jstereo_mod[n]
+
+		# Advance oscillator
+		pll = (pll + pll_step) % tau
+
 	# Downsample, Low-pass/deemphasis demodulated L-R
 	output_jstereo = lo_r.feed(output_jstereo)
 	output_jstereo = decimate2.feed(output_jstereo)
